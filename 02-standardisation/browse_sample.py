@@ -31,6 +31,14 @@ def pretty_print_sample(sample: dict, sample_idx: int = 0, total_samples: int = 
         print(f"   {sample['system_prompt']['content']}")
         if sample['system_prompt'].get('metadata'):
             print(f"   Metadata: {len(sample['system_prompt']['metadata'])} fields")
+            def print_nested_dict(d, indent="     "):
+                for key, value in d.items():
+                    if isinstance(value, dict):
+                        print(f"{indent}{key}:")
+                        print_nested_dict(value, indent + "  ")
+                    else:
+                        print(f"{indent}{key}: {value}")
+            print_nested_dict(sample['system_prompt']['metadata'])
     
     # Initial prompt
     if 'initial_prompt' in sample:
@@ -38,6 +46,14 @@ def pretty_print_sample(sample: dict, sample_idx: int = 0, total_samples: int = 
         print(f"   {sample['initial_prompt']['content']}")
         if sample['initial_prompt'].get('metadata'):
             print(f"   Metadata: {len(sample['initial_prompt']['metadata'])} fields")
+            def print_nested_dict(d, indent="     "):
+                for key, value in d.items():
+                    if isinstance(value, dict):
+                        print(f"{indent}{key}:")
+                        print_nested_dict(value, indent + "  ")
+                    else:
+                        print(f"{indent}{key}: {value}")
+            print_nested_dict(sample['initial_prompt']['metadata'])
     
     # Conversation branches  
     branches = sample.get('conversation_branches', [])
@@ -52,6 +68,14 @@ def pretty_print_sample(sample: dict, sample_idx: int = 0, total_samples: int = 
             
             if msg.get('metadata'):
                 print(f"       Metadata: {len(msg['metadata'])} fields")
+                def print_nested_dict(d, indent="         "):
+                    for key, value in d.items():
+                        if isinstance(value, dict):
+                            print(f"{indent}{key}:")
+                            print_nested_dict(value, indent + "  ")
+                        else:
+                            print(f"{indent}{key}: {value}")
+                print_nested_dict(msg['metadata'])
     
     # Original metadata
     if 'original_metadata' in sample and sample['original_metadata']:

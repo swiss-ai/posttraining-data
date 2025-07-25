@@ -387,13 +387,12 @@ def get_converter(dataset_name: str):
     return CONVERTERS.get(dataset_name)
 
 
-def convert_dataset_streaming(dataset, converter, dataset_source: str, output_path: Path, chunk_size: int = 100000):
-    """Convert dataset using streaming approach with direct-to-disk Arrow format."""
+def convert_and_save_large_split(dataset, converter, dataset_source: str, output_path: Path, split_name: str, input_path: Path, chunk_size: int = 100000):
+    """Convert and save large split directly to avoid memory issues."""
     import tempfile
     import gc
+    import json
     from datasets import Dataset
-    import pyarrow as pa
-    import pyarrow.parquet as pq
     
     def convert_row(row, idx):
         try:
@@ -402,17 +401,17 @@ def convert_dataset_streaming(dataset, converter, dataset_source: str, output_pa
             tqdm.write(f"Warning: Failed to convert row {idx}: {e}")
             return None
     
-    print(f"Converting rows in chunks of {chunk_size:,} using streaming approach...")
+    print(f"Converting large split '{split_name}' directly to disk in chunks of {chunk_size:,}...")
     failed_count = 0
     successful_count = 0
     total_rows = len(dataset)
     
-    # Create temporary directory for parquet files
+    # Create temporary directory for chunk datasets
     temp_dir = tempfile.mkdtemp(prefix="dataset_conversion_")
-    parquet_files = []
+    chunk_datasets = []
     
     try:
-        # Process dataset in chunks and save each chunk as parquet
+        # Process dataset in chunks and create mini-datasets
         with tqdm(total=total_rows, desc="Converting", unit="rows") as pbar:
             for chunk_idx, chunk_start in enumerate(range(0, total_rows, chunk_size)):
                 chunk_end = min(chunk_start + chunk_size, total_rows)
@@ -433,12 +432,12 @@ def convert_dataset_streaming(dataset, converter, dataset_source: str, output_pa
                     if failed_count > 0:
                         pbar.set_postfix(failed=failed_count)
                 
-                # Save chunk as parquet file if we have data
+                # Create chunk dataset and save it
                 if chunk_rows:
                     chunk_dataset = Dataset.from_list(chunk_rows)
-                    chunk_file = Path(temp_dir) / f"chunk_{chunk_idx:04d}.parquet"
-                    chunk_dataset.to_parquet(str(chunk_file))
-                    parquet_files.append(chunk_file)
+                    chunk_dir = Path(temp_dir) / f"chunk_{chunk_idx:04d}"
+                    chunk_dataset.save_to_disk(str(chunk_dir))
+                    chunk_datasets.append(chunk_dir)
                     
                     # Clear chunk from memory immediately
                     del chunk_dataset, chunk_rows
@@ -446,33 +445,137 @@ def convert_dataset_streaming(dataset, converter, dataset_source: str, output_pa
         
         print(f"Conversion complete: {successful_count} successful, {failed_count} failed")
         
-        if not parquet_files:
+        if not chunk_datasets:
             print("No data converted successfully")
-            return Dataset.from_list([])
+            return
         
-        # Combine parquet files into single dataset using concatenation
-        print("Combining chunk files into final dataset...")
+        # Combine chunk datasets using concatenate_datasets
+        print("Combining chunk datasets...")
         
-        # Load and concatenate datasets from parquet files
-        chunk_datasets = []
-        for parquet_file in parquet_files:
-            chunk_ds = Dataset.from_parquet(str(parquet_file))
-            chunk_datasets.append(chunk_ds)
-            
-        # Use datasets.concatenate_datasets for memory-efficient combination
+        # Load chunks and concatenate
+        datasets_to_concat = []
+        for chunk_dir in chunk_datasets:
+            chunk_ds = Dataset.from_dict({})  # Start with empty
+            loaded_chunk = Dataset.load_from_disk(str(chunk_dir))
+            datasets_to_concat.append(loaded_chunk)
+        
+        # Use concatenate_datasets for memory efficiency
         from datasets import concatenate_datasets
-        final_dataset = concatenate_datasets(chunk_datasets)
+        final_dataset = concatenate_datasets(datasets_to_concat)
         
-        # Clean up chunk datasets from memory
-        del chunk_datasets
+        # Clear chunk datasets from memory
+        del datasets_to_concat
         gc.collect()
         
-        return final_dataset
+        # Save final dataset directly
+        print(f"Saving final dataset to {output_path}...")
+        output_path.mkdir(parents=True, exist_ok=True)
+        final_dataset.save_to_disk(str(output_path))
+        
+        # Save metadata
+        save_dataset_and_metadata_for_split(final_dataset, output_path, dataset_source, input_path, split_name)
+        
+        return len(final_dataset)
         
     finally:
         # Clean up temporary directory
         import shutil
         shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+def save_dataset_and_metadata_for_split(dataset, output_path: Path, dataset_name: str, input_path: Path, split_name: str):
+    """Save metadata for individual split processing."""
+    # Load or create metadata
+    metadata = load_existing_metadata(input_path) or {}
+    
+    # Add processing log entry
+    processing_entry = {
+        "operation": "standardisation",
+        "script": "convert_to_chat_format.py",
+        "timestamp": datetime.now().isoformat(),
+        "input_path": str(input_path),
+        "output_path": str(output_path),
+        "samples_processed": len(dataset),
+        "conversion_success": True,
+        "target_schema": "chat_format_v1.0",
+        "split_name": split_name,
+        "processing_method": "split_by_split_large"
+    }
+    
+    if "processing_log" not in metadata:
+        metadata["processing_log"] = []
+    metadata["processing_log"].append(processing_entry)
+    
+    # Save updated metadata
+    metadata_file = output_path / "dataset_metadata.json"
+    with open(metadata_file, 'w') as f:
+        json.dump(metadata, f, indent=2)
+    print(f"Metadata saved to {metadata_file}")
+
+
+def convert_dataset_streaming(dataset, converter, dataset_source: str, output_path: Path, chunk_size: int = 100000):
+    """Convert dataset using streaming approach with direct concatenation."""
+    import gc
+    from datasets import Dataset, concatenate_datasets
+    
+    def convert_row(row, idx):
+        try:
+            return converter(row, dataset_source)
+        except Exception as e:
+            tqdm.write(f"Warning: Failed to convert row {idx}: {e}")
+            return None
+    
+    print(f"Converting rows in chunks of {chunk_size:,} using streaming approach...")
+    failed_count = 0
+    successful_count = 0
+    total_rows = len(dataset)
+    
+    chunk_datasets = []
+    
+    # Process dataset in chunks and create mini-datasets
+    with tqdm(total=total_rows, desc="Converting", unit="rows") as pbar:
+        for chunk_start in range(0, total_rows, chunk_size):
+            chunk_end = min(chunk_start + chunk_size, total_rows)
+            chunk_rows = []
+            
+            # Process chunk
+            for idx in range(chunk_start, chunk_end):
+                row = dataset[idx]
+                converted_row = convert_row(row, idx)
+                if converted_row:
+                    chunk_rows.append(converted_row)
+                    successful_count += 1
+                else:
+                    failed_count += 1
+                
+                # Update progress bar
+                pbar.update(1)
+                if failed_count > 0:
+                    pbar.set_postfix(failed=failed_count)
+            
+            # Create chunk dataset
+            if chunk_rows:
+                chunk_dataset = Dataset.from_list(chunk_rows)
+                chunk_datasets.append(chunk_dataset)
+                
+                # Clear chunk rows from memory
+                del chunk_rows
+                gc.collect()
+    
+    print(f"Conversion complete: {successful_count} successful, {failed_count} failed")
+    
+    if not chunk_datasets:
+        return Dataset.from_list([])
+    
+    # Combine using concatenate_datasets
+    print("Combining chunk datasets...")
+    final_dataset = concatenate_datasets(chunk_datasets)
+    
+    # Clear chunk datasets from memory
+    del chunk_datasets
+    gc.collect()
+    
+    return final_dataset
 
 
 def convert_dataset(dataset, converter, dataset_source: str, chunk_size: int = 100000):
@@ -693,12 +796,33 @@ def main():
                 input_dataset = dataset[split_name]
                 print(f"Split '{split_name}' has {len(input_dataset)} samples")
                 
-                # Convert this split
+                # Convert this split - use split-by-split for very large splits
                 try:
-                    converted_dataset = convert_dataset(input_dataset, converter, dataset_name, args.chunk_size)
-                    converted_splits[split_name] = converted_dataset
-                    total_samples_processed += len(converted_dataset)
-                    print(f"✅ Split '{split_name}' converted: {len(converted_dataset)} samples")
+                    # For very large splits (>1M samples), process individually
+                    if len(input_dataset) > 1000000:
+                        print(f"Large split detected ({len(input_dataset):,} samples) - processing individually")
+                        split_output_path = determine_output_path(args.output_path, dataset_name, split_name)
+                        
+                        converted_count = convert_and_save_large_split(
+                            input_dataset, converter, dataset_name, 
+                            split_output_path, split_name, input_path, args.chunk_size
+                        )
+                        
+                        if converted_count:
+                            total_samples_processed += converted_count
+                            print(f"✅ Split '{split_name}' converted and saved individually: {converted_count} samples")
+                            print(f"   Output: {split_output_path}")
+                        else:
+                            print(f"❌ Split '{split_name}' conversion failed")
+                        
+                        # Don't add to converted_splits since it's saved individually
+                        continue
+                    else:
+                        # Regular processing for smaller splits
+                        converted_dataset = convert_dataset(input_dataset, converter, dataset_name, args.chunk_size)
+                        converted_splits[split_name] = converted_dataset
+                        total_samples_processed += len(converted_dataset)
+                        print(f"✅ Split '{split_name}' converted: {len(converted_dataset)} samples")
                 except Exception as e:
                     print(f"Error converting split '{split_name}': {e}")
                     continue
