@@ -387,8 +387,13 @@ def get_converter(dataset_name: str):
     return CONVERTERS.get(dataset_name)
 
 
-def convert_dataset(dataset, converter, dataset_source: str):
-    """Convert entire dataset using specified converter."""
+def convert_dataset_streaming(dataset, converter, dataset_source: str, output_path: Path, chunk_size: int = 100000):
+    """Convert dataset using streaming approach with direct-to-disk Arrow format."""
+    import tempfile
+    import gc
+    from datasets import Dataset
+    import pyarrow as pa
+    import pyarrow.parquet as pq
     
     def convert_row(row, idx):
         try:
@@ -397,24 +402,125 @@ def convert_dataset(dataset, converter, dataset_source: str):
             tqdm.write(f"Warning: Failed to convert row {idx}: {e}")
             return None
     
-    # Convert dataset and filter out failed conversions
-    print("Converting rows...")
+    print(f"Converting rows in chunks of {chunk_size:,} using streaming approach...")
+    failed_count = 0
+    successful_count = 0
+    total_rows = len(dataset)
+    
+    # Create temporary directory for parquet files
+    temp_dir = tempfile.mkdtemp(prefix="dataset_conversion_")
+    parquet_files = []
+    
+    try:
+        # Process dataset in chunks and save each chunk as parquet
+        with tqdm(total=total_rows, desc="Converting", unit="rows") as pbar:
+            for chunk_idx, chunk_start in enumerate(range(0, total_rows, chunk_size)):
+                chunk_end = min(chunk_start + chunk_size, total_rows)
+                chunk_rows = []
+                
+                # Process chunk
+                for idx in range(chunk_start, chunk_end):
+                    row = dataset[idx]
+                    converted_row = convert_row(row, idx)
+                    if converted_row:
+                        chunk_rows.append(converted_row)
+                        successful_count += 1
+                    else:
+                        failed_count += 1
+                    
+                    # Update progress bar
+                    pbar.update(1)
+                    if failed_count > 0:
+                        pbar.set_postfix(failed=failed_count)
+                
+                # Save chunk as parquet file if we have data
+                if chunk_rows:
+                    chunk_dataset = Dataset.from_list(chunk_rows)
+                    chunk_file = Path(temp_dir) / f"chunk_{chunk_idx:04d}.parquet"
+                    chunk_dataset.to_parquet(str(chunk_file))
+                    parquet_files.append(chunk_file)
+                    
+                    # Clear chunk from memory immediately
+                    del chunk_dataset, chunk_rows
+                    gc.collect()
+        
+        print(f"Conversion complete: {successful_count} successful, {failed_count} failed")
+        
+        if not parquet_files:
+            print("No data converted successfully")
+            return Dataset.from_list([])
+        
+        # Combine parquet files into single dataset using concatenation
+        print("Combining chunk files into final dataset...")
+        
+        # Load and concatenate datasets from parquet files
+        chunk_datasets = []
+        for parquet_file in parquet_files:
+            chunk_ds = Dataset.from_parquet(str(parquet_file))
+            chunk_datasets.append(chunk_ds)
+            
+        # Use datasets.concatenate_datasets for memory-efficient combination
+        from datasets import concatenate_datasets
+        final_dataset = concatenate_datasets(chunk_datasets)
+        
+        # Clean up chunk datasets from memory
+        del chunk_datasets
+        gc.collect()
+        
+        return final_dataset
+        
+    finally:
+        # Clean up temporary directory
+        import shutil
+        shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+def convert_dataset(dataset, converter, dataset_source: str, chunk_size: int = 100000):
+    """Convert entire dataset using specified converter with memory-efficient chunking."""
+    
+    def convert_row(row, idx):
+        try:
+            return converter(row, dataset_source)
+        except Exception as e:
+            tqdm.write(f"Warning: Failed to convert row {idx}: {e}")
+            return None
+    
+    # For very large datasets (>500k samples), use streaming approach
+    if len(dataset) > 500000:
+        return convert_dataset_streaming(dataset, converter, dataset_source, None, chunk_size)
+    
+    # Convert dataset in chunks to manage memory
+    print(f"Converting rows in chunks of {chunk_size:,}...")
     converted_rows = []
     failed_count = 0
+    total_rows = len(dataset)
     
     # Use tqdm for progress bar
-    with tqdm(total=len(dataset), desc="Converting", unit="rows") as pbar:
-        for idx, row in enumerate(dataset):
-            converted_row = convert_row(row, idx)
-            if converted_row:
-                converted_rows.append(converted_row)
-            else:
-                failed_count += 1
+    with tqdm(total=total_rows, desc="Converting", unit="rows") as pbar:
+        for chunk_start in range(0, total_rows, chunk_size):
+            chunk_end = min(chunk_start + chunk_size, total_rows)
+            chunk_rows = []
             
-            # Update progress bar
-            pbar.update(1)
-            if failed_count > 0:
-                pbar.set_postfix(failed=failed_count)
+            # Process chunk
+            for idx in range(chunk_start, chunk_end):
+                row = dataset[idx]
+                converted_row = convert_row(row, idx)
+                if converted_row:
+                    chunk_rows.append(converted_row)
+                else:
+                    failed_count += 1
+                
+                # Update progress bar
+                pbar.update(1)
+                if failed_count > 0:
+                    pbar.set_postfix(failed=failed_count)
+            
+            # Add chunk to results
+            converted_rows.extend(chunk_rows)
+            
+            # Force garbage collection after each chunk
+            import gc
+            gc.collect()
     
     print(f"Conversion complete: {len(converted_rows)} successful, {failed_count} failed")
     
@@ -499,7 +605,8 @@ def parse_arguments():
 Examples:
   python convert_to_chat_format.py ../data/01-hf-data/smoltalk ../data/02-standardised/smoltalk
   python convert_to_chat_format.py ../data/01-hf-data/tulu-3-sft-mixture ../data/02-standardised/
-  python convert_to_chat_format.py ../data/01-hf-data/The-Tome ../data/02-standardised/The-Tome
+  python convert_to_chat_format.py ../data/01-hf-data/The-Tome ../data/02-standardised/The-Tome --chunk-size 50000
+  python convert_to_chat_format.py ../data/01-hf-data/smoltalk2 ../data/02-standardised/ --splits "train,test"
         """
     )
     
@@ -510,6 +617,17 @@ Examples:
     parser.add_argument(
         "output_path", 
         help="Path for output dataset (directory name or parent directory)"
+    )
+    parser.add_argument(
+        "--chunk-size",
+        type=int,
+        default=100000,
+        help="Number of rows to process in each chunk for memory efficiency (default: 100000)"
+    )
+    parser.add_argument(
+        "--splits",
+        type=str,
+        help="Comma-separated list of specific splits to process (e.g., 'train,test'). If not specified, all splits are processed."
     )
     
     return parser.parse_args()
@@ -547,10 +665,27 @@ def main():
             available_splits = list(dataset.keys())
             print(f"Found DatasetDict with {len(available_splits)} splits: {available_splits}")
             
+            # Filter splits if specified
+            if args.splits:
+                requested_splits = [s.strip() for s in args.splits.split(',')]
+                splits_to_process = [s for s in requested_splits if s in available_splits]
+                missing_splits = [s for s in requested_splits if s not in available_splits]
+                
+                if missing_splits:
+                    print(f"Warning: Requested splits not found: {missing_splits}")
+                if not splits_to_process:
+                    print(f"Error: None of the requested splits found in dataset")
+                    sys.exit(1)
+                
+                print(f"Processing requested splits: {splits_to_process}")
+            else:
+                splits_to_process = available_splits
+                print(f"Processing all splits: {splits_to_process}")
+            
             converted_splits = {}
             total_samples_processed = 0
             
-            for split_name in available_splits:
+            for split_name in splits_to_process:
                 print(f"\n{'='*60}")
                 print(f"Processing split: {split_name}")
                 print('='*60)
@@ -560,7 +695,7 @@ def main():
                 
                 # Convert this split
                 try:
-                    converted_dataset = convert_dataset(input_dataset, converter, dataset_name)
+                    converted_dataset = convert_dataset(input_dataset, converter, dataset_name, args.chunk_size)
                     converted_splits[split_name] = converted_dataset
                     total_samples_processed += len(converted_dataset)
                     print(f"✅ Split '{split_name}' converted: {len(converted_dataset)} samples")
@@ -601,7 +736,7 @@ def main():
             
             # Convert dataset
             try:
-                converted_dataset = convert_dataset(input_dataset, converter, dataset_name)
+                converted_dataset = convert_dataset(input_dataset, converter, dataset_name, args.chunk_size)
             except Exception as e:
                 print(f"Error during conversion: {e}")
                 sys.exit(1)
