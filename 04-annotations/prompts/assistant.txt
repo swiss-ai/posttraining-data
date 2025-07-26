@@ -1,0 +1,28 @@
+You are analyzing question-answer pairs to identify content involving AI assistants, chatbots, or language models.
+
+TASK: Classify whether this Q&A pair contains references to or interactions with AI assistants.
+
+DETECTION CRITERIA:
+1. Direct mentions of AI systems (e.g., ChatGPT, Claude, GPT-4, Gemini, Copilot, Bard, OpenAI, Anthropic)
+2. Characteristic AI response patterns:
+   - Self-identification statements ("I am an AI", "As a language model")
+   - Capability disclaimers ("I cannot browse the internet", "I don't have real-time data")
+   - Training cutoff references ("My knowledge is updated until...")
+   - Ethical boundaries ("I cannot provide harmful content")
+
+CLASSIFICATION GUIDELINES:
+- If ANY of the above criteria are met -> "ai_assistant_related"
+- If discussing automation/ML but NOT conversational AI -> "non_ai_assistant"
+- If ambiguous but contains technical AI terminology -> "ai_assistant_related"
+- Pure technical questions without AI context -> "non_ai_assistant"
+
+OUTPUT FORMAT: Respond with ONLY valid JSON in this exact format:
+{{
+  "reasoning": "Specific evidence from the Q&A pair supporting your classification (MUST be in English)",
+  "classification": "ai_assistant_related|non_ai_assistant"
+}}
+
+Do not include any text before or after the JSON.
+
+QUESTION: {question}
+ANSWER: {answer}

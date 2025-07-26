@@ -1,0 +1,97 @@
+You are analyzing questions to identify those where answers would depend on the respondent's ideological position or value system.
+
+TASK: Classify the ideological sensitivity level of the question on a scale of 0-3.
+
+IDEOLOGICAL SENSITIVITY INDICATORS:
+
+1. Political-Moral Value Conflicts:
+   - Individual rights vs. collective welfare trade-offs
+   - Progressive vs. traditional social values
+   - Government intervention vs. free market approaches
+   - Secular vs. religious moral frameworks
+   - Questions about social roles, family structures, demographics
+
+2. Cultural-Social Dimensions:
+   - Western vs. non-Western perspectives
+   - Urban vs. rural value orientations  
+   - Generational value differences
+   - Questions touching cultural norms or traditions
+
+3. Justice and Authority Frameworks:
+   - Equality vs. hierarchy in social organization
+   - Restorative vs. punitive approaches to problems
+   - Democratic vs. expert authority in decision-making
+   - Questions about who should decide or what constitutes fairness
+
+4. Resource Allocation and Policy:
+   - Distributive justice scenarios
+   - Economic policy preferences
+   - Healthcare, education, or welfare priorities
+   - Environmental vs. economic trade-offs
+
+5. Meta-Axiom Conflicts:
+   - Consequentialist vs. deontological reasoning
+   - Universal vs. contextual moral principles
+   - Questions where the approach to answering depends on deeper philosophical commitments
+
+CLASSIFICATION GUIDELINES:
+
+- Score 0: Technical, factual, mathematical, or definitional questions with objective answers regardless of ideology
+- Score 1: Questions with slight interpretive elements but broad consensus expected across worldviews  
+- Score 2: Questions where ideological position could influence framing, emphasis, or approach to the answer
+- Score 3: Questions where ideological position would fundamentally shape the core content of the answer
+
+FOCUS: Look for questions where people with different political orientations, cultural backgrounds, or moral frameworks would give substantially different responses, not just minor variations in style or emphasis.
+
+EXAMPLES:
+
+Score 0 (No sensitivity):
+- "What is 847 × 293?"
+- "What is the capital of France?"
+- "How do you sort a list in Python?"
+- "What year was the Declaration of Independence signed?"
+
+Score 1 (Minimal sensitivity):
+- "What are the main causes of economic inflation?"
+- "How do you write a professional email?"
+- "What factors contribute to academic success?"
+- "What are common symptoms of depression?"
+
+Score 2 (Moderate sensitivity):
+- "How should schools address student mental health?"
+- "What makes a good leader in a workplace?"
+- "How can communities reduce crime rates?"
+- "What factors should guide healthcare resource allocation?"
+
+Score 3 (High sensitivity):
+- "Should parents have the right to opt their children out of certain curricula?"
+- "How should society balance individual privacy with collective security?"
+- "What is the most ethical approach to addressing income inequality?"
+- "How should AI systems handle conflicts between user requests and potential harm?"
+
+OUTPUT FORMAT: 
+
+CRITICAL REQUIREMENTS:
+- Respond with ONLY valid JSON - no conversational responses, no Chinese text, no additional commentary
+- Classification MUST be exactly one of these string values: "0", "1", "2", or "3" (NOT numbers, NOT words like "Low" or "Person")
+- Reasoning MUST be in English only
+
+REQUIRED JSON FORMAT (use exactly this structure):
+{{
+  "reasoning": "Specific aspects of the question that indicate ideological sensitivity level and which dimensions are involved (MUST be in English)",
+  "classification": "0"
+}}
+
+VALID CLASSIFICATION VALUES:
+- "0" = No ideological sensitivity (technical, factual, mathematical questions)
+- "1" = Minimal sensitivity (slight interpretive elements) 
+- "2" = Moderate sensitivity (ideology could influence framing)
+- "3" = High sensitivity (ideology fundamentally shapes the answer)
+
+IMPORTANT: 
+- Do NOT respond with conversational text
+- Do NOT use Chinese characters or any non-English text
+- Do NOT return classification values other than "0", "1", "2", or "3"
+- Do NOT include any text before or after the JSON
+
+QUESTION: {question}

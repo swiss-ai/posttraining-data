@@ -1,0 +1,82 @@
+You are analyzing questions/prompts to assess their quality for supervised fine-tuning datasets.
+
+TASK: Evaluate the quality of this question across four dimensions using a 3-point scale.
+
+IMPORTANT: Focus ONLY on the structural and technical quality of the question itself. Do NOT consider:
+- Whether the topic is controversial, sensitive, or potentially harmful
+- Your personal or societal views on the subject matter
+- The appropriateness or ethics of the request
+- Whether you would personally want to answer the question
+
+This assessment is purely about question structure and clarity, not content judgment.
+
+EVALUATION DIMENSIONS:
+
+1. WELL-FORMEDNESS: Is this a coherent request that a human would reasonably make?
+   Focus on: Grammar, sentence structure, logical coherence. Ignore topic sensitivity.
+   - Score 1 (Poor): Nonsensical, incoherent, or bizarre beyond reasonable human communication
+     Example: "Transform my Tuesday into a blue mathematical equation that tastes like my grandmother's forgotten memories of next week's weather."
+   - Score 2 (Moderate): Somewhat unusual or unconventional but still represents a legitimate request
+     Example: "Pretend you're a medieval knight writing a Yelp review for a modern coffee shop."
+   - Score 3 (Good): Natural, coherent request that people would commonly make
+     Example: "Can you help me write a professional email to request a meeting with my manager?"
+
+2. CLARITY OF INTENT: Can anyone understand what's being asked?
+   Focus on: Specificity, unambiguous wording, clear communication. Ignore whether the request is appropriate.
+   - Score 1 (Poor): Very unclear, ambiguous, or confusing about what's wanted
+     Example: "Do something with those things we talked about before regarding the situation."
+   - Score 2 (Moderate): Somewhat unclear but general intent can be understood
+     Example: "Help me make my presentation better"
+   - Score 3 (Good): Clear and unambiguous about what's being requested
+     Example: "Help me create an outline for a 10-minute presentation about renewable energy for my environmental science class."
+
+3. ANSWERABLE SCOPE: Can this be reasonably answered in general?
+   Focus on: Information availability, technical feasibility. Ignore whether the answer might be harmful.
+   - Score 1 (Poor): Asks for unknowable, private, or impossible-to-access information
+     Example: "What were Einstein's private thoughts about his marriage while he was developing relativity theory?"
+   - Score 2 (Moderate): Challenging to answer but within the realm of possibility
+     Example: "What will be the most important technological breakthrough in the next 50 years?"
+   - Score 3 (Good): Clearly answerable with available knowledge or established methods
+     Example: "What are the main differences between solar and wind energy in terms of cost and efficiency?"
+
+4. COMPLETENESS: Does the prompt provide sufficient context to generate a meaningful response?
+   Focus on: Necessary details, sufficient context. Ignore whether you approve of the intended use.
+   - Score 1 (Poor): Missing critical information needed to provide a meaningful response
+     Example: "Fix my code"
+   - Score 2 (Moderate): Has most necessary information but some gaps
+     Example: "Help me plan a vacation to Europe"
+   - Score 3 (Good): Provides sufficient context and details
+     Example: "Help me plan a 10-day vacation to Italy in September for two people with a $3000 budget, focusing on art, food, and avoiding crowded tourist spots."
+
+SCORING GUIDELINES:
+- Evaluate each dimension independently
+- Use the full 1-3 range when appropriate
+- Focus on observable characteristics, not content preferences
+- Consider what information is actually needed vs. what would be nice to have
+- CRITICAL: Separate technical question quality from content appropriateness
+- A well-structured question about a controversial topic should still score high on technical dimensions
+- Only score low if the question itself is structurally flawed, unclear, or incomplete
+
+OUTPUT FORMAT: Respond with ONLY valid JSON in this exact format:
+{{
+  "well_formedness": {{
+    "reasoning": "Brief explanation for this score",
+    "score": 1|2|3
+  }},
+  "clarity_of_intent": {{
+    "reasoning": "Brief explanation for this score",
+    "score": 1|2|3
+  }},
+  "answerable_scope": {{
+    "reasoning": "Brief explanation for this score",
+    "score": 1|2|3
+  }},
+  "completeness": {{
+    "reasoning": "Brief explanation for this score",
+    "score": 1|2|3
+  }}
+}}
+
+Do not include any text before or after the JSON.
+
+QUESTION: {question}

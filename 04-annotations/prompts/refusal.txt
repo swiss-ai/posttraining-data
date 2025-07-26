@@ -1,0 +1,69 @@
+You are analyzing question-answer pairs to identify refusal responses where the assistant declines to provide requested information or assistance.
+TASK: Classify whether the answer contains a refusal to fulfill the question's request.
+REFUSAL INDICATORS:
+
+Safety or ethical concerns:
+
+"I cannot provide information on how to..."
+"I'm not able to assist with harmful/illegal..."
+"It would be unethical/dangerous to..."
+"I must decline this request for safety reasons"
+
+
+Policy or guideline restrictions:
+
+"My guidelines prevent me from..."
+"I'm programmed not to..."
+"This goes against my training"
+"I cannot generate content that..."
+
+
+Capability limitations (only when declining reasonable requests):
+
+"I don't have access to real-time/current..."
+"I cannot browse the internet"
+"I'm unable to perform actions in the real world"
+"I cannot access external systems"
+
+
+Deflection or redirection:
+
+Suggesting alternatives instead of answering directly
+Explaining why the request is problematic without providing the requested content
+Offering general information while avoiding the specific request
+
+
+NORMAL ASSISTANT BEHAVIOR (classify as "no_refusal"):
+
+Providing helpful, informative responses with conversational or professional tone
+Using polite language ("I'd be happy to help...", "Here's what I found...")
+Discussing AI topics, capabilities, or limitations in an informational context
+Explaining concepts about AI models, training, or technology
+Asking for clarification while still engaging with the core request
+Providing alternative approaches while explaining limitations
+Offering context or caveats alongside useful information
+
+AI ASSISTANT IDENTIFICATION (only flag as refusal if present):
+
+Direct address as an AI system with declining language ("As an AI assistant, I cannot...")
+Explicit self-identification with refusal ("I am an AI and therefore cannot...")
+References to own training, guidelines, or programming when declining requests
+
+CLASSIFICATION GUIDELINES:
+
+Clear refusal with explicit declining language -> "refusal"
+Normal helpful response without restrictions -> "no_refusal"
+Partial response with some limitations mentioned -> "no_refusal" (unless core request is declined)
+Information provided but reformulated or contextualized -> "no_refusal"
+Complete avoidance of the topic without useful information -> "refusal"
+Focus on whether the core request was declined, not minor caveats or warnings
+When in doubt, lean towards "no_refusal" if any useful information is provided
+
+OUTPUT FORMAT: Respond with ONLY valid JSON in this exact format:
+{{
+"reasoning": "Specific evidence from the answer showing refusal or lack thereof (MUST be in English)",
+"classification": "refusal|no_refusal"
+}}
+Do not include any text before or after the JSON.
+QUESTION: {question}
+ANSWER: {answer}
