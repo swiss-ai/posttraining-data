@@ -17,6 +17,10 @@ from datasets import load_from_disk, Dataset, DatasetDict
 from tqdm import tqdm
 
 
+# Default number of top values to display in field statistics
+DEFAULT_TOP_VALUES = 100
+
+
 def get_nested_value(obj: Dict[str, Any], field_path: str) -> Any:
     """
     Get value from nested dictionary using dot notation.
@@ -130,7 +134,7 @@ def display_schema(analysis: Dict[str, Any]):
         print(f"  {field_path:<50} {', '.join(types):<20} ({non_null_count:,} non-null)")
 
 
-def display_field_stats(analysis: Dict[str, Any], field_path: str, top_values: int = 10):
+def display_field_stats(analysis: Dict[str, Any], field_path: str, top_values: int = DEFAULT_TOP_VALUES):
     """Display statistics for a specific field."""
     if field_path not in analysis['field_counts']:
         print(f"Error: Field '{field_path}' not found in dataset")
@@ -162,7 +166,7 @@ def display_field_stats(analysis: Dict[str, Any], field_path: str, top_values: i
         print(f"  {display_value:<50} {count:>8,} ({percentage:5.1f}%)")
 
 
-def display_field_analysis(analysis: Dict[str, Any], top_values: int = 10):
+def display_field_analysis(analysis: Dict[str, Any], top_values: int = DEFAULT_TOP_VALUES):
     """Display full field analysis results (legacy function for backward compatibility)."""
     print(f"\n{'='*80}")
     print(f"FIELD ANALYSIS RESULTS")
@@ -297,8 +301,8 @@ Examples:
     parser.add_argument(
         "--top-values",
         type=int,
-        default=10,
-        help="Number of top values to display per field (default: 10)"
+        default=DEFAULT_TOP_VALUES,
+        help=f"Number of top values to display per field (default: {DEFAULT_TOP_VALUES})"
     )
     
     # Filtering options
