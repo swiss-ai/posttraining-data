@@ -2,4 +2,7 @@ old_codebase_read_only/
 venv/
 data/
 claude/
-CLAUDE.md04-annotations/models/*.bin
+CLAUDE.md
+__pycache__/
+04-annotations/__pycache__/
+04-annotations/models/
