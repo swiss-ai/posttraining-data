@@ -188,7 +188,8 @@ def apply_classification_results(tasks: List[Dict[str, Any]], results: List[Any]
 
 
 async def classify_dataset(input_path: Path, output_path: Path, model: str, 
-                         concurrent: int = 50, chunk_size: int = 10000, resume: bool = False, restart: bool = False):
+                         concurrent: int = 50, chunk_size: int = 10000, resume: bool = False, restart: bool = False,
+                         disable_adaptive: bool = False):
     """
     Classify refusal responses in a chat format dataset.
     
@@ -196,8 +197,9 @@ async def classify_dataset(input_path: Path, output_path: Path, model: str,
         input_path: Path to input dataset
         output_path: Path to output dataset
         model: Model to use for classification
-        concurrent: Number of concurrent requests
+        concurrent: Starting number of concurrent requests
         chunk_size: Number of samples to process per chunk
+        disable_adaptive: Disable adaptive concurrency (use fixed concurrency)
     """
     # Load dataset
     print(f"Loading dataset from: {input_path}")
@@ -224,6 +226,13 @@ async def classify_dataset(input_path: Path, output_path: Path, model: str,
         raise ValueError("SWISSAI_API or SWISSAI_API_KEY environment variable is required")
     
     classifier = LLMClassifier(api_key, model)
+    
+    # Enable adaptive concurrency by default (unless disabled)
+    if not disable_adaptive:
+        classifier.enable_adaptive_concurrency()
+        print(f"🔄 Adaptive concurrency enabled")
+    else:
+        print(f"⚡ Fixed concurrency mode: {concurrent} requests")
     
     # Load prompt template
     prompt_template_path = Path(__file__).parent / "prompts" / "refusal.txt"
@@ -366,6 +375,7 @@ async def classify_dataset(input_path: Path, output_path: Path, model: str,
         "classification_failed": failed_classifications,
         "total_tokens_used": classifier.total_tokens_used,
         "concurrent": concurrent,
+        "adaptive_enabled": not disable_adaptive,
         "chunk_size": chunk_size
     }
     
@@ -470,6 +480,11 @@ Examples:
         action="store_true",
         help="Clear any existing progress and restart from beginning"
     )
+    parser.add_argument(
+        "--disable-adaptive",
+        action="store_true",
+        help="Disable adaptive concurrency (use fixed concurrency)"
+    )
     
     args = parser.parse_args()
     
@@ -517,7 +532,8 @@ Examples:
             args.concurrent,
             args.chunk_size,
             args.resume,
-            args.restart
+            args.restart,
+            args.disable_adaptive
         ))
     except KeyboardInterrupt:
         print("\nClassification interrupted by user")
