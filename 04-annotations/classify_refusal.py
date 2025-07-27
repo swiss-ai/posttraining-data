@@ -203,10 +203,7 @@ async def classify_dataset(input_path: Path, output_path: Path, model: str,
     """
     # Load dataset
     print(f"Loading dataset from: {input_path}")
-    import time
-    start_time = time.time()
     dataset = load_from_disk(str(input_path))
-    print(f"Dataset loaded in {time.time() - start_time:.1f} seconds")
     
     # Handle DatasetDict vs single Dataset
     if hasattr(dataset, 'keys'):
@@ -228,12 +225,25 @@ async def classify_dataset(input_path: Path, output_path: Path, model: str,
     if not api_key:
         raise ValueError("SWISSAI_API or SWISSAI_API_KEY environment variable is required")
     
-    classifier = LLMClassifier(api_key, model)
+    classifier = LLMClassifier(api_key, model, concurrent=concurrent, adaptive=not disable_adaptive)
     
-    # Enable adaptive concurrency by default (unless disabled)
+    # Check compute nodes and warn if concurrency is low
+    try:
+        compute_nodes = await classifier.get_model_compute_nodes()
+        recommended_min = compute_nodes * 50
+        
+        if concurrent < recommended_min:
+            print(f"⚠️  WARNING: Found {compute_nodes} compute nodes for model '{model}'")
+            print(f"   Current concurrency ({concurrent}) is below recommended minimum ({recommended_min})")
+            print(f"   This may result in slower processing. Consider using --concurrent {recommended_min} or higher.")
+            print()
+        
+    except Exception as e:
+        # Don't fail the whole script if node detection fails
+        pass
+    
     if not disable_adaptive:
-        classifier.enable_adaptive_concurrency()
-        print(f"🔄 Adaptive concurrency enabled")
+        print(f"🔄 Adaptive concurrency enabled (starting: {concurrent})")
     else:
         print(f"⚡ Fixed concurrency mode: {concurrent} requests")
     
@@ -309,22 +319,11 @@ async def classify_dataset(input_path: Path, output_path: Path, model: str,
         
         # Classify the tasks
         print("Sending classification requests...")
-        # Use the classifier's current concurrency (which may have been adapted)
-        # For the first chunk, use the command-line value
-        # For subsequent chunks, use the adapted value from the previous chunk
-        if chunk_idx == 0:
-            # First chunk: use command-line argument
-            current_concurrency = concurrent
-        else:
-            # Subsequent chunks: use adapted value from previous chunk
-            current_concurrency = classifier.current_concurrent if hasattr(classifier, 'current_concurrent') else concurrent
-        print(f"Using concurrency: {current_concurrency}")
         
         results = await classifier.classify_batch(
             chunk_tasks, 
             prompt_template, 
-            valid_categories, 
-            current_concurrency
+            valid_categories
         )
         
         # Count results
@@ -502,9 +501,6 @@ Examples:
     
     args = parser.parse_args()
     
-    import time
-    script_start = time.time()
-    
     print("=== Refusal Classification Configuration ===")
     print(f"  Input: {args.input_path}")
     print(f"  Output: {args.output}")
@@ -512,7 +508,6 @@ Examples:
     print(f"  Concurrency: {args.concurrent}")
     print(f"  Chunk size: {args.chunk_size}")
     print("=" * 50)
-    print(f"Configuration printed at: {time.time() - script_start:.1f}s after script start")
     
     # Validate input path
     input_path = Path(args.input_path)

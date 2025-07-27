@@ -116,13 +116,16 @@ class RequestMetrics:
 class LLMClassifier:
     """Base class for LLM-based classification using Swiss AI API."""
     
-    def __init__(self, api_key: str, model: str = "meta-llama/Llama-3.3-70B-Instruct"):
+    def __init__(self, api_key: str, model: str = "meta-llama/Llama-3.3-70B-Instruct", 
+                 concurrent: int = 50, adaptive: bool = True):
         """
         Initialize the classifier.
         
         Args:
             api_key: Swiss AI API key
             model: Model name to use for classification
+            concurrent: Starting number of concurrent requests
+            adaptive: Enable adaptive concurrency adjustment
         """
         self.api_key = api_key
         self.model = model
@@ -141,16 +144,48 @@ class LLMClassifier:
         self.last_metrics_display = time.time()
         self.metrics_display_interval = 10  # Show metrics every 10 seconds
         
-        # Adaptive concurrency settings
-        self.adaptive_enabled = False
-        self.current_concurrent = 50  # Will be set by classify_batch
+        # Concurrency settings
+        self.adaptive_enabled = adaptive
+        self.current_concurrent = concurrent
         self.min_concurrent = 1
-        self.max_concurrent = 200
         self.last_adaptation = time.time()
         self.adaptation_interval = 60  # Adapt every 60 seconds
         
         # Set up logging
         self.logger = logging.getLogger(__name__)
+    
+    async def get_model_compute_nodes(self) -> int:
+        """
+        Get the number of compute nodes available for the current model.
+        
+        Returns:
+            Number of compute nodes (duplicate model entries in /models endpoint)
+        """
+        try:
+            # Query the models endpoint to count instances of our model
+            import requests
+            headers = {"Authorization": f"Bearer {self.api_key}"}
+            
+            # Use sync requests in async context (this is a one-time setup call)
+            response = requests.get(
+                "https://api.swissai.cscs.ch/v1/models",
+                headers=headers,
+                timeout=10.0
+            )
+            
+            if response.status_code == 200:
+                models_data = response.json()
+                # Count occurrences of our model ID
+                model_count = sum(1 for model in models_data.get('data', []) 
+                                if model.get('id') == self.model)
+                return max(model_count, 1)  # At least 1 node
+            else:
+                self.logger.warning(f"Failed to query models endpoint: {response.status_code}")
+                return 1  # Default fallback
+                
+        except Exception as e:
+            self.logger.warning(f"Could not determine compute nodes: {e}")
+            return 1  # Default fallback
     
     def _clean_json_response(self, response_content: str) -> str:
         """
@@ -218,12 +253,6 @@ class LLMClassifier:
         with open(template_path, 'r', encoding='utf-8') as f:
             return f.read().strip()
     
-    def enable_adaptive_concurrency(self, min_concurrent: int = 1, max_concurrent: int = 200):
-        """Enable adaptive concurrency adjustment."""
-        self.adaptive_enabled = True
-        self.min_concurrent = min_concurrent
-        self.max_concurrent = max_concurrent
-        
 
     async def classify_single(self, question: str, answer: str, prompt_template: str, 
                             valid_categories: List[str]) -> ClassificationResult:
@@ -322,7 +351,7 @@ class LLMClassifier:
         return result
     
     async def classify_batch(self, items: List[Dict[str, str]], prompt_template: str,
-                           valid_categories: List[str], concurrent: int = 50) -> List[ClassificationResult]:
+                           valid_categories: List[str]) -> List[ClassificationResult]:
         """
         Classify multiple items concurrently with optional adaptive adjustment.
         
@@ -330,23 +359,19 @@ class LLMClassifier:
             items: List of dicts with 'question' and 'answer' keys
             prompt_template: Template with {question} and {answer} placeholders
             valid_categories: List of valid classification categories
-            concurrent: Starting number of concurrent requests
             
         Returns:
             List of ClassificationResult objects
         """
-        # Initialize adaptive settings
-        self.current_concurrent = concurrent
-        
         if self.adaptive_enabled:
-            return await self._classify_batch_adaptive(items, prompt_template, valid_categories, concurrent)
+            return await self._classify_batch_adaptive(items, prompt_template, valid_categories)
         else:
-            return await self._classify_batch_fixed(items, prompt_template, valid_categories, concurrent)
+            return await self._classify_batch_fixed(items, prompt_template, valid_categories)
     
     async def _classify_batch_fixed(self, items: List[Dict[str, str]], prompt_template: str,
-                                  valid_categories: List[str], concurrent: int) -> List[ClassificationResult]:
+                                  valid_categories: List[str]) -> List[ClassificationResult]:
         """Fixed concurrency batch processing."""
-        semaphore = asyncio.Semaphore(concurrent)
+        semaphore = asyncio.Semaphore(self.current_concurrent)
         
         async def classify_with_semaphore(item):
             async with semaphore:
@@ -388,10 +413,9 @@ class LLMClassifier:
         return results
         
     async def _classify_batch_adaptive(self, items: List[Dict[str, str]], prompt_template: str,
-                                     valid_categories: List[str], initial_concurrent: int) -> List[ClassificationResult]:
+                                     valid_categories: List[str]) -> List[ClassificationResult]:
         """Adaptive concurrency batch processing using task set control loop pattern."""
         in_flight_tasks = set()
-        self.current_concurrent = initial_concurrent
         work_queue = list(enumerate(items))  # Keep track of original indices
         results = [None] * len(items)  # Pre-allocate results list
         
@@ -483,9 +507,8 @@ class LLMClassifier:
         # Periodic optimization based on error rate
         if error_rate < 0.01:  # Less than 1% errors
             # Explore higher concurrency (+20)
-            self.current_concurrent = min(self.current_concurrent + 20, self.max_concurrent)
-            if self.current_concurrent > old_concurrent:
-                print(f"🔺 Increasing concurrency: {old_concurrent} → {self.current_concurrent} (low error rate)")
+            self.current_concurrent += 20
+            print(f"🔺 Increasing concurrency: {old_concurrent} → {self.current_concurrent} (low error rate)")
         else:
             # Fall back to calculated optimal
             optimal = max(metrics['optimal_concurrent'], self.min_concurrent)
