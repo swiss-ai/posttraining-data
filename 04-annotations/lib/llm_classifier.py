@@ -271,9 +271,11 @@ class LLMClassifier:
         last_error = None
         
         for attempt in range(MAX_RETRY_ATTEMPTS + 1):  # 0, 1, 2, 3 (total 4 attempts)
-            # Add delay for retries (exponential backoff with jitter)
+            # Add delay for retries (exponential backoff with jitter, up to ~80s)
             if attempt > 0:
-                delay = (2 ** (attempt - 1)) + random.uniform(0, 1)  # 1-2s, 2-3s, 4-5s
+                base_delay = min(2 ** (attempt + 1), 60)  # 4s, 8s, 16s, 32s, 60s, 60s...
+                jitter = random.uniform(0, base_delay * 0.25)  # Add up to 25% jitter
+                delay = base_delay + jitter
                 self.logger.debug(f"Retrying request (attempt {attempt + 1}/{MAX_RETRY_ATTEMPTS + 1}) after {delay:.1f}s delay")
                 await asyncio.sleep(delay)
             
