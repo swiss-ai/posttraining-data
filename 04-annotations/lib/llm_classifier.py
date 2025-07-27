@@ -417,6 +417,9 @@ class LLMClassifier:
     async def _classify_batch_adaptive(self, items: List[Dict[str, str]], prompt_template: str,
                                      valid_categories: List[str]) -> List[ClassificationResult]:
         """Adaptive concurrency batch processing using task set control loop pattern."""
+        # Reset adaptation timer for new chunk to allow stabilization
+        self.last_adaptation = time.time()
+        
         in_flight_tasks = set()
         work_queue = list(enumerate(items))  # Keep track of original indices
         results = [None] * len(items)  # Pre-allocate results list
