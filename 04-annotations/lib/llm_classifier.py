@@ -510,10 +510,10 @@ class LLMClassifier:
         old_concurrent = self.current_concurrent
         
         # Periodic optimization based on error rate
-        if error_rate < 0.01:  # Less than 1% errors
+        if error_rate == 0.0:  # Only increase on perfect success rate
             # Explore higher concurrency (+20)
             self.current_concurrent += 20
-            print(f"🔺 Increasing concurrency: {old_concurrent} → {self.current_concurrent} (low error rate)")
+            print(f"🔺 Increasing concurrency: {old_concurrent} → {self.current_concurrent} (0% error rate)")
         else:
             # Fall back to calculated optimal
             optimal = max(metrics['optimal_concurrent'], self.min_concurrent)
