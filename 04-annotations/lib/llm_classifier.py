@@ -11,13 +11,17 @@ import json
 import time
 import asyncio
 import logging
+import random
 from pathlib import Path
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Tuple
 from dataclasses import dataclass
 from collections import deque
 
 import openai
 from tqdm import tqdm
+
+# Configuration constants
+MAX_RETRY_ATTEMPTS = 3
 
 
 @dataclass
@@ -220,48 +224,11 @@ class LLMClassifier:
         self.min_concurrent = min_concurrent
         self.max_concurrent = max_concurrent
         
-    def _adapt_concurrency(self, current_concurrent: int) -> int:
-        """Adapt concurrency based on current performance metrics."""
-        if not self.adaptive_enabled:
-            return current_concurrent
-            
-        now = time.time()
-        if now - self.last_adaptation < self.adaptation_interval:
-            return current_concurrent  # Too soon to adapt
-            
-        metrics = self.metrics.get_adaptive_metrics()
-        error_rate = metrics['failed_requests'] / max(metrics['total_requests'], 1)
-        
-        # Immediate failure response (reduce by 1 on any recent failure)
-        recent_failures = sum(1 for ts, success, _ in self.metrics.requests 
-                            if not success and now - ts < 10)  # Last 10 seconds
-        if recent_failures > 0:
-            new_concurrent = max(current_concurrent - 1, self.min_concurrent)
-            if new_concurrent < current_concurrent:
-                print(f"🔻 Reducing concurrency: {current_concurrent} → {new_concurrent} (recent failures)")
-            self.last_adaptation = now
-            return new_concurrent
-        
-        # Periodic optimization based on error rate
-        if error_rate < 0.01:  # Less than 1% errors
-            # Explore higher concurrency (+20)
-            new_concurrent = min(current_concurrent + 20, self.max_concurrent)
-            if new_concurrent > current_concurrent:
-                print(f"🔺 Increasing concurrency: {current_concurrent} → {new_concurrent} (low error rate)")
-        else:
-            # Fall back to calculated optimal
-            optimal = max(metrics['optimal_concurrent'], self.min_concurrent)
-            new_concurrent = min(optimal, current_concurrent)  # Don't increase if errors
-            if new_concurrent < current_concurrent:
-                print(f"🔻 Reducing to optimal: {current_concurrent} → {new_concurrent} (error rate: {error_rate*100:.1f}%)")
-        
-        self.last_adaptation = now
-        return new_concurrent
 
     async def classify_single(self, question: str, answer: str, prompt_template: str, 
                             valid_categories: List[str]) -> ClassificationResult:
         """
-        Classify a single question-answer pair.
+        Classify a single question-answer pair with retry logic.
         
         Args:
             question: The question/context
@@ -272,90 +239,87 @@ class LLMClassifier:
         Returns:
             ClassificationResult with classification and metadata
         """
-        start_time = time.time()
-        try:
-            # Format the prompt
-            formatted_prompt = prompt_template.format(question=question, answer=answer)
+        last_error = None
+        
+        for attempt in range(MAX_RETRY_ATTEMPTS + 1):  # 0, 1, 2, 3 (total 4 attempts)
+            # Add delay for retries (exponential backoff with jitter)
+            if attempt > 0:
+                delay = (2 ** (attempt - 1)) + random.uniform(0, 1)  # 1-2s, 2-3s, 4-5s
+                self.logger.debug(f"Retrying request (attempt {attempt + 1}/{MAX_RETRY_ATTEMPTS + 1}) after {delay:.1f}s delay")
+                await asyncio.sleep(delay)
             
-            # Make API request
-            response = await self.client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {"role": "user", "content": formatted_prompt}
-                ],
-                temperature=0.1,  # Low temperature for consistency
-                response_format={"type": "json_object"}
-            )
-            
-            # Extract response
-            response_content = response.choices[0].message.content
-            tokens_used = response.usage.total_tokens if response.usage else 0
-            self.total_tokens_used += tokens_used
-            
-            # Parse JSON response
+            start_time = time.time()
             try:
-                # Clean up common JSON formatting issues from LLM responses
-                cleaned_content = self._clean_json_response(response_content)
-                result_data = json.loads(cleaned_content)
-                classification = result_data.get("classification", "").strip()
-                reasoning = result_data.get("reasoning", "").strip()
+                # Format the prompt
+                formatted_prompt = prompt_template.format(question=question, answer=answer)
                 
-                # Validate classification
-                if classification not in valid_categories:
+                # Make API request
+                response = await self.client.chat.completions.create(
+                    model=self.model,
+                    messages=[
+                        {"role": "user", "content": formatted_prompt}
+                    ],
+                    temperature=0.1,  # Low temperature for consistency
+                    response_format={"type": "json_object"}
+                )
+                
+                # Extract response
+                response_content = response.choices[0].message.content
+                tokens_used = response.usage.total_tokens if response.usage else 0
+                self.total_tokens_used += tokens_used
+                
+                # Parse JSON response
+                try:
+                    # Clean up common JSON formatting issues from LLM responses
+                    cleaned_content = self._clean_json_response(response_content)
+                    result_data = json.loads(cleaned_content)
+                    classification = result_data.get("classification", "").strip()
+                    reasoning = result_data.get("reasoning", "").strip()
+                    
+                    # Validate classification
+                    if classification not in valid_categories:
+                        # Don't retry for invalid classifications - this is a logic error, not API error
+                        last_error = f"Invalid classification: {classification}"
+                        continue  # Retry with same request
+                    
+                    # Success!
                     result = ClassificationResult(
-                        classification=valid_categories[-1],  # Default to last category
-                        reasoning=f"Invalid classification '{classification}', defaulting to inconclusive",
-                        success=False,
-                        error=f"Invalid classification: {classification}",
+                        classification=classification,
+                        reasoning=reasoning,
+                        success=True,
                         tokens_used=tokens_used
                     )
                     
-                    # Record the request result
-                    self.metrics.record_request(result.success)
+                    # Record the request result with latency
+                    latency = time.time() - start_time
+                    self.metrics.record_request(result.success, latency)
                     return result
-                
-                result = ClassificationResult(
-                    classification=classification,
-                    reasoning=reasoning,
-                    success=True,
-                    tokens_used=tokens_used
-                )
-                
-                # Record the request result with latency
-                latency = time.time() - start_time
-                self.metrics.record_request(result.success, latency)
-                return result
-                
-            except json.JSONDecodeError as e:
-                self.logger.error(f"Failed to parse JSON response: {e}")
-                self.logger.error(f"Raw response: {response_content}")
-                
-                result = ClassificationResult(
-                    classification=valid_categories[-1],
-                    reasoning=f"Failed to parse response: {str(e)}",
-                    success=False,
-                    error=f"JSON parse error: {str(e)}",
-                    tokens_used=tokens_used
-                )
-                
-                # Record the request result with latency
-                latency = time.time() - start_time
-                self.metrics.record_request(result.success, latency)
-                return result
-                
-        except Exception as e:
-            self.logger.error(f"Classification request failed: {e}")
-            result = ClassificationResult(
-                classification=valid_categories[-1] if valid_categories else "error",
-                reasoning=f"API request failed: {str(e)}",
-                success=False,
-                error=str(e),
-                tokens_used=0
-            )
-            
-            # Record the request result
-            self.metrics.record_request(result.success)
-            return result
+                    
+                except json.JSONDecodeError as e:
+                    # JSON parse errors should be retried
+                    last_error = f"JSON parse error: {str(e)}"
+                    self.logger.debug(f"JSON parse failed on attempt {attempt + 1}: {e}")
+                    continue  # Try again
+                    
+            except Exception as e:
+                # Network/API errors should be retried
+                last_error = f"API request failed: {str(e)}"
+                self.logger.debug(f"API request failed on attempt {attempt + 1}: {e}")
+                continue  # Try again
+        
+        # All retries exhausted - return failure
+        self.logger.error(f"Classification failed after {MAX_RETRY_ATTEMPTS + 1} attempts. Last error: {last_error}")
+        result = ClassificationResult(
+            classification=valid_categories[-1] if valid_categories else "error",
+            reasoning=f"Failed after {MAX_RETRY_ATTEMPTS + 1} attempts: {last_error}",
+            success=False,
+            error=last_error,
+            tokens_used=0
+        )
+        
+        # Record the final failure
+        self.metrics.record_request(result.success)
+        return result
     
     async def classify_batch(self, items: List[Dict[str, str]], prompt_template: str,
                            valid_categories: List[str], concurrent: int = 50) -> List[ClassificationResult]:
@@ -398,7 +362,8 @@ class LLMClassifier:
         
         # Execute with progress tracking and metrics display
         results = []
-        with tqdm(total=len(tasks), desc="Classifying") as pbar:
+        with tqdm(total=len(tasks), desc="Classifying", 
+                 bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {postfix}]') as pbar:
             for coro in asyncio.as_completed(tasks):
                 result = await coro
                 results.append(result)
@@ -407,15 +372,16 @@ class LLMClassifier:
                 # Display metrics periodically
                 current_time = time.time()
                 if current_time - self.last_metrics_display >= self.metrics_display_interval:
-                    metrics = self.metrics.get_adaptive_metrics() if self.adaptive_enabled else self.metrics.get_metrics()
+                    metrics = self.metrics.get_adaptive_metrics()
+                    error_rate = metrics['failed_requests'] / max(metrics['total_requests'], 1)
                     postfix = {
                         'req/min': f"{metrics['requests_per_minute']:.1f}",
                         'success': f"{metrics['success_rate']*100:.1f}%",
-                        'failed': metrics['failed_requests']
+                        'failed': metrics['failed_requests'],
+                        'avg_dur': f"{metrics.get('avg_latency_seconds', 0):.1f}s",
+                        'error_rate': f"{error_rate*100:.1f}%",
+                        'concurrent': self.current_concurrent
                     }
-                    if self.adaptive_enabled and 'optimal_concurrent' in metrics:
-                        postfix['concurrent'] = self.current_concurrent
-                        postfix['optimal'] = metrics['optimal_concurrent']
                     pbar.set_postfix(postfix)
                     self.last_metrics_display = current_time
         
@@ -423,13 +389,111 @@ class LLMClassifier:
         
     async def _classify_batch_adaptive(self, items: List[Dict[str, str]], prompt_template: str,
                                      valid_categories: List[str], initial_concurrent: int) -> List[ClassificationResult]:
-        """Adaptive concurrency batch processing with time-based adaptation."""
-        # For now, just use fixed processing but with potential for future dynamic semaphore
-        # The adaptation logic is based on time (60 seconds) not batch completion
-        self.current_concurrent = self._adapt_concurrency(initial_concurrent)
-        return await self._classify_batch_fixed(
-            items, prompt_template, valid_categories, self.current_concurrent
-        )
+        """Adaptive concurrency batch processing using task set control loop pattern."""
+        in_flight_tasks = set()
+        self.current_concurrent = initial_concurrent
+        work_queue = list(enumerate(items))  # Keep track of original indices
+        results = [None] * len(items)  # Pre-allocate results list
+        
+        # Progress tracking
+        completed_count = 0
+        pbar = tqdm(total=len(items), desc="Classifying",
+                   bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {postfix}]')
+        
+        while work_queue or in_flight_tasks:
+            # Start new tasks up to current limit
+            while len(in_flight_tasks) < self.current_concurrent and work_queue:
+                idx, item = work_queue.pop(0)
+                
+                # Create task with index tracking
+                task = asyncio.create_task(self._classify_with_index(
+                    idx, item["question"], item["answer"], 
+                    prompt_template, valid_categories
+                ))
+                in_flight_tasks.add(task)
+            
+            # Wait for first completion or timeout
+            if in_flight_tasks:
+                done, in_flight_tasks = await asyncio.wait(
+                    in_flight_tasks,
+                    return_when=asyncio.FIRST_COMPLETED,
+                    timeout=1.0  # Check every second
+                )
+                
+                # Process completed tasks
+                for task in done:
+                    idx, result = await task
+                    results[idx] = result
+                    completed_count += 1
+                    pbar.update(1)
+                    
+                    # Handle failures immediately
+                    if not result.success:
+                        await self._handle_failure_immediate()
+                
+                # Display metrics periodically
+                current_time = time.time()
+                if current_time - self.last_metrics_display >= self.metrics_display_interval:
+                    metrics = self.metrics.get_adaptive_metrics()
+                    error_rate = metrics['failed_requests'] / max(metrics['total_requests'], 1)
+                    postfix = {
+                        'req/min': f"{metrics['requests_per_minute']:.1f}",
+                        'success': f"{metrics['success_rate']*100:.1f}%",
+                        'failed': metrics['failed_requests'],
+                        'avg_dur': f"{metrics.get('avg_latency_seconds', 0):.1f}s",
+                        'error_rate': f"{error_rate*100:.1f}%",
+                        'concurrent': self.current_concurrent
+                    }
+                    pbar.set_postfix(postfix)
+                    self.last_metrics_display = current_time
+            
+            # Check for periodic adjustment (every 60 seconds)
+            self._check_concurrency_adjustment()
+        
+        pbar.close()
+        return results
+    
+    async def _classify_with_index(self, idx: int, question: str, answer: str, 
+                                   prompt_template: str, valid_categories: List[str]) -> Tuple[int, ClassificationResult]:
+        """Classify single item and return with its index."""
+        result = await self.classify_single(question, answer, prompt_template, valid_categories)
+        return idx, result
+    
+    async def _handle_failure_immediate(self):
+        """Immediately reduce concurrency on any failure."""
+        old_concurrent = self.current_concurrent
+        self.current_concurrent = max(self.current_concurrent - 1, self.min_concurrent)
+        
+        if self.current_concurrent < old_concurrent:
+            print(f"🔻 Reducing concurrency: {old_concurrent} → {self.current_concurrent} (immediate failure response)")
+    
+    def _check_concurrency_adjustment(self):
+        """Check if 60s have passed and adjust concurrency based on metrics."""
+        if not self.adaptive_enabled:
+            return
+            
+        now = time.time()
+        if now - self.last_adaptation < self.adaptation_interval:
+            return  # Too soon to adapt
+            
+        metrics = self.metrics.get_adaptive_metrics()
+        error_rate = metrics['failed_requests'] / max(metrics['total_requests'], 1)
+        old_concurrent = self.current_concurrent
+        
+        # Periodic optimization based on error rate
+        if error_rate < 0.01:  # Less than 1% errors
+            # Explore higher concurrency (+20)
+            self.current_concurrent = min(self.current_concurrent + 20, self.max_concurrent)
+            if self.current_concurrent > old_concurrent:
+                print(f"🔺 Increasing concurrency: {old_concurrent} → {self.current_concurrent} (low error rate)")
+        else:
+            # Fall back to calculated optimal
+            optimal = max(metrics['optimal_concurrent'], self.min_concurrent)
+            self.current_concurrent = min(optimal, self.current_concurrent)  # Don't increase if errors
+            if self.current_concurrent < old_concurrent:
+                print(f"🔻 Reducing to optimal: {old_concurrent} → {self.current_concurrent} (error rate: {error_rate*100:.1f}%)")
+        
+        self.last_adaptation = now
 
 
 def extract_message_context(message: Dict[str, Any], conversation_messages: List[Dict[str, Any]]) -> str:

@@ -1,39 +1,62 @@
 # Dataset Annotations
 
-Adds LLM-based classifications and annotations to chat format datasets. Currently supports refusal detection for assistant messages.
+Adds annotations to chat format datasets including language detection and LLM-based classifications.
 
-## Usage
-
-### Environment Setup
+## Environment Setup
 ```bash
-# Ensure SWISSAI_API_KEY is set
-export SWISSAI_API_KEY="your_api_key"
+export SWISSAI_API_KEY="your_api_key"  # For LLM classification
 ```
 
-### Refusal Classification
-Classifies assistant messages to identify refusal responses where the assistant declines to provide information due to safety, ethical, or capability constraints.
+## Refusal Classification
+
+LLM-based classification to identify assistant refusal responses with **adaptive concurrency** and retry logic.
 
 ```bash
-# Basic refusal classification (run from project root)
-venv/bin/python 04-annotations/classify_refusal.py data/02-standardised/tulu-3-sft-mixture \
-  --output data/04-annotations/tulu-3-sft-mixture-refusal
+# Adaptive concurrency (default) - automatically adjusts based on API performance
+venv/bin/python 04-annotations/classify_refusal.py \
+  data/02-standardised/dataset-name \
+  --output data/04-annotations/dataset-name-refusal
 
-# With custom settings
-venv/bin/python 04-annotations/classify_refusal.py data/02-standardised/smoltalk \
-  --output data/04-annotations/smoltalk-refusal \
-  --model "meta-llama/Llama-3.3-70B-Instruct" \
-  --concurrent 100 \
-  --chunk-size 5000
+# High throughput processing
+venv/bin/python 04-annotations/classify_refusal.py \
+  data/02-standardised/EuroBlocks-SFT-Synthetic-1124 \
+  --output data/04-annotations/EuroBlocks-SFT-Synthetic-1124-refusal \
+  --concurrent 100 --chunk-size 50000
 
-# Resume interrupted processing
-venv/bin/python 04-annotations/classify_refusal.py data/02-standardised/smoltalk \
-  --output data/04-annotations/smoltalk-refusal \
-  --resume
+# Fixed concurrency mode (disable adaptive)
+venv/bin/python 04-annotations/classify_refusal.py \
+  data/02-standardised/dataset-name \
+  --output data/04-annotations/dataset-name-refusal \
+  --concurrent 50 --disable-adaptive
+```
 
-# Restart from beginning
-venv/bin/python 04-annotations/classify_refusal.py data/02-standardised/smoltalk \
-  --output data/04-annotations/smoltalk-refusal \
-  --restart
+**Features**: 
+- Auto-adjusts concurrency every 60s (increases +20 if error rate <1%)
+- 3 retries with exponential backoff for failed requests
+- Real-time metrics: req/min, error rate, avg duration
+- Progress persistence with `--resume`
+
+## Language Detection
+
+FastText-based language detection for message content (no API required).
+
+```bash
+# Detect languages in all messages
+venv/bin/python 04-annotations/annotate_language.py \
+  data/02-standardised/dataset-name \
+  --output data/04-annotations/dataset-name-lang
+
+# Detect only in assistant messages
+venv/bin/python 04-annotations/annotate_language.py \
+  data/02-standardised/dataset-name \
+  --output data/04-annotations/dataset-name-lang \
+  --target-roles assistant
+
+# Process with custom chunk size
+venv/bin/python 04-annotations/annotate_language.py \
+  data/02-standardised/dataset-name \
+  --output data/04-annotations/dataset-name-lang \
+  --chunk-size 20000
 ```
 
 ## Output Format

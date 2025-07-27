@@ -203,7 +203,10 @@ async def classify_dataset(input_path: Path, output_path: Path, model: str,
     """
     # Load dataset
     print(f"Loading dataset from: {input_path}")
+    import time
+    start_time = time.time()
     dataset = load_from_disk(str(input_path))
+    print(f"Dataset loaded in {time.time() - start_time:.1f} seconds")
     
     # Handle DatasetDict vs single Dataset
     if hasattr(dataset, 'keys'):
@@ -269,13 +272,13 @@ async def classify_dataset(input_path: Path, output_path: Path, model: str,
     for chunk_idx, chunk_start in enumerate(range(0, len(dataset), chunk_size)):
         # Skip completed chunks if resuming
         if resume and chunk_idx in completed_chunks:
-            print(f"Skipping completed chunk {chunk_idx + 1}")
+            print(f"Skipping completed chunk {chunk_idx + 1}/{total_chunks}")
             continue
             
         chunk_end = min(chunk_start + chunk_size, len(dataset))
         chunk = [dataset[i] for i in range(chunk_start, chunk_end)]
         
-        print(f"\nProcessing chunk {chunk_idx + 1}: samples {chunk_start+1}-{chunk_end}")
+        print(f"\nProcessing chunk {chunk_idx + 1}/{total_chunks}: samples {chunk_start+1}-{chunk_end}")
         
         # Collect classification tasks from this chunk
         chunk_tasks = []
@@ -306,11 +309,22 @@ async def classify_dataset(input_path: Path, output_path: Path, model: str,
         
         # Classify the tasks
         print("Sending classification requests...")
+        # Use the classifier's current concurrency (which may have been adapted)
+        # For the first chunk, use the command-line value
+        # For subsequent chunks, use the adapted value from the previous chunk
+        if chunk_idx == 0:
+            # First chunk: use command-line argument
+            current_concurrency = concurrent
+        else:
+            # Subsequent chunks: use adapted value from previous chunk
+            current_concurrency = classifier.current_concurrent if hasattr(classifier, 'current_concurrent') else concurrent
+        print(f"Using concurrency: {current_concurrency}")
+        
         results = await classifier.classify_batch(
             chunk_tasks, 
             prompt_template, 
             valid_categories, 
-            concurrent
+            current_concurrency
         )
         
         # Count results
@@ -488,6 +502,9 @@ Examples:
     
     args = parser.parse_args()
     
+    import time
+    script_start = time.time()
+    
     print("=== Refusal Classification Configuration ===")
     print(f"  Input: {args.input_path}")
     print(f"  Output: {args.output}")
@@ -495,6 +512,7 @@ Examples:
     print(f"  Concurrency: {args.concurrent}")
     print(f"  Chunk size: {args.chunk_size}")
     print("=" * 50)
+    print(f"Configuration printed at: {time.time() - script_start:.1f}s after script start")
     
     # Validate input path
     input_path = Path(args.input_path)
