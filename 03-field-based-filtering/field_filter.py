@@ -66,7 +66,7 @@ def analyze_field_structure(dataset, max_samples: Optional[int] = None) -> Dict[
         print(f"Analyzing field structure from all {sample_count:,} samples...")
     else:
         sample_count = min(len(dataset), max_samples)
-        print(f"Analyzing field structure from {sample_count:,} samples...")
+        print(f"Analyzing field structure from {sample_count:,} samples (use --max-samples -1 to analyze all samples)...")
     
     with tqdm(total=sample_count, desc="Analyzing", unit="samples") as pbar:
         for i, sample in enumerate(dataset):
@@ -295,8 +295,8 @@ Examples:
     parser.add_argument(
         "--max-samples",
         type=int,
-        default=None,
-        help="Maximum samples to analyze for schema/field stats (default: all samples)"
+        default=50000,
+        help="Maximum samples to analyze for schema/field stats (default: 50000, use -1 for all samples)"
     )
     parser.add_argument(
         "--top-values",
@@ -358,12 +358,15 @@ def main():
         print(f"Error loading dataset: {e}")
         sys.exit(1)
     
+    # Handle -1 for max_samples (means analyze all samples)
+    max_samples = None if args.max_samples == -1 else args.max_samples
+    
     # Check if filtering is requested
     is_filtering = args.keep_values or args.remove_values
     
     if not is_filtering:
         # Analysis mode
-        analysis = analyze_field_structure(dataset, args.max_samples)
+        analysis = analyze_field_structure(dataset, max_samples)
         
         if args.field:
             # Show specific field statistics
