@@ -404,21 +404,21 @@ def main():
 Examples:
   # Classify ideological sensitivity in a dataset
   python classify_ideology.py data/02-standardised/tulu-3-sft-mixture \\
-    --output data/05-annotations/tulu-3-sft-mixture-ideology
+    --output data/04-annotations/tulu-3-sft-mixture-ideology
 
   # Resume interrupted processing
   python classify_ideology.py data/02-standardised/smoltalk \\
-    --output data/05-annotations/smoltalk-ideology \\
+    --output data/04-annotations/smoltalk-ideology \\
     --resume
 
   # Restart from beginning (clear progress)
   python classify_ideology.py data/02-standardised/smoltalk \\
-    --output data/05-annotations/smoltalk-ideology \\
+    --output data/04-annotations/smoltalk-ideology \\
     --restart
 
   # Use different model and concurrency settings
   python classify_ideology.py data/02-standardised/smoltalk \\
-    --output data/05-annotations/smoltalk-ideology \\
+    --output data/04-annotations/smoltalk-ideology \\
     --model "Qwen/Qwen3-32B" \\
     --concurrent 100 \\
     --chunk-size 5000

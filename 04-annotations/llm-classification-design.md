@@ -75,7 +75,7 @@ class LLMClassifier:
 ```bash
 python classify_refusal.py \
     data/02-standardised/tulu-3-sft-mixture \
-    --output data/05-annotations/tulu-3-sft-mixture-refusal \
+    --output data/04-annotations/tulu-3-sft-mixture-refusal \
     --model meta-llama/Llama-3.3-70B-Instruct \
     --max-concurrent 20 \
     --chunk-size 10000
@@ -99,7 +99,7 @@ python classify_refusal.py \
       "script": "classify_refusal.py", 
       "timestamp": "2025-07-26T...",
       "input_path": "data/02-standardised/tulu-3-sft-mixture",
-      "output_path": "data/05-annotations/tulu-3-sft-mixture-refusal",
+      "output_path": "data/04-annotations/tulu-3-sft-mixture-refusal",
       "model": "meta-llama/Llama-3.3-70B-Instruct",
       "api_provider": "swiss_ai",
       "messages_classified": 15234,

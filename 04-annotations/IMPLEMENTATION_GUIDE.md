@@ -185,14 +185,14 @@ The system displays real-time metrics:
 ### Basic Classification
 ```bash
 # Refusal classification
-venv/bin/python 05-annotations/classify_refusal.py \
+venv/bin/python 04-annotations/classify_refusal.py \
   data/02-standardised/dataset-name \
-  --output data/05-annotations/dataset-name-refusal
+  --output data/04-annotations/dataset-name-refusal
 
 # Ideological classification  
-venv/bin/python 05-annotations/classify_ideology.py \
+venv/bin/python 04-annotations/classify_ideology.py \
   data/02-standardised/dataset-name \
-  --output data/05-annotations/dataset-name-ideology
+  --output data/04-annotations/dataset-name-ideology
 ```
 
 ### Advanced Options
