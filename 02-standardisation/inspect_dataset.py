@@ -139,7 +139,7 @@ def parse_arguments():
 Examples:
   python inspect_dataset.py ../data/02-standardised/tulu-3-sft-mixture
   python inspect_dataset.py ../data/03-filtered/smoltalk-numina
-  python inspect_dataset.py ../data/04-annotations/dataset-refusal
+  python inspect_dataset.py ../data/05-annotations/dataset-refusal
         """
     )
     

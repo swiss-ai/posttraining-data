@@ -4,5 +4,5 @@ data/
 claude/
 CLAUDE.md
 __pycache__/
-04-annotations/__pycache__/
-04-annotations/models/
+05-annotations/__pycache__/
+05-annotations/models/

@@ -436,21 +436,21 @@ def main():
 Examples:
   # Classify refusals in a dataset
   python classify_refusal.py data/02-standardised/tulu-3-sft-mixture \\
-    --output data/04-annotations/tulu-3-sft-mixture-refusal
+    --output data/05-annotations/tulu-3-sft-mixture-refusal
 
   # Resume interrupted processing
   python classify_refusal.py data/02-standardised/smoltalk \\
-    --output data/04-annotations/smoltalk-refusal \\
+    --output data/05-annotations/smoltalk-refusal \\
     --resume
 
   # Restart from beginning (clear progress)
   python classify_refusal.py data/02-standardised/smoltalk \\
-    --output data/04-annotations/smoltalk-refusal \\
+    --output data/05-annotations/smoltalk-refusal \\
     --restart
 
   # Use different model and concurrency settings
   python classify_refusal.py data/02-standardised/smoltalk \\
-    --output data/04-annotations/smoltalk-refusal \\
+    --output data/05-annotations/smoltalk-refusal \\
     --model "Qwen/Qwen3-32B" \\
     --concurrent 100 \\
     --chunk-size 5000

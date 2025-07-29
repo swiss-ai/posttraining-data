@@ -426,9 +426,9 @@ def parse_arguments():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python 04-annotations/language_annotate.py data/02-standardised/smoltalk data/04-annotated/smoltalk
-  python 04-annotations/language_annotate.py data/03-filtered/smoltalk-numina data/04-annotated/smoltalk-numina
-  python 04-annotations/language_annotate.py data/02-standardised/smoltalk data/04-annotated/smoltalk --chunk-size 5000
+  python 05-annotations/language_annotate.py data/02-standardised/smoltalk data/04-annotated/smoltalk
+  python 05-annotations/language_annotate.py data/03-filtered/smoltalk-numina data/04-annotated/smoltalk-numina
+  python 05-annotations/language_annotate.py data/02-standardised/smoltalk data/04-annotated/smoltalk --chunk-size 5000
         """
     )
     
