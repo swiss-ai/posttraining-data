@@ -335,7 +335,7 @@ def list_filters():
             print(f"  Augment source: {config.get('augment_source', False)}")
 
 
-def process_dataset(dataset_path: Path, output_path: Path):
+def process_dataset(dataset_path: Path, output_path: Path, force_format: str = None):
     """Process dataset with proper DatasetDict handling."""
     
     # Validate input
@@ -345,13 +345,22 @@ def process_dataset(dataset_path: Path, output_path: Path):
     
     dataset_name = dataset_path.name
     
-    # Check if filtering is defined
-    if dataset_name not in DATASET_FILTERS:
-        print(f"Error: No filtering rules defined for dataset '{dataset_name}'")
-        print(f"Supported datasets: {list(DATASET_FILTERS.keys())}")
-        return False
-    
-    filter_config = DATASET_FILTERS[dataset_name]
+    # Determine which filter config to use
+    if force_format:
+        if force_format not in DATASET_FILTERS:
+            print(f"Error: Invalid force-format '{force_format}'")
+            print(f"Supported formats: {list(DATASET_FILTERS.keys())}")
+            return False
+        filter_config = DATASET_FILTERS[force_format]
+        print(f"Using forced format: {force_format}")
+    else:
+        # Check if filtering is defined for this dataset
+        if dataset_name not in DATASET_FILTERS:
+            print(f"Error: No filtering rules defined for dataset '{dataset_name}'")
+            print(f"Supported datasets: {list(DATASET_FILTERS.keys())}")
+            print(f"Tip: Use --force-format to specify a filter (e.g., --force-format smoltalk)")
+            return False
+        filter_config = DATASET_FILTERS[dataset_name]
     
     try:
         # Load dataset
@@ -416,6 +425,9 @@ Examples:
     parser.add_argument("--output", "-o", help="Output path (default: data/03-license-filtered/DATASET_NAME)")
     parser.add_argument("--list-filters", action="store_true", 
                        help="List all configured filters and exit")
+    parser.add_argument("--force-format", type=str, 
+                       choices=list(DATASET_FILTERS.keys()),
+                       help="Force using a specific dataset's filter configuration (e.g., --force-format smoltalk)")
     
     return parser.parse_args()
 
@@ -445,7 +457,7 @@ def main():
     print(f"Input path: {dataset_path}")
     print(f"Output path: {output_path}")
     
-    success = process_dataset(dataset_path, output_path)
+    success = process_dataset(dataset_path, output_path, args.force_format)
     sys.exit(0 if success else 1)
 
 
