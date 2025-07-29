@@ -364,6 +364,9 @@ CONVERTERS = {
     # Nemotron format (input array + output string + system_prompt)
     "Llama-Nemotron-Post-Training-Dataset": convert_nemotron_format,
     
+    # Instruction-response format (input → output)
+    "AceReason-1.1-SFT": convert_instruction_response,
+    
     # Add more as needed - typically 1 line each
 }
 
