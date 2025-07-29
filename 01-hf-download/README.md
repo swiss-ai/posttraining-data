@@ -32,6 +32,9 @@ AI4Chem/ChemData700K
 BAAI/Infinity-Instruct
 BAAI/Infinity-Preference
 CohereLabs/aya_dataset
+DataProvenanceInitiative/Commercial-Flan-Collection-Chain-Of-Thought
+DataProvenanceInitiative/Commercial-Flan-Collection-Flan-2021
+DataProvenanceInitiative/Commercial-Flan-Collection-SNI
 FreedomIntelligence/medical-o1-reasoning-SFT
 HuggingFaceH4/no_robots
 HuggingFaceTB/smoltalk

@@ -350,6 +350,50 @@ def convert_instruction_response(row: Dict[str, Any], dataset_source: str) -> Di
     }
 
 
+def convert_inputs_labels_format(row: Dict[str, Any], dataset_source: str) -> Dict[str, Any]:
+    """
+    Convert inputs/labels format.
+    Used for: DataProvenanceInitiative Commercial-Flan-Collection datasets.
+    """
+    inputs = row.get("inputs", "")
+    labels = row.get("labels", "")
+    
+    if not inputs or not labels:
+        raise ValueError("Missing required fields: inputs or labels")
+    
+    # Generate conversation ID
+    conversation_id = generate_conversation_id(dataset_source, inputs)
+    
+    # Create initial user prompt
+    initial_prompt = {
+        "role": "user",
+        "content": inputs,
+        "metadata": {}
+    }
+    
+    # Create single conversation branch with assistant response
+    conversation_branches = [{
+        "messages": [{
+            "role": "assistant",
+            "content": labels,
+            "metadata": {}
+        }]
+    }]
+    
+    # Preserve original metadata (exclude inputs, labels)
+    original_metadata = {k: v for k, v in row.items() 
+                        if k not in ["inputs", "labels"]}
+    
+    return {
+        "conversation_id": conversation_id,
+        "dataset_source": dataset_source,
+        "original_metadata": original_metadata,
+        "initial_prompt": initial_prompt,
+        "conversation_branches": conversation_branches,
+        "created_timestamp": datetime.now().isoformat()
+    }
+
+
 # Converter registry - maps dataset names to converter functions
 CONVERTERS = {
     # Standard chat format with messages array
@@ -366,6 +410,11 @@ CONVERTERS = {
     
     # Instruction-response format (input → output)
     "AceReason-1.1-SFT": convert_instruction_response,
+    
+    # Inputs/labels format
+    "Commercial-Flan-Collection-Chain-Of-Thought": convert_inputs_labels_format,
+    "Commercial-Flan-Collection-Flan-2021": convert_inputs_labels_format,
+    "Commercial-Flan-Collection-SNI": convert_inputs_labels_format,
     
     # Add more as needed - typically 1 line each
 }
