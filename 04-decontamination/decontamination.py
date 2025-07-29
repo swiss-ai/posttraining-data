@@ -189,7 +189,6 @@ if __name__ == "__main__":
     parser.add_argument(
         "dataset_path",
         type=str,
-        required=True,
         help="Path or name of the training dataset to process. Must include a column with 'messages' that "
              "contains the standard HuggingFace chat format of List[Dict[str, str]]",
     )

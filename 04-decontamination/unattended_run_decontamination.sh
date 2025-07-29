@@ -1,13 +1,13 @@
 #!/bin/bash
 
-#SBATCH -J decontamination_run
+#SBATCH -J decontamination_run_nemotron
 #SBATCH -t 12:00:00
 #SBATCH -A a-infra01-1
-#SBATCH --output=sdecontamination_run.out
+#SBATCH --output=sdecontamination_run_nemotron.out
 #SBATCH --nodes 1
 
 # Variables used by the entrypoint script
-export PROJECT_ROOT_AT=$HOME/projects/post-training-scripts/04-decontamination
+export PROJECT_ROOT_AT=$HOME/projects/post-training-scripts
 source $PROJECT_ROOT_AT/container-scripts/env-vars.sh $@
 export SLURM_ONE_ENTRYPOINT_SCRIPT_PER_NODE=1
 export HF_TOKEN_AT=$HOME/.hf-token
@@ -17,7 +17,7 @@ export TOKENIZERS_PARALLELISM=false
 
 srun \
   --container-image=/capstor/store/cscs/swissai/infra01/swiss-alignment/container-images/swiss-alignment+apertus-vllm.sqsh \
-  --environment="${PROJECT_ROOT_AT}/container-scripts/edf.toml" \
+  --environment="${PROJECT_ROOT_AT}/04-decontamination/container-scripts/edf.toml" \
   --container-mounts=\
 $PROJECT_ROOT_AT,\
 $SCRATCH,\
@@ -32,7 +32,7 @@ $HF_TOKEN_AT\
   --container-writable \
   /opt/template-entrypoints/pre-entrypoint.sh \
   bash -c "\
-      bash ${PROJECT_ROOT_AT}/container-scripts/hot-pip-install.sh && \
-      bash ${PROJECT_ROOT_AT}/run_decontamination.sh"
+      bash ${PROJECT_ROOT_AT}/04-decontamination/container-scripts/hot-pip-install.sh && \
+      bash ${PROJECT_ROOT_AT}/04-decontamination/run_decontamination.sh"
 
 exit 0

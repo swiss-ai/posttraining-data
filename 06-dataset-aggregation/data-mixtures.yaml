@@ -5,13 +5,13 @@ apartus-sft-mixture-1:
         values:
           - "ai2-adapt-dev/coconot_converted"
           - "ai2-adapt-dev/evol_codealpaca_heval_decontaminated"
-          - "ai2-adapt-dev/flan_v2_converted"
+#          - "ai2-adapt-dev/flan_v2_converted"
           - "ai2-adapt-dev/numinamath_tir_math_decontaminated"
           - "ai2-adapt-dev/oasst1_converted"
           - "ai2-adapt-dev/personahub_code_v2_34999"
           - "ai2-adapt-dev/personahub_ifdata_manual_seed_v3_29980"
           - "ai2-adapt-dev/personahub_math_v5_regen_149960"
-          - "ai2-adapt-dev/tulu_v3.9_aya_100k"  # Also included in SmolTalk2 but this one is larger
+#          - "ai2-adapt-dev/tulu_v3.9_aya_100k"  # Use Euroblocks instead
           - "ai2-adapt-dev/tulu_v3.9_open_math_2_gsm8k_50k"
           - "ai2-adapt-dev/tulu_v3.9_personahub_math_interm_algebra_20k"
           - "ai2-adapt-dev/tulu_v3.9_sciriff_10k"
@@ -26,7 +26,7 @@ apartus-sft-mixture-2:
         values:
           - "ai2-adapt-dev/coconot_converted"
           - "ai2-adapt-dev/evol_codealpaca_heval_decontaminated"
-          - "ai2-adapt-dev/flan_v2_converted"
+#          - "ai2-adapt-dev/flan_v2_converted"
           - "ai2-adapt-dev/numinamath_tir_math_decontaminated"
           - "ai2-adapt-dev/oasst1_converted"
           - "ai2-adapt-dev/personahub_code_v2_34999"
@@ -52,8 +52,57 @@ apartus-sft-mixture-2:
           - "smoltalk_smollm3_systemchats_30k_no_think"
           - "table_gpt_no_think"  # Also included in TULU-3, but this one is larger
           - "smoltalk_smollm3_everyday_conversations_no_think"
-  - dataset_path: "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/Llama-Nemotron-Post-Training-Dataset_wo_math_code"
+apartus-sft-mixture-3:
+  - dataset_path: "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/tulu-3-sft-mixture"
     filters:
-      - field: "original_metadata.reasoning"
+      - field: "original_metadata.source"
         values:
-          - "off"
+          - "ai2-adapt-dev/coconot_converted"
+          - "ai2-adapt-dev/evol_codealpaca_heval_decontaminated"
+#          - "ai2-adapt-dev/flan_v2_converted"
+          - "ai2-adapt-dev/numinamath_tir_math_decontaminated"
+          - "ai2-adapt-dev/oasst1_converted"
+          - "ai2-adapt-dev/personahub_code_v2_34999"
+          - "ai2-adapt-dev/personahub_ifdata_manual_seed_v3_29980"
+          - "ai2-adapt-dev/personahub_math_v5_regen_149960"
+          - "ai2-adapt-dev/tulu_v3.9_open_math_2_gsm8k_50k"
+          - "ai2-adapt-dev/tulu_v3.9_personahub_math_interm_algebra_20k"
+          - "ai2-adapt-dev/tulu_v3.9_sciriff_10k"
+          - "ai2-adapt-dev/tulu_v3.9_synthetic_finalresp_wildguardmixtrain_decontaminated_50k"
+          - "ai2-adapt-dev/tulu_v3.9_wildchat_100k"
+          - "ai2-adapt-dev/tulu_v3.9_wildjailbreak_decontaminated_50k"
+          - "allenai/tulu-3-sft-personas-math-grade"
+  - dataset_path: "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/smoltalk2"
+    filters:
+      - field: "original_metadata.source"
+        values:
+          - "OpenThoughts3_1.2M_no_think_no_think"
+          - "smoltalk_multilingual_8languages_lang_5_no_think"
+          - "smoltalk_smollm3_everyday_conversations_no_think"
+          - "smoltalk_smollm3_smol_magpie_ultra_no_think"
+          - "smoltalk_smollm3_smol_rewrite_no_think"
+          - "smoltalk_smollm3_smol_summarize_no_think"
+          - "smoltalk_smollm3_systemchats_30k_no_think"
+          - "table_gpt_no_think"  # Also included in TULU-3, but this one is larger
+          - "smoltalk_smollm3_everyday_conversations_no_think"
+  - dataset_path: "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/EuroBlocks-SFT-Synthetic-1124"
+    filters:
+      - field: "original_metadata.dataset"
+        values:
+          - "CohereForAI/aya_dataset"
+          - "Magpie-Align/Magpie-Llama-3.1-Pro-300K-Filtered"
+          - "Magpie-Align/Magpie-Llama-3.1-Pro-DPO-100K-v0.1"
+          - "Magpie-Align/Magpie-Qwen-Air-300K-Filtered"
+          - "Magpie-Align/Magpie-Reasoning-150K"
+          - "harmful-instruction-refusal"
+          - "instruction-generation"
+          - "instruction-generation-ifeval"
+          - "multilingual-synthetic-arc"
+          - "multilingual-synthetic-ifeval-llama3.1-405B"
+          - "multilingual-synthetic-ifeval-llama3.1-70B"
+          - "multilingual-synthetic-llama3.1-70B"
+          - "multilingual-synthetic-mmlu"
+          - "self-low-resource"
+          - "synthetic-eurollm-9B"
+          - "synthetic-ifeval-magpie"
+

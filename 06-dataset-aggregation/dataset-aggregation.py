@@ -34,6 +34,7 @@ def main(args):
                 lambda sample: get_nested_value(sample, filter_config["field"]) in filter_config["values"]
             )
         data = data.map(lambda x: {"aggregation_input_data_path": dataset_config["dataset_path"]})
+        data = data.remove_columns("original_metadata")
         dataset_mixture.append(data)
     dataset_mixture = datasets.concatenate_datasets(dataset_mixture)
     print(f"Saving data with {len(dataset_mixture)} samples to: ", args.output)

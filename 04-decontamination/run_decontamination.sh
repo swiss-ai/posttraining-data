@@ -1,8 +1,10 @@
 #!/bin/bash
 
-export PROJECT_ROOT_AT="${HOME}/projects/post-training-scripts/04-decontamination"
 data_root_folder="/capstor/store/cscs/swissai/infra01/posttrain_data"
+dataset_name="tulu-3-sft-mixture"
 decontamination_prompts_path="${data_root_folder}/04_decontaminated/decontamination_prompts"
+input_path="${data_root_folder}/03_license_filtered/${dataset_name}"
+export PROJECT_ROOT_AT="${HOME}/projects/post-training-scripts/04-decontamination"
 
 # if decontamination_prompts_path does not exist, then create it
 if [ ! -d "${decontamination_prompts_path}" ]; then
@@ -14,8 +16,6 @@ else
   echo "Decontamination prompts already exists: ${decontamination_prompts_path}"
 fi
 
-dataset_name="tulu-3-sft-mixture"
-input_path="${data_root_folder}/03_license_filtered/${dataset_name}"
 python $PROJECT_ROOT_AT/decontamination.py \
   "${input_path}" \
   --output "${data_root_folder}/04_decontaminated/${dataset_name}" \
