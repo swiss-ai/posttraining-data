@@ -83,8 +83,22 @@ def main(args):
 
     # Load and preprocess training data
     train_data = load_from_disk(args.dataset_path)
-    if args.train_dataset_split:
-        train_data = train_data[args.train_dataset_split]
+    # Original single split extraction (commented out for processing all splits):
+    # if args.train_dataset_split:
+    #     train_data = train_data[args.train_dataset_split]
+    
+    # Process all splits in DatasetDict for complete decontamination
+    if hasattr(train_data, 'keys'):  # DatasetDict
+        # Concatenate all splits for contamination detection
+        all_splits_data = []
+        for split_name in train_data.keys():
+            all_splits_data.append(train_data[split_name])
+        if len(all_splits_data) == 1:
+            train_data = all_splits_data[0]
+        else:
+            from datasets import concatenate_datasets
+            train_data = concatenate_datasets(all_splits_data)
+    # If single Dataset, use as-is
     if not os.path.exists(args.report_path):
         print("Creating directory for contamination reports at: ", args.report_path)
         os.mkdir(args.report_path)
@@ -179,7 +193,17 @@ def main(args):
             report = json.load(f)
         contaminated_ids = contaminated_ids.union(set(report.keys()))
     print("Number of contaminated ids: ", len(contaminated_ids))
-    train_data = train_data.filter(lambda x: x["conversation_id"] not in contaminated_ids)
+    # Original single dataset filtering (commented out for DatasetDict compatibility):
+    # train_data = train_data.filter(lambda x: x["conversation_id"] not in contaminated_ids)
+    # train_data.save_to_disk(args.output)
+    
+    # Handle DatasetDict format - filter all splits if DatasetDict, otherwise filter single dataset
+    if hasattr(train_data, 'keys'):  # DatasetDict
+        from datasets import DatasetDict
+        train_data = DatasetDict({k: v.filter(lambda x: x["conversation_id"] not in contaminated_ids) 
+                                 for k, v in train_data.items()})
+    else:  # Single Dataset
+        train_data = train_data.filter(lambda x: x["conversation_id"] not in contaminated_ids)
     train_data.save_to_disk(args.output)
 
 if __name__ == "__main__":
@@ -205,12 +229,6 @@ if __name__ == "__main__":
         help="Name of the dataset with benchmark samples to use for decontamination. "
              "It expects a DatasetDict with multiple benchmark samples init, each with columns:"
              " config_name, split_name, prompts",
-    )
-    parser.add_argument(
-        "--train_dataset_split",
-        type=str,
-        default=None,
-        help="Split to load from the training data."
     )
     parser.add_argument(
         "--tokenizer_name",
