@@ -14,6 +14,8 @@ from datetime import datetime
 from typing import Dict, Any, Optional
 from datasets import load_from_disk, Dataset, DatasetDict, concatenate_datasets
 from tqdm import tqdm
+import gc
+import tempfile
 
 
 def get_nested_value(obj: Dict[str, Any], field_path: str) -> Any:
@@ -137,6 +139,58 @@ def apply_exclusion_filter(dataset: Dataset, field_path: str, excluded_values: l
     return dataset.filter(filter_func)
 
 
+def apply_exclusion_filter_chunked(dataset: Dataset, field_path: str, excluded_values: list, chunk_size: int = 100000) -> Dataset:
+    """Apply exclusion filter to dataset using chunked processing."""
+    print(f"Excluding samples where {field_path} in {excluded_values} (chunked: {chunk_size:,})")
+    
+    def filter_func(sample):
+        value = get_nested_value(sample, field_path)
+        return value not in excluded_values
+    
+    total_rows = len(dataset)
+    if total_rows <= chunk_size:
+        # Small dataset, use regular filter
+        return dataset.filter(filter_func)
+    
+    filtered_chunks = []
+    filtered_count = 0
+    
+    with tqdm(total=total_rows, desc="Filtering", unit="samples") as pbar:
+        for chunk_start in range(0, total_rows, chunk_size):
+            chunk_end = min(chunk_start + chunk_size, total_rows)
+            
+            # Create chunk indices
+            chunk_indices = list(range(chunk_start, chunk_end))
+            chunk = dataset.select(chunk_indices)
+            
+            # Apply filter to chunk
+            filtered_chunk = chunk.filter(filter_func)
+            
+            if len(filtered_chunk) > 0:
+                filtered_chunks.append(filtered_chunk)
+                filtered_count += len(filtered_chunk)
+            
+            pbar.update(chunk_end - chunk_start)
+            pbar.set_postfix(kept=filtered_count)
+            
+            # Force garbage collection
+            del chunk, filtered_chunk
+            gc.collect()
+    
+    if not filtered_chunks:
+        # Return empty dataset with same structure
+        return Dataset.from_list([])
+    
+    print(f"Concatenating {len(filtered_chunks)} filtered chunks...")
+    result = concatenate_datasets(filtered_chunks)
+    
+    # Clean up
+    del filtered_chunks
+    gc.collect()
+    
+    return result
+
+
 def apply_inclusion_filter(dataset: Dataset, field_path: str, allowed_values: list) -> Dataset:
     """Apply inclusion filter to dataset."""
     print(f"Including only samples where {field_path} in {allowed_values}")
@@ -146,6 +200,58 @@ def apply_inclusion_filter(dataset: Dataset, field_path: str, allowed_values: li
         return value in allowed_values
     
     return dataset.filter(filter_func)
+
+
+def apply_inclusion_filter_chunked(dataset: Dataset, field_path: str, allowed_values: list, chunk_size: int = 100000) -> Dataset:
+    """Apply inclusion filter to dataset using chunked processing."""
+    print(f"Including only samples where {field_path} in {allowed_values} (chunked: {chunk_size:,})")
+    
+    def filter_func(sample):
+        value = get_nested_value(sample, field_path)
+        return value in allowed_values
+    
+    total_rows = len(dataset)
+    if total_rows <= chunk_size:
+        # Small dataset, use regular filter
+        return dataset.filter(filter_func)
+    
+    filtered_chunks = []
+    filtered_count = 0
+    
+    with tqdm(total=total_rows, desc="Filtering", unit="samples") as pbar:
+        for chunk_start in range(0, total_rows, chunk_size):
+            chunk_end = min(chunk_start + chunk_size, total_rows)
+            
+            # Create chunk indices
+            chunk_indices = list(range(chunk_start, chunk_end))
+            chunk = dataset.select(chunk_indices)
+            
+            # Apply filter to chunk
+            filtered_chunk = chunk.filter(filter_func)
+            
+            if len(filtered_chunk) > 0:
+                filtered_chunks.append(filtered_chunk)
+                filtered_count += len(filtered_chunk)
+            
+            pbar.update(chunk_end - chunk_start)
+            pbar.set_postfix(kept=filtered_count)
+            
+            # Force garbage collection
+            del chunk, filtered_chunk
+            gc.collect()
+    
+    if not filtered_chunks:
+        # Return empty dataset with same structure
+        return Dataset.from_list([])
+    
+    print(f"Concatenating {len(filtered_chunks)} filtered chunks...")
+    result = concatenate_datasets(filtered_chunks)
+    
+    # Clean up
+    del filtered_chunks
+    gc.collect()
+    
+    return result
 
 
 def handle_split_removal(dataset_dict: DatasetDict, filter_config: dict) -> Dataset:
@@ -190,10 +296,102 @@ def handle_split_removal(dataset_dict: DatasetDict, filter_config: dict) -> Data
         return DatasetDict(remaining_splits)
 
 
-def apply_dataset_filter(dataset, dataset_name: str, filter_config: dict):
-    """Apply filtering based on configuration."""
+def handle_split_removal_chunked(dataset_dict: DatasetDict, filter_config: dict, chunk_size: int = 100000) -> Dataset:
+    """Handle split removal with chunked processing for large datasets."""
+    splits_to_remove = filter_config["splits_to_remove"]
+    
+    print(f"Removing splits: {splits_to_remove}")
+    
+    # Keep only splits not in removal list
+    remaining_splits = {}
+    total_samples = 0
+    for split_name in dataset_dict.keys():
+        if split_name not in splits_to_remove:
+            remaining_splits[split_name] = dataset_dict[split_name]
+            split_size = len(dataset_dict[split_name])
+            total_samples += split_size
+            print(f"Keeping split: {split_name} ({split_size:,} samples)")
+    
+    if filter_config.get("augment_source", False):
+        print("Augmenting remaining splits with source metadata and concatenating...")
+        
+        # Decide on chunked vs regular processing
+        use_chunked = total_samples > chunk_size
+        
+        if use_chunked:
+            print(f"Using chunked processing for {total_samples:,} total samples...")
+            
+        # Add source metadata and collect datasets
+        augmented_datasets = []
+        for split_name, split_data in remaining_splits.items():
+            print(f"Augmenting split {split_name}...")
+            
+            def add_source_metadata(sample):
+                original_metadata = sample.get("original_metadata", {})
+                return {
+                    **sample,
+                    "original_metadata": {
+                        **original_metadata,
+                        "source": split_name
+                    }
+                }
+            
+            if use_chunked and len(split_data) > chunk_size:
+                # Process split in chunks
+                split_chunks = []
+                with tqdm(total=len(split_data), desc=f"Augmenting {split_name}", unit="samples") as pbar:
+                    for chunk_start in range(0, len(split_data), chunk_size):
+                        chunk_end = min(chunk_start + chunk_size, len(split_data))
+                        chunk_indices = list(range(chunk_start, chunk_end))
+                        chunk = split_data.select(chunk_indices)
+                        
+                        augmented_chunk = chunk.map(add_source_metadata)
+                        split_chunks.append(augmented_chunk)
+                        
+                        pbar.update(chunk_end - chunk_start)
+                        
+                        # Force garbage collection
+                        del chunk, augmented_chunk
+                        gc.collect()
+                
+                # Concatenate chunks for this split
+                print(f"Concatenating {len(split_chunks)} chunks for split {split_name}...")
+                augmented_split = concatenate_datasets(split_chunks)
+                augmented_datasets.append(augmented_split)
+                
+                # Clean up
+                del split_chunks
+                gc.collect()
+            else:
+                # Regular processing for smaller splits
+                augmented = split_data.map(add_source_metadata)
+                augmented_datasets.append(augmented)
+        
+        # Concatenate all splits
+        print("Concatenating all augmented splits...")
+        result = concatenate_datasets(augmented_datasets)
+        
+        # Clean up
+        del augmented_datasets
+        gc.collect()
+        
+        return result
+    else:
+        # Return as DatasetDict
+        return DatasetDict(remaining_splits)
+
+
+def apply_dataset_filter(dataset, dataset_name: str, filter_config: dict, chunk_size: int = 100000):
+    """Apply filtering based on configuration with optional chunking."""
     
     filter_type = filter_config["filter_type"]
+    
+    # Determine if we should use chunking based on dataset size
+    total_samples = count_samples(dataset)
+    use_chunking = total_samples > 500000  # Same threshold as convert script
+    
+    if use_chunking:
+        print(f"Large dataset detected ({total_samples:,} samples), using chunked processing...")
     
     if filter_type == "exclude_sources":
         # Standard exclusion filter
@@ -205,13 +403,20 @@ def apply_dataset_filter(dataset, dataset_name: str, filter_config: dict):
             filtered_splits = {}
             for split_name in dataset.keys():
                 split_data = dataset[split_name]
-                filtered_split = apply_exclusion_filter(split_data, field_path, excluded_values)
+                if use_chunking and len(split_data) > chunk_size:
+                    filtered_split = apply_exclusion_filter_chunked(split_data, field_path, excluded_values, chunk_size)
+                else:
+                    filtered_split = apply_exclusion_filter(split_data, field_path, excluded_values)
+                
                 if len(filtered_split) > 0:
                     filtered_splits[split_name] = filtered_split
             return DatasetDict(filtered_splits)
         else:
             # Single dataset
-            return apply_exclusion_filter(dataset, field_path, excluded_values)
+            if use_chunking:
+                return apply_exclusion_filter_chunked(dataset, field_path, excluded_values, chunk_size)
+            else:
+                return apply_exclusion_filter(dataset, field_path, excluded_values)
             
     elif filter_type == "include_licenses":
         # Include only specific licenses
@@ -223,20 +428,31 @@ def apply_dataset_filter(dataset, dataset_name: str, filter_config: dict):
             filtered_splits = {}
             for split_name in dataset.keys():
                 split_data = dataset[split_name]
-                filtered_split = apply_inclusion_filter(split_data, field_path, allowed_values)
+                if use_chunking and len(split_data) > chunk_size:
+                    filtered_split = apply_inclusion_filter_chunked(split_data, field_path, allowed_values, chunk_size)
+                else:
+                    filtered_split = apply_inclusion_filter(split_data, field_path, allowed_values)
+                
                 if len(filtered_split) > 0:
                     filtered_splits[split_name] = filtered_split
             return DatasetDict(filtered_splits)
         else:
             # Single dataset
-            return apply_inclusion_filter(dataset, field_path, allowed_values)
+            if use_chunking:
+                return apply_inclusion_filter_chunked(dataset, field_path, allowed_values, chunk_size)
+            else:
+                return apply_inclusion_filter(dataset, field_path, allowed_values)
             
     elif filter_type == "remove_splits":
         # Special handling for DatasetDict split removal
         if not hasattr(dataset, 'keys'):
             raise ValueError("remove_splits filter requires DatasetDict input")
         
-        result = handle_split_removal(dataset, filter_config)
+        if use_chunking:
+            result = handle_split_removal_chunked(dataset, filter_config, chunk_size)
+        else:
+            result = handle_split_removal(dataset, filter_config)
+        
         # Ensure we return DatasetDict
         if not hasattr(result, 'keys'):
             return DatasetDict({"train": result})
@@ -335,7 +551,7 @@ def list_filters():
             print(f"  Augment source: {config.get('augment_source', False)}")
 
 
-def process_dataset(dataset_path: Path, output_path: Path, force_format: str = None):
+def process_dataset(dataset_path: Path, output_path: Path, force_format: str = None, chunk_size: int = 100000):
     """Process dataset with proper DatasetDict handling."""
     
     # Validate input
@@ -379,7 +595,7 @@ def process_dataset(dataset_path: Path, output_path: Path, force_format: str = N
         
         # Apply filtering
         print(f"\nApplying filter: {filter_config['reason']}")
-        filtered_dataset = apply_dataset_filter(dataset, dataset_name, filter_config)
+        filtered_dataset = apply_dataset_filter(dataset, dataset_name, filter_config, chunk_size)
         
         # Ensure output is DatasetDict (pipeline convention)
         if not hasattr(filtered_dataset, 'keys'):
@@ -417,6 +633,7 @@ Supported datasets:
 Examples:
   python license_filter.py data/02-standardised/tulu-3-sft-mixture
   python license_filter.py data/02-standardised/smoltalk --output data/03-license-filtered/smoltalk
+  python license_filter.py data/02-standardised/Llama-Nemotron-Post-Training-Dataset --chunk-size 50000
   python license_filter.py --list-filters
         """
     )
@@ -428,6 +645,8 @@ Examples:
     parser.add_argument("--force-format", type=str, 
                        choices=list(DATASET_FILTERS.keys()),
                        help="Force using a specific dataset's filter configuration (e.g., --force-format smoltalk)")
+    parser.add_argument("--chunk-size", type=int, default=100000,
+                       help="Number of samples to process in each chunk for memory efficiency (default: 100000)")
     
     return parser.parse_args()
 
@@ -457,7 +676,7 @@ def main():
     print(f"Input path: {dataset_path}")
     print(f"Output path: {output_path}")
     
-    success = process_dataset(dataset_path, output_path, args.force_format)
+    success = process_dataset(dataset_path, output_path, args.force_format, args.chunk_size)
     sys.exit(0 if success else 1)
 
 
