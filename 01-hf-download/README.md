@@ -16,21 +16,12 @@ This script downloads HuggingFace datasets and stores them locally with metadata
 ## Examples
 
 ```bash
-python hf-download.py tatsu-lab/alpaca --download-folder ./datasets/alpaca
-
-# Download specific split
-python hf-download.py tatsu-lab/alpaca --download-folder ./datasets/alpaca --split train
-```
-
-## Examples
-
-```bash
-python hf-download.py allenai/tulu-3-sft-mixture --download-folder data/01-hf-data
-python hf-download.py HuggingFaceTB/smoltalk --download-folder data/01-hf-data --subset all
-python hf-download.py HuggingFaceTB/smoltalk2 --download-folder data/01-hf-data --subset SFT
-python hf-download.py arcee-ai/The-Tome --download-folder data/01-hf-data
-python hf-download.py utter-project/EuroBlocks-SFT-Synthetic-1124 --download-folder data/01-hf-data
-python hf-download.py nvidia/Llama-Nemotron-Post-Training-Dataset --download-folder data/01-hf-data
+python 01-hf-download/hf-download.py allenai/tulu-3-sft-mixture --download-folder data/01-hf-data
+python 01-hf-download/hf-download.py HuggingFaceTB/smoltalk --download-folder data/01-hf-data --subset all
+python 01-hf-download/hf-download.py HuggingFaceTB/smoltalk2 --download-folder data/01-hf-data --subset SFT
+python 01-hf-download/hf-download.py arcee-ai/The-Tome --download-folder data/01-hf-data
+python 01-hf-download/hf-download.py utter-project/EuroBlocks-SFT-Synthetic-1124 --download-folder data/01-hf-data
+python 01-hf-download/hf-download.py nvidia/Llama-Nemotron-Post-Training-Dataset --download-folder data/01-hf-data
 ```
 
 ## Known SFT & Alignment Datasets
@@ -41,6 +32,9 @@ AI4Chem/ChemData700K
 BAAI/Infinity-Instruct
 BAAI/Infinity-Preference
 CohereLabs/aya_dataset
+DataProvenanceInitiative/Commercial-Flan-Collection-Chain-Of-Thought
+DataProvenanceInitiative/Commercial-Flan-Collection-Flan-2021
+DataProvenanceInitiative/Commercial-Flan-Collection-SNI
 FreedomIntelligence/medical-o1-reasoning-SFT
 HuggingFaceH4/no_robots
 HuggingFaceTB/smoltalk
