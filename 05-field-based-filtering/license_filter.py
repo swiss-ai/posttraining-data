@@ -61,7 +61,8 @@ DATASET_FILTERS = {
         "field": "original_metadata.source",
         "values": [
             "ai2-adapt-dev/tulu_hard_coded_repeated_10",
-            "ai2-adapt-dev/no_robots_converted"
+            "ai2-adapt-dev/no_robots_converted",
+            "ai2-adapt-dev/flan_v2_converted"
         ],
         "reason": "Licensing restrictions"
     },
