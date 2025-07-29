@@ -23,27 +23,39 @@ DEFAULT_TOP_VALUES = 100
 
 def get_nested_value(obj: Dict[str, Any], field_path: str) -> Any:
     """
-    Get value from nested dictionary using dot notation.
+    Get value from nested dictionary using dot notation and array indexing.
     
     Args:
         obj: Dictionary to search in
-        field_path: Dot-separated path like 'original_metadata.category'
+        field_path: Dot-separated path like 'original_metadata.category' or 'messages[0].role'
     
     Returns:
         Value at the specified path, or None if not found
     """
     try:
-        keys = field_path.split('.')
         current = obj
         
-        for key in keys:
-            if isinstance(current, dict) and key in current:
-                current = current[key]
+        # Replace array notation with dots for parsing: messages[0].role -> messages.0.role
+        normalized_path = field_path.replace('[', '.').replace(']', '')
+        parts = normalized_path.split('.')
+        
+        for part in parts:
+            if part.isdigit():
+                # It's an array index
+                index = int(part)
+                if isinstance(current, list) and 0 <= index < len(current):
+                    current = current[index]
+                else:
+                    return None
             else:
-                return None
+                # It's a dictionary key
+                if isinstance(current, dict) and part in current:
+                    current = current[part]
+                else:
+                    return None
         
         return current
-    except (KeyError, TypeError, AttributeError):
+    except (KeyError, TypeError, AttributeError, IndexError):
         return None
 
 
@@ -163,7 +175,9 @@ def display_field_stats(analysis: Dict[str, Any], field_path: str, top_values: i
         display_value = str(value)
         if len(display_value) > 50:
             display_value = display_value[:47] + "..."
-        print(f"  {display_value:<50} {count:>8,} ({percentage:5.1f}%)")
+        # Add quotes around the value
+        quoted_value = f'"{display_value}"'
+        print(f"  {quoted_value:<52} {count:>8,} ({percentage:5.1f}%)")
 
 
 def display_field_analysis(analysis: Dict[str, Any], top_values: int = DEFAULT_TOP_VALUES):
@@ -198,7 +212,9 @@ def display_field_analysis(analysis: Dict[str, Any], top_values: int = DEFAULT_T
             display_value = str(value)
             if len(display_value) > 50:
                 display_value = display_value[:47] + "..."
-            print(f"  {display_value:<50} {count:>8,} ({percentage:5.1f}%)")
+            # Add quotes around the value
+            quoted_value = f'"{display_value}"'
+            print(f"  {quoted_value:<52} {count:>8,} ({percentage:5.1f}%)")
 
 
 def filter_dataset(dataset, field_path: str, target_values: List[str], keep_matches: bool = True) -> Dataset:
@@ -215,7 +231,8 @@ def filter_dataset(dataset, field_path: str, target_values: List[str], keep_matc
         Filtered Dataset
     """
     print(f"Filtering dataset on field '{field_path}'...")
-    print(f"Target values: {target_values}")
+    quoted_values = [f'"{v}"' for v in target_values]
+    print(f"Target values: {', '.join(quoted_values)}")
     print(f"Action: {'KEEP' if keep_matches else 'REMOVE'} matching samples")
     
     filtered_samples = []
@@ -248,6 +265,18 @@ def filter_dataset(dataset, field_path: str, target_values: List[str], keep_matc
 def save_filtered_dataset(dataset, output_path: Path, metadata: Dict[str, Any]):
     """Save filtered dataset with metadata."""
     output_path.mkdir(parents=True, exist_ok=True)
+    
+    # Check if dataset is empty
+    if len(dataset) == 0:
+        print(f"Warning: Filtered dataset is empty. No matches found for the specified criteria.")
+        print(f"Creating empty dataset directory at {output_path}")
+        
+        # Still save metadata to track the filtering operation
+        metadata_file = output_path / "dataset_metadata.json"
+        with open(metadata_file, 'w') as f:
+            json.dump(metadata, f, indent=2)
+        print(f"Metadata saved to {metadata_file}")
+        return
     
     print(f"Saving filtered dataset to {output_path}...")
     dataset.save_to_disk(str(output_path))
@@ -340,19 +369,12 @@ def main():
         dataset = load_from_disk(str(dataset_path))
         
         # Handle DatasetDict vs single Dataset
-        if hasattr(dataset, 'keys'):
+        is_dataset_dict = hasattr(dataset, 'keys')
+        if is_dataset_dict:
             available_splits = list(dataset.keys())
             print(f"Found DatasetDict with splits: {available_splits}")
-            
-            if 'train' in available_splits:
-                dataset = dataset['train']
-                print(f"Using 'train' split")
-            else:
-                first_split = available_splits[0]
-                dataset = dataset[first_split]
-                print(f"Using '{first_split}' split")
-        
-        print(f"Dataset size: {len(dataset):,} samples")
+        else:
+            print(f"Found single Dataset with {len(dataset):,} samples")
         
     except Exception as e:
         print(f"Error loading dataset: {e}")
@@ -365,15 +387,33 @@ def main():
     is_filtering = args.keep_values or args.remove_values
     
     if not is_filtering:
-        # Analysis mode
-        analysis = analyze_field_structure(dataset, max_samples)
-        
-        if args.field:
-            # Show specific field statistics
-            display_field_stats(analysis, args.field, args.top_values)
+        # Analysis mode - analyze all splits if DatasetDict
+        if is_dataset_dict:
+            for split_name in available_splits:
+                print(f"\n{'='*80}")
+                print(f"ANALYZING SPLIT: {split_name}")
+                print(f"{'='*80}")
+                split_dataset = dataset[split_name]
+                print(f"Split size: {len(split_dataset):,} samples")
+                
+                analysis = analyze_field_structure(split_dataset, max_samples)
+                
+                if args.field:
+                    # Show specific field statistics
+                    display_field_stats(analysis, args.field, args.top_values)
+                else:
+                    # Show dataset schema
+                    display_schema(analysis)
         else:
-            # Show dataset schema
-            display_schema(analysis)
+            # Single dataset
+            analysis = analyze_field_structure(dataset, max_samples)
+            
+            if args.field:
+                # Show specific field statistics
+                display_field_stats(analysis, args.field, args.top_values)
+            else:
+                # Show dataset schema
+                display_schema(analysis)
         return
     
     # Filtering mode
@@ -399,34 +439,100 @@ def main():
         keep_matches = False
         action = "remove"
     
-    # Apply filter
-    filtered_dataset = filter_dataset(dataset, args.field, target_values, keep_matches)
-    
-    # Prepare metadata
-    original_metadata = {}
-    metadata_file = dataset_path / "dataset_metadata.json"
-    if metadata_file.exists():
-        with open(metadata_file, 'r') as f:
-            original_metadata = json.load(f)
-    
-    filter_metadata = {
-        **original_metadata,
-        "processing_log": original_metadata.get("processing_log", []) + [{
-            "operation": "field_based_filtering",
-            "script": "field_filter.py",
-            "timestamp": datetime.now().isoformat(),
-            "input_path": str(dataset_path),
-            "output_path": str(args.output),
-            "filter_field": args.field,
-            "filter_values": target_values,
-            "filter_action": action,
-            "original_samples": len(dataset),
-            "filtered_samples": len(filtered_dataset)
-        }]
-    }
-    
-    # Save filtered dataset
-    save_filtered_dataset(filtered_dataset, Path(args.output), filter_metadata)
+    # Apply filter to all splits if DatasetDict
+    if is_dataset_dict:
+        filtered_splits = {}
+        total_original = 0
+        total_filtered = 0
+        
+        for split_name in available_splits:
+            print(f"\nFiltering split: {split_name}")
+            split_dataset = dataset[split_name]
+            filtered_split = filter_dataset(split_dataset, args.field, target_values, keep_matches)
+            
+            if len(filtered_split) > 0:
+                filtered_splits[split_name] = filtered_split
+            
+            total_original += len(split_dataset)
+            total_filtered += len(filtered_split)
+        
+        if not filtered_splits:
+            print("Warning: All splits resulted in empty datasets after filtering")
+        
+        # Create filtered DatasetDict
+        from datasets import DatasetDict
+        filtered_dataset = DatasetDict(filtered_splits)
+        
+        # Prepare metadata
+        original_metadata = {}
+        metadata_file = dataset_path / "dataset_metadata.json"
+        if metadata_file.exists():
+            with open(metadata_file, 'r') as f:
+                original_metadata = json.load(f)
+        
+        filter_metadata = {
+            **original_metadata,
+            "processing_log": original_metadata.get("processing_log", []) + [{
+                "operation": "field_based_filtering",
+                "script": "field_filter.py",
+                "timestamp": datetime.now().isoformat(),
+                "input_path": str(dataset_path),
+                "output_path": str(args.output),
+                "filter_field": args.field,
+                "filter_values": target_values,
+                "filter_action": action,
+                "original_samples": total_original,
+                "filtered_samples": total_filtered,
+                "splits_filtered": list(filtered_splits.keys())
+            }]
+        }
+        
+        # Save filtered DatasetDict
+        output_path = Path(args.output)
+        output_path.mkdir(parents=True, exist_ok=True)
+        
+        print(f"\nSaving filtered DatasetDict to {output_path}...")
+        filtered_dataset.save_to_disk(str(output_path))
+        
+        # Save metadata
+        metadata_file = output_path / "dataset_metadata.json"
+        with open(metadata_file, 'w') as f:
+            json.dump(filter_metadata, f, indent=2)
+        
+        print(f"DatasetDict saved with {len(filtered_splits)} splits:")
+        for split_name, split_data in filtered_splits.items():
+            print(f"  - {split_name}: {len(split_data):,} samples")
+        print(f"Metadata saved to {metadata_file}")
+        
+    else:
+        # Single dataset filtering
+        filtered_dataset = filter_dataset(dataset, args.field, target_values, keep_matches)
+        
+        # Prepare metadata
+        original_metadata = {}
+        metadata_file = dataset_path / "dataset_metadata.json"
+        if metadata_file.exists():
+            with open(metadata_file, 'r') as f:
+                original_metadata = json.load(f)
+        
+        filter_metadata = {
+            **original_metadata,
+            "processing_log": original_metadata.get("processing_log", []) + [{
+                "operation": "field_based_filtering",
+                "script": "field_filter.py",
+                "timestamp": datetime.now().isoformat(),
+                "input_path": str(dataset_path),
+                "output_path": str(args.output),
+                "filter_field": args.field,
+                "filter_values": target_values,
+                "filter_action": action,
+                "original_samples": len(dataset),
+                "filtered_samples": len(filtered_dataset)
+            }]
+        }
+        
+        # Save filtered dataset
+        save_filtered_dataset(filtered_dataset, Path(args.output), filter_metadata)
 
 
 if __name__ == "__main__":

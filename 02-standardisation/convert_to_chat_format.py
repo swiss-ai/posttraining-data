@@ -47,9 +47,9 @@ def convert_chat_messages(row: Dict[str, Any], dataset_source: str) -> Dict[str,
             continue
             
         role = msg.get("role", "").strip()
-        content = msg.get("content", "").strip()
+        content = msg.get("content", "")
         
-        if not role or not content:
+        if not role:
             continue
         
         # Identify message types
@@ -113,22 +113,18 @@ def convert_nemotron_format(row: Dict[str, Any], dataset_source: str) -> Dict[st
     - Additional metadata: category, license, reasoning, generator, etc.
     """
     input_messages = row.get("input", [])
-    output = row.get("output", "").strip()
-    system_prompt_content = row.get("system_prompt", "").strip()
+    output = row.get("output", "")
+    system_prompt_content = row.get("system_prompt", "")
     
     if not input_messages or not isinstance(input_messages, list) or len(input_messages) == 0:
         raise ValueError("No valid input messages array found")
-    if not output:
-        raise ValueError("No output found")
     
     # Extract user message from nested input structure
     user_msg_data = input_messages[0]
     if not isinstance(user_msg_data, dict) or "content" not in user_msg_data:
         raise ValueError("Invalid input message structure")
         
-    user_content = user_msg_data.get("content", "").strip()
-    if not user_content:
-        raise ValueError("No user content found")
+    user_content = user_msg_data.get("content", "")
     
     # Generate conversation ID
     conversation_id = generate_conversation_id(dataset_source, user_content)
@@ -197,9 +193,9 @@ def convert_sharegpt_format(row: Dict[str, Any], dataset_source: str) -> Dict[st
             continue
             
         from_role = msg.get("from", "").strip()
-        value_content = msg.get("value", "").strip()
+        value_content = msg.get("value", "")
         
-        if not from_role or not value_content:
+        if not from_role:
             continue
         
         # Map role
@@ -259,14 +255,9 @@ def convert_preference_format(row: Dict[str, Any], dataset_source: str) -> Dict[
     Convert preference format (prompt with chosen/rejected responses).
     Used for: DPO datasets, preference pairs, etc.
     """
-    prompt = row.get("prompt", "").strip()
-    chosen = row.get("chosen", "").strip()
-    rejected = row.get("rejected", "").strip()
-    
-    if not prompt:
-        raise ValueError("No prompt found")
-    if not chosen or not rejected:
-        raise ValueError("Missing chosen or rejected response")
+    prompt = row.get("prompt", "")
+    chosen = row.get("chosen", "")
+    rejected = row.get("rejected", "")
     
     # Generate conversation ID
     conversation_id = generate_conversation_id(dataset_source, prompt)
@@ -316,14 +307,9 @@ def convert_instruction_response(row: Dict[str, Any], dataset_source: str) -> Di
     Used for: alpaca-style datasets, etc.
     """
     # Combine instruction and input into user prompt
-    instruction = row.get("instruction", "").strip()
-    input_text = row.get("input", "").strip()
-    output = row.get("output", "").strip()
-    
-    if not instruction:
-        raise ValueError("No instruction found")
-    if not output:
-        raise ValueError("No output found")
+    instruction = row.get("instruction", "")
+    input_text = row.get("input", "")
+    output = row.get("output", "")
     
     # Create user prompt (combine instruction and input)
     user_content_parts = [instruction]
@@ -710,6 +696,7 @@ Examples:
   python convert_to_chat_format.py ../data/01-hf-data/tulu-3-sft-mixture ../data/02-standardised/
   python convert_to_chat_format.py ../data/01-hf-data/The-Tome ../data/02-standardised/The-Tome --chunk-size 50000
   python convert_to_chat_format.py ../data/01-hf-data/smoltalk2 ../data/02-standardised/ --splits "train,test"
+  python convert_to_chat_format.py ../data/01-hf-data/smoltalk-filtered ../data/02-standardised/ --force-format smoltalk
         """
     )
     
@@ -732,6 +719,12 @@ Examples:
         type=str,
         help="Comma-separated list of specific splits to process (e.g., 'train,test'). If not specified, all splits are processed."
     )
+    parser.add_argument(
+        "--force-format",
+        type=str,
+        choices=list(CONVERTERS.keys()),
+        help="Force using a specific dataset's converter format (e.g., --force-format smoltalk)"
+    )
     
     return parser.parse_args()
 
@@ -751,10 +744,16 @@ def main():
     print(f"Converting dataset: {dataset_name}")
     
     # Get converter function
-    converter = get_converter(dataset_name)
+    if args.force_format:
+        converter = get_converter(args.force_format)
+        print(f"Using forced format: {args.force_format}")
+    else:
+        converter = get_converter(dataset_name)
+    
     if not converter:
         print(f"Error: No converter found for dataset: {dataset_name}")
         print(f"Supported datasets: {list(CONVERTERS.keys())}")
+        print(f"Tip: Use --force-format to specify a converter (e.g., --force-format smoltalk)")
         sys.exit(1)
     
     # Load input dataset
@@ -785,6 +784,7 @@ def main():
                 splits_to_process = available_splits
                 print(f"Processing all splits: {splits_to_process}")
             
+            # First, convert all splits
             converted_splits = {}
             total_samples_processed = 0
             
@@ -796,39 +796,18 @@ def main():
                 input_dataset = dataset[split_name]
                 print(f"Split '{split_name}' has {len(input_dataset)} samples")
                 
-                # Convert this split - use split-by-split for very large splits
+                # Convert this split
                 try:
-                    # For very large splits (>1M samples), process individually
-                    if len(input_dataset) > 1000000:
-                        print(f"Large split detected ({len(input_dataset):,} samples) - processing individually")
-                        split_output_path = determine_output_path(args.output_path, dataset_name, split_name)
-                        
-                        converted_count = convert_and_save_large_split(
-                            input_dataset, converter, dataset_name, 
-                            split_output_path, split_name, input_path, args.chunk_size
-                        )
-                        
-                        if converted_count:
-                            total_samples_processed += converted_count
-                            print(f"✅ Split '{split_name}' converted and saved individually: {converted_count} samples")
-                            print(f"   Output: {split_output_path}")
-                        else:
-                            print(f"❌ Split '{split_name}' conversion failed")
-                        
-                        # Don't add to converted_splits since it's saved individually
-                        continue
-                    else:
-                        # Regular processing for smaller splits
-                        converted_dataset = convert_dataset(input_dataset, converter, dataset_name, args.chunk_size)
-                        converted_splits[split_name] = converted_dataset
-                        total_samples_processed += len(converted_dataset)
-                        print(f"✅ Split '{split_name}' converted: {len(converted_dataset)} samples")
+                    converted_dataset = convert_dataset(input_dataset, converter, dataset_name, args.chunk_size)
+                    converted_splits[split_name] = converted_dataset
+                    total_samples_processed += len(converted_dataset)
+                    print(f"✅ Split '{split_name}' converted: {len(converted_dataset)} samples")
                 except Exception as e:
                     print(f"Error converting split '{split_name}': {e}")
                     continue
             
             if converted_splits:
-                # Reconstruct DatasetDict with converted splits
+                # Reconstruct DatasetDict with all converted splits
                 from datasets import DatasetDict
                 converted_datasetdict = DatasetDict(converted_splits)
                 
