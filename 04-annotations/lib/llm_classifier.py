@@ -253,21 +253,50 @@ class LLMClassifier:
         with open(template_path, 'r', encoding='utf-8') as f:
             return f.read().strip()
     
-
-    async def classify_single(self, question: str, answer: str, prompt_template: str, 
-                            valid_categories: List[str]) -> ClassificationResult:
+    async def classify_single_flexible(self, template_data: Dict[str, str], prompt_template: str, 
+                                     valid_categories: List[str]) -> ClassificationResult:
         """
-        Classify a single question-answer pair with retry logic.
+        Classify a single item using flexible template placeholders.
         
         Args:
-            question: The question/context
-            answer: The answer to classify
-            prompt_template: Template with {question} and {answer} placeholders
+            template_data: Dictionary with data for template placeholders (e.g., {"system_prompt": "...", "initial_prompt": "..."})
+            prompt_template: Template string with placeholders matching template_data keys
             valid_categories: List of valid classification categories
             
         Returns:
             ClassificationResult with classification and metadata
         """
+        return await self.classify_single(template_data, prompt_template, valid_categories)
+
+    async def classify_single(self, data_or_question, answer_or_template=None, prompt_template=None, 
+                            valid_categories=None) -> ClassificationResult:
+        """
+        Classify a single item with flexible template placeholders.
+        
+        Supports two calling patterns:
+        1. New flexible format: classify_single(data_dict, prompt_template, valid_categories)
+        2. Legacy format: classify_single(question, answer, prompt_template, valid_categories)
+        
+        Args:
+            data_or_question: Dict with template data OR legacy question string
+            answer_or_template: Prompt template string OR legacy answer string  
+            prompt_template: Template string (when using new format) OR None (legacy)
+            valid_categories: List of valid classification categories
+            
+        Returns:
+            ClassificationResult with classification and metadata
+        """
+        # Handle both calling patterns
+        if isinstance(data_or_question, dict):
+            # New flexible format: classify_single(data_dict, prompt_template, valid_categories)
+            template_data = data_or_question
+            template_str = answer_or_template
+            categories = prompt_template
+        else:
+            # Legacy format: classify_single(question, answer, prompt_template, valid_categories)
+            template_data = {"question": data_or_question, "answer": answer_or_template}
+            template_str = prompt_template
+            categories = valid_categories
         last_error = None
         
         for attempt in range(MAX_RETRY_ATTEMPTS + 1):  # 0, 1, 2, 3 (total 4 attempts)
@@ -281,8 +310,8 @@ class LLMClassifier:
             
             start_time = time.time()
             try:
-                # Format the prompt
-                formatted_prompt = prompt_template.format(question=question, answer=answer)
+                # Format the prompt with flexible placeholders
+                formatted_prompt = template_str.format(**template_data)
                 
                 # Make API request
                 response = await self.client.chat.completions.create(
@@ -301,19 +330,19 @@ class LLMClassifier:
                 
                 # Parse JSON response
                 try:
-                    # Clean up common JSON formatting issues from LLM responses
                     cleaned_content = self._clean_json_response(response_content)
                     result_data = json.loads(cleaned_content)
-                    classification = result_data.get("classification", "").strip()
-                    reasoning = result_data.get("reasoning", "").strip()
                     
-                    # Validate classification
-                    if classification not in valid_categories:
-                        # Don't retry for invalid classifications - this is a logic error, not API error
-                        last_error = f"Invalid classification: {classification}"
-                        continue  # Retry with same request
+                    # Debug for quality classifier
+                    if "well_formedness" in result_data:
+                        # Quality response - store entire structure
+                        classification = result_data
+                        reasoning = json.dumps(result_data)
+                    else:
+                        # Standard response
+                        classification = result_data.get("classification", "").strip()
+                        reasoning = result_data.get("reasoning", "").strip()
                     
-                    # Success!
                     result = ClassificationResult(
                         classification=classification,
                         reasoning=reasoning,
@@ -327,21 +356,19 @@ class LLMClassifier:
                     return result
                     
                 except json.JSONDecodeError as e:
-                    # JSON parse errors should be retried
                     last_error = f"JSON parse error: {str(e)}"
                     self.logger.debug(f"JSON parse failed on attempt {attempt + 1}: {e}")
-                    continue  # Try again
+                    continue
                     
             except Exception as e:
-                # Network/API errors should be retried
                 last_error = f"API request failed: {str(e)}"
                 self.logger.debug(f"API request failed on attempt {attempt + 1}: {e}")
-                continue  # Try again
+                continue
         
         # All retries exhausted - return failure
         self.logger.error(f"Classification failed after {MAX_RETRY_ATTEMPTS + 1} attempts. Last error: {last_error}")
         result = ClassificationResult(
-            classification=valid_categories[-1] if valid_categories else "error",
+            classification=categories[-1] if categories else "error",
             reasoning=f"Failed after {MAX_RETRY_ATTEMPTS + 1} attempts: {last_error}",
             success=False,
             error=last_error,

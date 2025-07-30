@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 """
-Refusal Classification Script (BaseClassifier Version)
+AI Assistant Classification Script
 
-Classifies assistant messages in chat format datasets to identify refusal responses 
-where the assistant declines to provide information or assistance due to safety, 
-ethical, or capability constraints.
+Classifies question-answer pairs in chat format datasets to identify content
+involving AI assistants, chatbots, or language models.
 """
 
 import sys
@@ -17,20 +16,20 @@ from base_classifier import BaseClassifier
 from llm_classifier import extract_message_context, should_classify_message
 
 
-class RefusalClassifier(BaseClassifier):
-    """Classifier for identifying refusal responses in assistant messages."""
+class AssistantClassifier(BaseClassifier):
+    """Classifier for identifying AI assistant-related content."""
     
     def __init__(self):
         super().__init__(
-            classifier_name="refusal_classification",
-            template_filename="refusal.txt",
-            valid_categories=["refusal", "no_refusal"],
-            description="Classify refusal responses in chat format datasets"
+            classifier_name="assistant_classification",
+            template_filename="assistant.txt",
+            valid_categories=["ai_assistant_related", "non_ai_assistant"],
+            description="Classify AI assistant-related content in chat format datasets"
         )
     
     def collect_tasks(self, sample: Dict[str, Any]) -> List[Dict[str, Any]]:
         """
-        Collect all assistant messages that need refusal classification from a sample.
+        Collect all assistant messages that need AI assistant classification from a sample.
         
         Args:
             sample: Chat format sample
@@ -136,11 +135,11 @@ class RefusalClassifier(BaseClassifier):
                             if "metadata" not in branch["messages"][i]:
                                 branch["messages"][i]["metadata"] = {}
                             
-                            # Create nested structure: refusal_classification -> model -> data
-                            if "refusal_classification" not in branch["messages"][i]["metadata"]:
-                                branch["messages"][i]["metadata"]["refusal_classification"] = {}
+                            # Create nested structure: assistant_classification -> model -> data
+                            if "assistant_classification" not in branch["messages"][i]["metadata"]:
+                                branch["messages"][i]["metadata"]["assistant_classification"] = {}
                             
-                            branch["messages"][i]["metadata"]["refusal_classification"][model] = classification_metadata
+                            branch["messages"][i]["metadata"]["assistant_classification"][model] = classification_metadata
                             break
             
             updated_samples.append(sample)
@@ -150,7 +149,7 @@ class RefusalClassifier(BaseClassifier):
 
 def main():
     """Main function."""
-    classifier = RefusalClassifier()
+    classifier = AssistantClassifier()
     return classifier.run_classification()
 
 
