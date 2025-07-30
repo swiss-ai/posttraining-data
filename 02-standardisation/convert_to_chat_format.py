@@ -400,6 +400,7 @@ CONVERTERS = {
     "smoltalk": convert_chat_messages,
     "smoltalk2": convert_chat_messages, 
     "tulu-3-sft-mixture": convert_chat_messages,
+    "tulu-3-sft-olmo-2-mixture-0225": convert_chat_messages,
     
     # ShareGPT format with from/value fields
     "The-Tome": convert_sharegpt_format,
