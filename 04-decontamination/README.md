@@ -30,7 +30,18 @@ python $PROJECT_ROOT_AT/decontamination.py \
   --report_path "${input_path}/contamination_reports" \
   --ngram_length 8 \
   --diff_threshold 0.5 \
-  --num_proc 10
+  --num_proc 10 \
+  --cache_dir "benchmark_cache"
 ```
 This script loads the dataset from the shared `03_license_filtered` directory, saves the decontamination reports under this dataset's directory,
 and writes the decontaminated dataset to the `04_decontaminated` directory.
+
+## Performance Optimizations
+
+### Benchmark N-gram Caching
+The script now caches pre-computed n-grams for each benchmark to avoid recomputation on subsequent runs. Cache files are stored in the `benchmark_cache` directory (configurable with `--cache_dir`) and are keyed by:
+- Benchmark name
+- Tokenizer name  
+- N-gram length
+
+On the first run, n-grams are computed and cached. Subsequent runs will load from cache, significantly reducing processing time for the 60+ evaluation benchmarks.
