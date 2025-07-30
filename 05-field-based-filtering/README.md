@@ -1,11 +1,12 @@
-# Field-Based Dataset Filtering
+# 05-field-based-filtering: General Field Analysis and Filtering
 
 Analyzes and filters chat format datasets by field values. Use dot notation for nested fields (e.g., `original_metadata.category`).
 
-## Tools
+**Note**: License-based filtering has been moved to `03-license-based-filtering/` for better pipeline organization.
+
+## Tool
 
 - **field_filter.py**: General-purpose field analysis and filtering
-- **license_filter.py**: Pre-configured license-based filtering for specific datasets
 
 ## Usage
 
@@ -64,34 +65,6 @@ python 05-field-based-filtering/field_filter.py data/02-standardised/smoltalk \
   --output data/03-filtered/smoltalk-numina-magpie
 ```
 
-## License Filtering
+## Related Tools
 
-The `license_filter.py` tool provides pre-configured filtering rules for removing samples with licensing restrictions from specific datasets.
-
-### Supported Datasets
-- **tulu-3-sft-mixture**: Removes ai2-adapt-dev sources with licensing issues
-- **smoltalk**: Excludes openhermes-100k, longalign, explore-instruct-rewriting
-- **smoltalk2**: Removes problematic splits and concatenates remaining data
-- **The-Tome**: Filters out infini-instruct, ultrainteract, qwen2-magpie sources
-- **AceReason-1.1-SFT**: Removes leetcode samples
-- **Llama-Nemotron-Post-Training-Dataset**: Keeps only cc-by-4.0 and odc-by licenses
-- **EuroBlocks-SFT-Synthetic-1124**: No filtering needed
-
-### Usage
-```bash
-# Apply license filtering with default output path
-python 05-field-based-filtering/license_filter.py data/02-standardised/tulu-3-sft-mixture
-
-# Specify custom output path
-python 05-field-based-filtering/license_filter.py data/02-standardised/smoltalk \
-  --output data/03-license-filtered/smoltalk
-
-# List all configured filters
-python 05-field-based-filtering/license_filter.py --list-filters
-```
-
-### Output
-Filtered datasets are saved to `data/03-license-filtered/` by default, maintaining:
-- DatasetDict format for consistency
-- Complete metadata tracking with processing history
-- Sample removal statistics
+For license-based filtering with pre-configured rules for specific datasets, see `03-license-based-filtering/`.
