@@ -1,79 +1,150 @@
-# Dataset Annotations
+# 04-annotations: Dataset Annotation Tools
 
-Adds annotations to chat format datasets including language detection and LLM-based classifications.
+LLM-based classification tools for annotating chat format datasets with refusal detection, ideological sensitivity, AI assistant identification, and question quality assessment.
 
 ## Environment Setup
 ```bash
-export SWISSAI_API_KEY="your_api_key"  # For LLM classification
+export SWISSAI_API_KEY="your_swiss_ai_api_key"
 ```
 
-## Refusal Classification
+Always use the project virtual environment:
+```bash
+venv/bin/python 04-annotations/classify_refusal.py --help
+```
 
-LLM-based classification to identify assistant refusal responses with **adaptive concurrency** and retry logic.
+## Available Classifications
+
+### 1. Refusal Classification
+Identifies assistant messages that decline requests due to safety/ethical constraints.
 
 ```bash
-# Adaptive concurrency (default) - automatically adjusts based on API performance
+venv/bin/python 04-annotations/classify_refusal.py \
+  data/02-standardised/dataset-name \
+  --output data/04-annotations/dataset-name-refusal
+```
+
+### 2. Ideological Classification  
+Scores ideological sensitivity of initial prompts (0-3 scale).
+
+```bash
+venv/bin/python 04-annotations/classify_ideology.py \
+  data/02-standardised/dataset-name \
+  --output data/04-annotations/dataset-name-ideology
+```
+
+### 3. Assistant Classification
+Identifies content involving AI assistants or language models.
+
+```bash
+venv/bin/python 04-annotations/classify_assistant.py \
+  data/02-standardised/dataset-name \
+  --output data/04-annotations/dataset-name-assistant
+```
+
+### 4. Quality Classification
+Evaluates question quality across 4 dimensions (1-3 scoring each).
+
+```bash
+venv/bin/python 04-annotations/classify_quality.py \
+  data/02-standardised/dataset-name \
+  --output data/04-annotations/dataset-name-quality
+```
+
+### 5. Language Detection
+FastText-based language detection (176 languages, offline processing).
+
+```bash
+venv/bin/python 04-annotations/language_annotate.py \
+  data/02-standardised/dataset-name \
+  data/04-annotations/dataset-name-lang
+```
+
+## Chained Processing
+Classifications can be chained by using output as input:
+
+```bash
 venv/bin/python 04-annotations/classify_refusal.py \
   data/02-standardised/dataset-name \
   --output data/04-annotations/dataset-name-refusal
 
-# High throughput processing
-venv/bin/python 04-annotations/classify_refusal.py \
-  data/02-standardised/EuroBlocks-SFT-Synthetic-1124 \
-  --output data/04-annotations/EuroBlocks-SFT-Synthetic-1124-refusal \
-  --concurrent 100 --chunk-size 50000
-
-# Fixed concurrency mode (disable adaptive)
-venv/bin/python 04-annotations/classify_refusal.py \
-  data/02-standardised/dataset-name \
-  --output data/04-annotations/dataset-name-refusal \
-  --concurrent 50 --disable-adaptive
+venv/bin/python 04-annotations/classify_quality.py \
+  data/04-annotations/dataset-name-refusal \
+  --output data/04-annotations/dataset-name-refusal-quality
 ```
 
-**Features**: 
-- Auto-adjusts concurrency every 60s (increases +20 if error rate <1%)
-- 3 retries with exponential backoff for failed requests
-- Real-time metrics: req/min, error rate, avg duration
-- Progress persistence with `--resume`
+## Metadata Structure
 
-## Language Detection
-
-FastText-based language detection for message content (no API required).
-
-```bash
-# Detect languages in all messages
-venv/bin/python 04-annotations/annotate_language.py \
-  data/02-standardised/dataset-name \
-  --output data/04-annotations/dataset-name-lang
-
-# Detect only in assistant messages
-venv/bin/python 04-annotations/annotate_language.py \
-  data/02-standardised/dataset-name \
-  --output data/04-annotations/dataset-name-lang \
-  --target-roles assistant
-
-# Process with custom chunk size
-venv/bin/python 04-annotations/annotate_language.py \
-  data/02-standardised/dataset-name \
-  --output data/04-annotations/dataset-name-lang \
-  --chunk-size 20000
-```
-
-## Output Format
-
-Classifications are added to message metadata:
+### Simple Classifications (Refusal, Ideology, Assistant)
 ```json
 {
-  "role": "assistant",
-  "content": "I can't help with that request...",
   "metadata": {
     "refusal_classification": {
-      "classification": "refusal",
-      "reasoning": "Assistant explicitly declines the request...",
-      "success": true,
-      "timestamp": 1672531200.0,
-      "model": "meta-llama/Llama-3.3-70B-Instruct"
+      "meta-llama/Llama-3.3-70B-Instruct": {
+        "classification": "no_refusal",
+        "reasoning": "Assistant provides helpful information."
+      }
     }
   }
 }
+```
+
+### Quality Classification (4 Dimensions)
+```json
+{
+  "metadata": {
+    "quality_classification": {
+      "meta-llama/Llama-3.3-70B-Instruct": {
+        "well_formedness": {"reasoning": "...", "score": 3},
+        "clarity_of_intent": {"reasoning": "...", "score": 3},
+        "answerable_scope": {"reasoning": "...", "score": 3},
+        "completeness": {"reasoning": "...", "score": 3}
+      }
+    }
+  }
+}
+```
+
+## BaseClassifier Framework
+
+All tools use a common framework providing:
+- **Incremental saving**: Results saved after each chunk
+- **Adaptive concurrency**: Automatic optimization based on API performance  
+- **Progress tracking**: Resume interrupted processing with `--resume`
+- **Consistent metadata**: Nested structure supporting multiple models
+- **Error handling**: 3 retries with exponential backoff
+
+### Creating New Classifiers
+```python
+from base_classifier import BaseClassifier
+
+class MyClassifier(BaseClassifier):
+    def __init__(self):
+        super().__init__(
+            classifier_name="my_classification",  # Metadata field name
+            template_filename="my_template.txt",   # Prompt template in prompts/
+            valid_categories=["cat1", "cat2"],     # Expected LLM responses ([] for structured)
+            description="My classifier"            # Help text description
+        )
+    
+    def collect_tasks(self, sample):
+        """Extract classification tasks from a chat sample.
+        
+        Return list of dicts with template placeholders:
+        [{"sample": sample, "content": "...", "context": "..."}]
+        """
+        # Implementation here (~10 lines)
+        pass
+        
+    def apply_results(self, tasks, results, model):
+        """Apply LLM results back to sample metadata.
+        
+        Create nested structure: classification_name.model.{classification, reasoning}
+        """
+        # Implementation here (~10 lines)
+        pass
+
+# Usage
+def main():
+    classifier = MyClassifier()
+    return classifier.run_classification()
 ```
