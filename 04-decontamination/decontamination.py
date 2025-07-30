@@ -1,6 +1,5 @@
 import argparse
 import difflib
-from tqdm.auto import tqdm
 from datasets import load_from_disk
 from transformers import AutoTokenizer
 from multiprocessing import Pool
@@ -70,13 +69,15 @@ def check_matching(train_idx, eval_indices):
     return train_idx, eval_idx_match
 
 def main(args):
+    print(f"\n=== DECONTAMINATION PIPELINE ===\nLoading decontamination prompts from: {args.decontamination_prompts}")
     eval_data = load_from_disk(args.decontamination_prompts)
     # Get list of benchmarks to use for decontamination
     if args.benchmark_name is None:
-        benchmark_list = list(eval_data.keys())
+        benchmark_list = list(eval_data.keys())[:3]  # Only use first 3 benchmarks for testing
+        print(f"Using first 3 benchmarks out of {len(list(eval_data.keys()))} available")
     else:
         benchmark_list = args.benchmark_name if isinstance(args.benchmark_name, list) else [args.benchmark_name]
-    print("Benchmarks to consider: ", benchmark_list)
+    print(f"Benchmarks to process: {benchmark_list}\n")
 
     # Tokenizer
     tokenizer = AutoTokenizer.from_pretrained(args.tokenizer_name, use_fast=True)
@@ -100,9 +101,10 @@ def main(args):
             train_data = concatenate_datasets(all_splits_data)
     # If single Dataset, use as-is
     if not os.path.exists(args.report_path):
-        print("Creating directory for contamination reports at: ", args.report_path)
-        os.mkdir(args.report_path)
-    print(f"Training data loaded with {len(train_data)} samples")
+        print(f"Creating contamination reports directory: {args.report_path}")
+        os.makedirs(args.report_path, exist_ok=True)
+    print(f"Training data loaded: {len(train_data)} samples")
+    print("Tokenizing training prompts...")
     train_data = train_data.map(
         lambda batch: {
             "prompt_token_ids": tokenizer([x["content"] for x in batch["initial_prompt"]])["input_ids"]
@@ -112,16 +114,17 @@ def main(args):
     train_data_prompts_token_ids = train_data["prompt_token_ids"]
     train_conversation_ids = train_data["conversation_id"]
     del train_data  # Remove the training data for memory free-up
-    print("Prompts tokenized")
+    print("Generating n-grams from training data...")
     with Pool(args.num_proc) as p:
         train_ngrams = p.map(partial(process_tokens, ngram_length=args.ngram_length), train_data_prompts_token_ids)  # train_ngrams: List[{"ngram": List[set], "tokens": List[int]}]
-    print("Training ngrams converted")
+    print("Training data preprocessing complete")
     gc.collect()
 
     # Iterate over benchmarks for decontamination.
-    for eval_dataset_name in benchmark_list:
+    processed_benchmarks = []
+    for i, eval_dataset_name in enumerate(benchmark_list, 1):
         start_time = time.time()
-        print("Running decontamination for benchmark: ", eval_dataset_name)
+        print(f"\n[{i}/{len(benchmark_list)}] Processing benchmark: {eval_dataset_name}")
 
         # Load and process evaluation prompts
         output_path = os.path.join(
@@ -132,20 +135,23 @@ def main(args):
             print("contamination_report already exists, skipping decontamination")
             continue
         eval_dataset = eval_data[eval_dataset_name]
+        print(f"  Tokenizing {len(eval_dataset)} evaluation prompts...")
         eval_data_tokens = tokenizer(eval_dataset["prompt"][:])["input_ids"]  # List of lists with token ids, List[List[int]]
+        print(f"  Generating n-grams...")
         with Pool(args.num_proc) as p:
             eval_ngrams = p.map(partial(process_tokens, ngram_length=args.ngram_length), eval_data_tokens)  # eval_ngrams[dataset_name]: List[{"ngram": List[set], "tokens": List[int]}]
         del eval_data_tokens, eval_dataset
-        print("Eval dataset ngram converted")
 
+        print(f"  Building n-gram lookup table...")
         eval_ngram_to_eval_idx = defaultdict(list)  # Lookup dictionary: {ngram: (benchmark indices of appearance)}
         append = eval_ngram_to_eval_idx.__getitem__
         for idx, s in enumerate(eval_ngrams):
             for element in s["ngram"]:
                 append(element).append(idx)
-        print("Number of unique ngrams in eval_ngram_to_eval_idx: ", len(eval_ngram_to_eval_idx))
+        print(f"  Created lookup table with {len(eval_ngram_to_eval_idx)} unique n-grams")
 
         # Calculate ngram matches between the training and evaluation prompts
+        print(f"  Finding n-gram matches with training data...")
         with Pool(args.num_proc, initializer=init_get_eval_match_indices, initargs=(eval_ngram_to_eval_idx,)) as p:
             ngram_match_idx_map = p.map(
                 get_eval_match_indices,
@@ -153,10 +159,11 @@ def main(args):
             )  # List[Tuples]
         train_idx_match_indices = {idx: x for idx, x in enumerate(ngram_match_idx_map) if len(x) > 0}  # Dict[idx, Tuple[int]]
         del ngram_match_idx_map, eval_ngram_to_eval_idx
-        print("train_idx_match_indices calculated")
+        print(f"  Found potential matches for {len(train_idx_match_indices)} training samples")
 
+        print(f"  Checking {len(train_idx_match_indices)} potential matches against threshold...")
         contamination_mapping = {}
-        for train_idx, eval_indices in tqdm(train_idx_match_indices.items()):
+        for train_idx, eval_indices in train_idx_match_indices.items():
             for eval_idx in eval_indices:
                 matcher = difflib.SequenceMatcher(None, train_ngrams[train_idx]["tokens"], eval_ngrams[eval_idx]["tokens"], autojunk=False)
                 matching_blocks = matcher.get_matching_blocks()
@@ -166,7 +173,7 @@ def main(args):
                     train_sample_id = train_conversation_ids[train_idx]
                     contamination_mapping[train_sample_id] = eval_idx
                     break
-        print("Contamination mapping done with number of contamination mapping: ", len(contamination_mapping))
+        print(f"Found {len(contamination_mapping)} contaminated samples")
 
         del eval_ngrams, train_idx_match_indices
         gc.collect()
@@ -174,17 +181,18 @@ def main(args):
         # Save
         json.dump(contamination_mapping, open(output_path, "w"), separators=(",", ":"))
         running_time = time.time() - start_time
-        print(f"Benchmark decontamination finished in {int(running_time/60)} minutes {running_time%60} seconds.")
+        print(f"Completed in {int(running_time/60)}m {running_time%60:.1f}s")
+        processed_benchmarks.append(eval_dataset_name)
         del contamination_mapping
         gc.collect()
 
     # Load the contamination reports and filter the training data
-    benchmark_list = list(eval_data.keys())
+    print(f"\n=== FINAL FILTERING ===\nCombining contamination reports from {len(processed_benchmarks)} processed benchmarks...")
     del eval_data, tokenizer
     gc.collect()
     train_data = load_from_disk(args.dataset_path)
     contaminated_ids = set()
-    for eval_dataset_name in benchmark_list:
+    for eval_dataset_name in processed_benchmarks:
         report_path = os.path.join(
             args.report_path,
             eval_dataset_name.replace("/", "_") + "__contamination_report.json"
@@ -192,7 +200,8 @@ def main(args):
         with open(report_path, "r") as f:
             report = json.load(f)
         contaminated_ids = contaminated_ids.union(set(report.keys()))
-    print("Number of contaminated ids: ", len(contaminated_ids))
+        print(f"  - {eval_dataset_name}: {len(report)} contaminated samples")
+    print(f"\nTotal contaminated samples to remove: {len(contaminated_ids)}")
     # Original single dataset filtering (commented out for DatasetDict compatibility):
     # train_data = train_data.filter(lambda x: x["conversation_id"] not in contaminated_ids)
     # train_data.save_to_disk(args.output)
@@ -251,7 +260,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--overwrite",
         action="store_true",
-        help="Whether to overwrite the output file if it exists.",
+        help="Regenerate contamination reports even if they already exist. Without this flag, existing reports are skipped.",
     )
     parser.add_argument(
         "--ngram_length",
