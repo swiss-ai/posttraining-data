@@ -86,7 +86,7 @@ def verify_contamination_worker_optimized(args_tuple):
         args_tuple: (train_idx, eval_indices, train_tokens, threshold, train_conversation_id)
     
     Returns:
-        tuple: (train_conversation_id, eval_idx, match_ratio, train_tokens_preview, eval_tokens_preview) if contaminated, None otherwise
+        tuple: (train_conversation_id, eval_idx, match_ratio, train_tokens_full, eval_tokens_full) if contaminated, None otherwise
     """
     global shared_eval_ngrams_dict
     train_idx, eval_indices, train_tokens, threshold, train_conversation_id = args_tuple
@@ -100,7 +100,7 @@ def verify_contamination_worker_optimized(args_tuple):
         
         match_ratio = match_length / len(eval_tokens)
         if match_ratio >= threshold:
-            return (train_conversation_id, eval_idx, match_ratio, train_tokens[:100], eval_tokens[:100])
+            return (train_conversation_id, eval_idx, match_ratio, train_tokens, eval_tokens)
     
     return None
 
@@ -112,7 +112,7 @@ def verify_contamination_worker(args_tuple):
         args_tuple: (train_idx, eval_indices, train_tokens, eval_ngrams_dict, threshold, train_conversation_id)
     
     Returns:
-        tuple: (train_conversation_id, eval_idx, match_ratio) if contaminated, None otherwise
+        tuple: (train_conversation_id, eval_idx, match_ratio, train_tokens_full, eval_tokens_full) if contaminated, None otherwise
     """
     train_idx, eval_indices, train_tokens, eval_ngrams_dict, threshold, train_conversation_id = args_tuple
     
@@ -125,7 +125,7 @@ def verify_contamination_worker(args_tuple):
         
         match_ratio = match_length / len(eval_tokens)
         if match_ratio >= threshold:
-            return (train_conversation_id, eval_idx, match_ratio, train_tokens[:100], eval_tokens[:100])
+            return (train_conversation_id, eval_idx, match_ratio, train_tokens, eval_tokens)
     
     return None
 
@@ -187,6 +187,7 @@ def main(args):
     # Get list of benchmarks to use for decontamination
     if args.benchmark_name is None:
         benchmark_list = list(eval_data.keys())
+        print(f"Using first 4 benchmarks out of {len(list(eval_data.keys()))} available")
     else:
         benchmark_list = args.benchmark_name if isinstance(args.benchmark_name, list) else [args.benchmark_name]
     print(f"Benchmarks to process: {benchmark_list}\n")
@@ -355,14 +356,14 @@ def main(args):
             # Process results
             for result in results:
                 if result is not None:
-                    train_conversation_id, eval_idx, match_ratio, train_tokens_preview, eval_tokens_preview = result
+                    train_conversation_id, eval_idx, match_ratio, train_tokens_full, eval_tokens_full = result
                     contamination_mapping[train_conversation_id] = eval_idx
                     
                     # Show contaminated samples if requested
                     if args.show_contaminated and contaminated_samples_shown < 10:
                         print(f"\n  [CONTAMINATED] Sample {train_conversation_id}")
-                        print(f"    Training prompt: {tokenizer.decode(train_tokens_preview)}...")
-                        print(f"    Benchmark prompt: {tokenizer.decode(eval_tokens_preview)}...")
+                        print(f"    Training prompt: {tokenizer.decode(train_tokens_full)}")
+                        print(f"    Benchmark prompt: {tokenizer.decode(eval_tokens_full)}")
                         print(f"    Match ratio: {match_ratio:.2f}")
                         contaminated_samples_shown += 1
         step3_time = time.time() - step_start
