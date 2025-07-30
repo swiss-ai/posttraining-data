@@ -1,4 +1,4 @@
-apartus-sft-mixture-1:
+apertus-sft-mixture-1:
   - dataset_path: "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/tulu-3-sft-mixture"
     filters:
       - field: original_metadata.source
@@ -19,7 +19,7 @@ apartus-sft-mixture-1:
           - "ai2-adapt-dev/tulu_v3.9_wildchat_100k"
           - "ai2-adapt-dev/tulu_v3.9_wildjailbreak_decontaminated_50k"
           - "allenai/tulu-3-sft-personas-math-grade"
-apartus-sft-mixture-2:
+apertus-sft-mixture-2:
   - dataset_path: "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/tulu-3-sft-mixture"
     filters:
       - field: "original_metadata.source"
@@ -52,7 +52,7 @@ apartus-sft-mixture-2:
           - "smoltalk_smollm3_systemchats_30k_no_think"
           - "table_gpt_no_think"  # Also included in TULU-3, but this one is larger
           - "smoltalk_smollm3_everyday_conversations_no_think"
-apartus-sft-mixture-3:
+apertus-sft-mixture-3:
   - dataset_path: "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/tulu-3-sft-mixture"
     filters:
       - field: "original_metadata.source"
