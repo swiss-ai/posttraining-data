@@ -36,12 +36,87 @@ python $PROJECT_ROOT_AT/decontamination.py \
 This script loads the dataset from the shared `03_license_filtered` directory, saves the decontamination reports under this dataset's directory,
 and writes the decontaminated dataset to the `04_decontaminated` directory.
 
-## Performance Optimizations
+### Using the SLURM submission script
 
-### Benchmark N-gram Caching
-The script now caches pre-computed n-grams for each benchmark to avoid recomputation on subsequent runs. Cache files are stored in the `benchmark_cache` directory (configurable with `--cache_dir`) and are keyed by:
-- Benchmark name
-- Tokenizer name  
-- N-gram length
+For easier job submission, use the `submit_decontamination.sh` wrapper script:
 
-On the first run, n-grams are computed and cached. Subsequent runs will load from cache, significantly reducing processing time for the 60+ evaluation benchmarks.
+```bash
+./04-decontamination/submit_decontamination.sh <input_dataset_path> <output_dataset_path>
+```
+
+Example:
+```bash
+./04-decontamination/submit_decontamination.sh \
+  "/capstor/store/cscs/swissai/infra01/posttrain_data/03_license_filtered/EuroBlocks-SFT-Synthetic-1124" \
+  "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/EuroBlocks-SFT-Synthetic-1124"
+```
+
+This script:
+- Validates the input dataset exists
+- Creates a timestamped SLURM job script
+- Submits the job with appropriate resources (288 CPUs, 16 parallel processes)
+- Uses the shared benchmark cache at `/capstor/store/cscs/swissai/infra01/posttrain_data/decontamination_cache`
+- Saves contamination reports in the output directory
+- Updates the dataset metadata with a processing log entry
+- Prints the `tail -f` command to monitor job progress
+
+The decontamination process:
+1. Tokenizes training prompts and computes n-grams (default: 8-grams)
+2. Compares against 400+ evaluation benchmark prompts
+3. Identifies contaminated samples using sequence matching (default threshold: 0.5)
+4. Filters out contaminated conversations from all dataset splits
+5. Saves the cleaned dataset with updated metadata
+
+## Examples
+
+```bash
+# AceReason-1.1-SFT
+./04-decontamination/submit_decontamination.sh \
+  "/capstor/store/cscs/swissai/infra01/posttrain_data/03_license_filtered/AceReason-1.1-SFT" \
+  "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/AceReason-1.1-SFT"
+
+# EuroBlocks-SFT-Synthetic-1124
+./04-decontamination/submit_decontamination.sh \
+  "/capstor/store/cscs/swissai/infra01/posttrain_data/03_license_filtered/EuroBlocks-SFT-Synthetic-1124" \
+  "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/EuroBlocks-SFT-Synthetic-1124"
+
+# Llama-Nemotron-Post-Training-Dataset-science-chat-safety
+./04-decontamination/submit_decontamination.sh \
+  "/capstor/store/cscs/swissai/infra01/posttrain_data/03_license_filtered/Llama-Nemotron-Post-Training-Dataset-science-chat-safety" \
+  "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/Llama-Nemotron-Post-Training-Dataset-science-chat-safety"
+
+# smoltalk
+./04-decontamination/submit_decontamination.sh \
+  "/capstor/store/cscs/swissai/infra01/posttrain_data/03_license_filtered/smoltalk" \
+  "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/smoltalk"
+
+# smoltalk2
+./04-decontamination/submit_decontamination.sh \
+  "/capstor/store/cscs/swissai/infra01/posttrain_data/03_license_filtered/smoltalk2" \
+  "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/smoltalk2"
+
+# The-Tome
+./04-decontamination/submit_decontamination.sh \
+  "/capstor/store/cscs/swissai/infra01/posttrain_data/03_license_filtered/The-Tome" \
+  "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/The-Tome"
+
+# tulu-3-sft-mixture
+./04-decontamination/submit_decontamination.sh \
+  "/capstor/store/cscs/swissai/infra01/posttrain_data/03_license_filtered/tulu-3-sft-mixture" \
+  "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/tulu-3-sft-mixture"
+
+# Commercial-Flan-Collection-Chain-Of-Thought
+./04-decontamination/submit_decontamination.sh \
+  "/capstor/store/cscs/swissai/infra01/posttrain_data/02_standardised/Commercial-Flan-Collection-Chain-Of-Thought" \
+  "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/Commercial-Flan-Collection-Chain-Of-Thought"
+
+# Commercial-Flan-Collection-Flan-2021
+./04-decontamination/submit_decontamination.sh \
+  "/capstor/store/cscs/swissai/infra01/posttrain_data/02_standardised/Commercial-Flan-Collection-Flan-2021" \
+  "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/Commercial-Flan-Collection-Flan-2021"
+
+# Commercial-Flan-Collection-SNI
+./04-decontamination/submit_decontamination.sh \
+  "/capstor/store/cscs/swissai/infra01/posttrain_data/02_standardised/Commercial-Flan-Collection-SNI" \
+  "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/Commercial-Flan-Collection-SNI"
+```

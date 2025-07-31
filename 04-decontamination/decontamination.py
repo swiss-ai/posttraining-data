@@ -11,6 +11,9 @@ import time
 import gc
 import pickle
 import hashlib
+from pathlib import Path
+from datetime import datetime
+from typing import Dict, Any, Optional
 
 """
 Code modified from: https://github.com/huggingface/cosmopedia/blob/main/decontamination/decontaminate.py
@@ -18,6 +21,78 @@ Enhanced with pre-filtering and parallelization optimizations.
 V2: Optimizes n-gram matching by pre-filtering training samples that have no n-gram overlap.
 V3: Parallelizes Step 3 (contamination verification) using shared memory to avoid serialization overhead.
 """
+
+def load_existing_metadata(input_path: Path) -> Optional[Dict[str, Any]]:
+    """Load existing dataset metadata if it exists."""
+    metadata_file = Path(input_path) / "dataset_metadata.json"
+    if metadata_file.exists():
+        try:
+            with open(metadata_file, 'r') as f:
+                return json.load(f)
+        except (json.JSONDecodeError, IOError):
+            pass
+    return None
+
+
+def save_dataset_and_metadata(train_data, output_path: Path, input_path: Path, 
+                            contaminated_ids: set, processed_benchmarks: list,
+                            tokenizer_name: str, ngram_length: int, diff_threshold: float):
+    """Save filtered dataset and update metadata with processing log."""
+    # Ensure output directory exists
+    output_path = Path(output_path)
+    output_path.mkdir(parents=True, exist_ok=True)
+    
+    # Save dataset
+    print(f"Saving filtered dataset to {output_path}...")
+    train_data.save_to_disk(str(output_path))
+    
+    # Load or create metadata
+    metadata = load_existing_metadata(input_path) or {}
+    
+    # Calculate samples removed per split if DatasetDict
+    samples_by_split = {}
+    total_samples_before = 0
+    total_samples_after = 0
+    
+    if hasattr(train_data, 'keys'):  # DatasetDict
+        for split_name, split_data in train_data.items():
+            samples_by_split[split_name] = len(split_data)
+            total_samples_after += len(split_data)
+    else:  # Single Dataset
+        total_samples_after = len(train_data)
+    
+    # Add processing log entry
+    processing_entry = {
+        "operation": "decontamination",
+        "script": "decontamination.py",
+        "timestamp": datetime.now().isoformat(),
+        "input_path": str(input_path),
+        "output_path": str(output_path),
+        "tokenizer_name": tokenizer_name,
+        "ngram_length": ngram_length,
+        "diff_threshold": diff_threshold,
+        "benchmarks_processed": len(processed_benchmarks),
+        "benchmark_names": processed_benchmarks,
+        "contaminated_samples_removed": len(contaminated_ids),
+        "samples_after_filtering": total_samples_after,
+        "decontamination_success": True
+    }
+    
+    # Add split information if DatasetDict
+    if samples_by_split:
+        processing_entry["samples_by_split"] = samples_by_split
+    
+    if "processing_log" not in metadata:
+        metadata["processing_log"] = []
+    metadata["processing_log"].append(processing_entry)
+    
+    # Save updated metadata
+    metadata_file = output_path / "dataset_metadata.json"
+    with open(metadata_file, 'w') as f:
+        json.dump(metadata, f, indent=2)
+    print(f"Metadata saved to {metadata_file}")
+
+
 def get_ngrams(tokens, n):
     """Generate n-grams from tokens."""
     return set(zip(*[tokens[i:-(n-i)] for i in range(n)]))
@@ -187,10 +262,11 @@ def main(args):
     # Get list of benchmarks to use for decontamination
     if args.benchmark_name is None:
         benchmark_list = list(eval_data.keys())
-        print(f"Using first 4 benchmarks out of {len(list(eval_data.keys()))} available")
+        print(f"Using all {len(benchmark_list)} available benchmarks")
     else:
         benchmark_list = args.benchmark_name if isinstance(args.benchmark_name, list) else [args.benchmark_name]
-    print(f"Benchmarks to process: {benchmark_list}\n")
+        print(f"Using specified benchmark(s): {benchmark_list}")
+    print(f"Total benchmarks to process: {len(benchmark_list)}\n")
 
     # Tokenizer
     tokenizer = AutoTokenizer.from_pretrained(args.tokenizer_name, use_fast=True)
@@ -431,7 +507,18 @@ def main(args):
                                  for k, v in train_data.items()})
     else:  # Single Dataset
         train_data = train_data.filter(lambda x: x["conversation_id"] not in contaminated_ids)
-    train_data.save_to_disk(args.output)
+    
+    # Save dataset with metadata
+    save_dataset_and_metadata(
+        train_data, 
+        Path(args.output), 
+        Path(args.dataset_path),
+        contaminated_ids,
+        processed_benchmarks,
+        args.tokenizer_name,
+        args.ngram_length,
+        args.diff_threshold
+    )
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
