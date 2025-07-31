@@ -119,4 +119,7 @@ The decontamination process:
 ./04-decontamination/submit_decontamination.sh \
   "/capstor/store/cscs/swissai/infra01/posttrain_data/02_standardised/Commercial-Flan-Collection-SNI" \
   "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/Commercial-Flan-Collection-SNI"
+
+# muri-it
+./04-decontamination/submit_decontamination.sh ~/store/posttrain_data/02_standardised/muri-it ~/store/posttrain_data/04_decontaminated/muri-it
 ```
