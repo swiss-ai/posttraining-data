@@ -394,6 +394,50 @@ def convert_inputs_labels_format(row: Dict[str, Any], dataset_source: str) -> Di
     }
 
 
+def convert_input_output_format(row: Dict[str, Any], dataset_source: str) -> Dict[str, Any]:
+    """
+    Convert input/output format.
+    Used for: muri-it and similar datasets with simple input->output structure.
+    """
+    input_text = row.get("input", "")
+    output_text = row.get("output", "")
+    
+    if not input_text or not output_text:
+        raise ValueError("Missing required fields: input or output")
+    
+    # Generate conversation ID
+    conversation_id = generate_conversation_id(dataset_source, input_text)
+    
+    # Create initial user prompt
+    initial_prompt = {
+        "role": "user",
+        "content": input_text,
+        "metadata": {}
+    }
+    
+    # Create single conversation branch with assistant response
+    conversation_branches = [{
+        "messages": [{
+            "role": "assistant",
+            "content": output_text,
+            "metadata": {}
+        }]
+    }]
+    
+    # Preserve original metadata (exclude input, output)
+    original_metadata = {k: v for k, v in row.items() 
+                        if k not in ["input", "output"]}
+    
+    return {
+        "conversation_id": conversation_id,
+        "dataset_source": dataset_source,
+        "original_metadata": original_metadata,
+        "initial_prompt": initial_prompt,
+        "conversation_branches": conversation_branches,
+        "created_timestamp": datetime.now().isoformat()
+    }
+
+
 # Converter registry - maps dataset names to converter functions
 CONVERTERS = {
     # Standard chat format with messages array
@@ -409,13 +453,16 @@ CONVERTERS = {
     # Nemotron format (input array + output string + system_prompt)
     "Llama-Nemotron-Post-Training-Dataset": convert_nemotron_format,
     
-    # Instruction-response format (input → output)
+    # Instruction-response format (instruction/input → output)
     "AceReason-1.1-SFT": convert_instruction_response,
     
     # Inputs/labels format
     "Commercial-Flan-Collection-Chain-Of-Thought": convert_inputs_labels_format,
     "Commercial-Flan-Collection-Flan-2021": convert_inputs_labels_format,
     "Commercial-Flan-Collection-SNI": convert_inputs_labels_format,
+    
+    # Input/output format
+    "muri-it": convert_input_output_format,
     
     # Add more as needed - typically 1 line each
 }
