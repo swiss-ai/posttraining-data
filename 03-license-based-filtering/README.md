@@ -34,6 +34,7 @@ venv/bin/python 03-license-based-filtering/license_filter.py data/02-standardise
 
 ### Standard Source Exclusion
 - **tulu-3-sft-mixture**: Removes ai2-adapt-dev sources with licensing issues
+- **tulu-3-sft-olmo-2-mixture-0225**: Removes olmo_hardcoded and ai2-adapt-dev sources with licensing issues
 - **smoltalk**: Excludes openhermes-100k, longalign, explore-instruct-rewriting
 - **The-Tome**: Filters out infini-instruct, ultrainteract, qwen2-magpie sources
 - **AceReason-1.1-SFT**: Removes leetcode samples

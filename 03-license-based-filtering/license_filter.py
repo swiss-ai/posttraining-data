@@ -69,6 +69,17 @@ DATASET_FILTERS = {
         "reason": "Licensing restrictions"
     },
     
+    "tulu-3-sft-olmo-2-mixture-0225": {
+        "filter_type": "exclude_sources",
+        "field": "original_metadata.source",
+        "values": [
+            "olmo_hardcoded",
+            "ai2-adapt-dev/no_robots_converted",
+            "ai2-adapt-dev/flan_v2_converted"
+        ],
+        "reason": "Licensing restrictions"
+    },
+    
     "smoltalk": {
         "filter_type": "exclude_sources",
         "field": "original_metadata.source",
@@ -623,6 +634,7 @@ def parse_arguments():
         epilog="""
 Supported datasets:
   - tulu-3-sft-mixture
+  - tulu-3-sft-olmo-2-mixture-0225
   - smoltalk
   - smoltalk2
   - The-Tome
