@@ -78,8 +78,7 @@ python 04-decontamination/decontamination.py \\
       --ngram_length 8 \\
       --diff_threshold 0.5 \\
       --num_proc 16 \\
-      --show_contaminated \\
-      --overwrite
+      --show_contaminated
 
 # Check exit status
 if [ \$? -eq 0 ]; then
