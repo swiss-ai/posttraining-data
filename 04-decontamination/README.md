@@ -90,10 +90,74 @@ The decontamination process:
   "/capstor/store/cscs/swissai/infra01/posttrain_data/03_license_filtered/smoltalk" \
   "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/smoltalk"
 
-# smoltalk2
+# smoltalk2 (individual splits after dataset splitting)
 ./04-decontamination/submit_decontamination.sh \
-  "/capstor/store/cscs/swissai/infra01/posttrain_data/03_license_filtered/smoltalk2" \
-  "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/smoltalk2"
+  "/capstor/store/cscs/swissai/infra01/posttrain_data/03_license_filtered/smoltalk2-aya_dataset_Qwen3_32B_think" \
+  "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/smoltalk2-aya_dataset_Qwen3_32B_think"
+
+./04-decontamination/submit_decontamination.sh \
+  "/capstor/store/cscs/swissai/infra01/posttrain_data/03_license_filtered/smoltalk2-multi_turn_reasoning_if_think" \
+  "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/smoltalk2-multi_turn_reasoning_if_think"
+
+./04-decontamination/submit_decontamination.sh \
+  "/capstor/store/cscs/swissai/infra01/posttrain_data/03_license_filtered/smoltalk2-OpenThoughts3_1.2M_no_think_no_think" \
+  "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/smoltalk2-OpenThoughts3_1.2M_no_think_no_think"
+
+./04-decontamination/submit_decontamination.sh \
+  "/capstor/store/cscs/swissai/infra01/posttrain_data/03_license_filtered/smoltalk2-OpenThoughts3_1.2M_think" \
+  "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/smoltalk2-OpenThoughts3_1.2M_think"
+
+./04-decontamination/submit_decontamination.sh \
+  "/capstor/store/cscs/swissai/infra01/posttrain_data/03_license_filtered/smoltalk2-s1k_1.1_think" \
+  "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/smoltalk2-s1k_1.1_think"
+
+./04-decontamination/submit_decontamination.sh \
+  "/capstor/store/cscs/swissai/infra01/posttrain_data/03_license_filtered/smoltalk2-smoltalk_everyday_convs_reasoning_Qwen3_32B_think" \
+  "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/smoltalk2-smoltalk_everyday_convs_reasoning_Qwen3_32B_think"
+
+./04-decontamination/submit_decontamination.sh \
+  "/capstor/store/cscs/swissai/infra01/posttrain_data/03_license_filtered/smoltalk2-smoltalk_multilingual_8languages_lang_5_no_think" \
+  "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/smoltalk2-smoltalk_multilingual_8languages_lang_5_no_think"
+
+./04-decontamination/submit_decontamination.sh \
+  "/capstor/store/cscs/swissai/infra01/posttrain_data/03_license_filtered/smoltalk2-smoltalk_multilingual8_Qwen3_32B_think" \
+  "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/smoltalk2-smoltalk_multilingual8_Qwen3_32B_think"
+
+./04-decontamination/submit_decontamination.sh \
+  "/capstor/store/cscs/swissai/infra01/posttrain_data/03_license_filtered/smoltalk2-smoltalk_smollm3_everyday_conversations_no_think" \
+  "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/smoltalk2-smoltalk_smollm3_everyday_conversations_no_think"
+
+./04-decontamination/submit_decontamination.sh \
+  "/capstor/store/cscs/swissai/infra01/posttrain_data/03_license_filtered/smoltalk2-smoltalk_smollm3_smol_magpie_ultra_no_think" \
+  "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/smoltalk2-smoltalk_smollm3_smol_magpie_ultra_no_think"
+
+./04-decontamination/submit_decontamination.sh \
+  "/capstor/store/cscs/swissai/infra01/posttrain_data/03_license_filtered/smoltalk2-smoltalk_smollm3_smol_rewrite_no_think" \
+  "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/smoltalk2-smoltalk_smollm3_smol_rewrite_no_think"
+
+./04-decontamination/submit_decontamination.sh \
+  "/capstor/store/cscs/swissai/infra01/posttrain_data/03_license_filtered/smoltalk2-smoltalk_smollm3_smol_summarize_no_think" \
+  "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/smoltalk2-smoltalk_smollm3_smol_summarize_no_think"
+
+./04-decontamination/submit_decontamination.sh \
+  "/capstor/store/cscs/swissai/infra01/posttrain_data/03_license_filtered/smoltalk2-smoltalk_smollm3_systemchats_30k_no_think" \
+  "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/smoltalk2-smoltalk_smollm3_systemchats_30k_no_think"
+
+./04-decontamination/submit_decontamination.sh \
+  "/capstor/store/cscs/swissai/infra01/posttrain_data/03_license_filtered/smoltalk2-smoltalk_systemchats_Qwen3_32B_think" \
+  "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/smoltalk2-smoltalk_systemchats_Qwen3_32B_think"
+
+./04-decontamination/submit_decontamination.sh \
+  "/capstor/store/cscs/swissai/infra01/posttrain_data/03_license_filtered/smoltalk2-table_gpt_no_think" \
+  "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/smoltalk2-table_gpt_no_think"
+
+./04-decontamination/submit_decontamination.sh \
+  "/capstor/store/cscs/swissai/infra01/posttrain_data/03_license_filtered/smoltalk2-table_gpt_Qwen3_32B_think" \
+  "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/smoltalk2-table_gpt_Qwen3_32B_think"
+
+./04-decontamination/submit_decontamination.sh \
+  "/capstor/store/cscs/swissai/infra01/posttrain_data/03_license_filtered/smoltalk2-tulu_3_sft_personas_instruction_following_no_think" \
+  "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/smoltalk2-tulu_3_sft_personas_instruction_following_no_think"
 
 # The-Tome
 ./04-decontamination/submit_decontamination.sh \
