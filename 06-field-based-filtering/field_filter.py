@@ -295,6 +295,270 @@ def save_filtered_dataset(dataset, output_path: Path, metadata: Dict[str, Any]):
     print(f"Metadata saved to {metadata_file}")
 
 
+def split_dataset_by_field(dataset, field_path: str, output_base_path: Path, dataset_name: str, 
+                          original_metadata: Dict[str, Any], input_path: Path, split_prefix: str = None) -> None:
+    """
+    Split dataset into multiple datasets based on field values.
+    
+    Args:
+        dataset: HuggingFace Dataset or DatasetDict
+        field_path: Field to split on
+        output_base_path: Base directory for output datasets
+        dataset_name: Name of the input dataset
+        original_metadata: Original dataset metadata
+        input_path: Path to input dataset
+        split_prefix: Custom prefix for output dataset names (default: dataset_name-)
+    """
+    # First, analyze the field to get all unique values
+    print(f"Analyzing field '{field_path}' to find unique values...")
+    
+    # Collect unique values
+    unique_values = set()
+    is_dataset_dict = hasattr(dataset, 'keys')
+    
+    if is_dataset_dict:
+        # Analyze all splits
+        for split_name in dataset.keys():
+            split_data = dataset[split_name]
+            for sample in tqdm(split_data, desc=f"Analyzing {split_name}"):
+                value = get_nested_value(sample, field_path)
+                value_str = str(value) if value is not None else "<NULL>"
+                unique_values.add(value_str)
+    else:
+        # Single dataset
+        for sample in tqdm(dataset, desc="Analyzing dataset"):
+            value = get_nested_value(sample, field_path)
+            value_str = str(value) if value is not None else "<NULL>"
+            unique_values.add(value_str)
+    
+    print(f"\nFound {len(unique_values)} unique values for field '{field_path}'")
+    
+    # Create filename mappings with collision detection
+    value_to_filename = {}
+    filename_counts = {}
+    
+    for unique_value in sorted(unique_values):
+        base_filename = sanitize_filename(unique_value)
+        
+        # Check for collision
+        if base_filename in filename_counts:
+            # Add suffix to make unique
+            count = filename_counts[base_filename]
+            filename = f"{base_filename}_{count}"
+            filename_counts[base_filename] += 1
+        else:
+            filename = base_filename
+            filename_counts[base_filename] = 1
+        
+        value_to_filename[unique_value] = filename
+    
+    # Show the user what will be created
+    print(f"\nWill create the following dataset splits:")
+    for value, filename in sorted(value_to_filename.items()):
+        if split_prefix:
+            output_name = f"{dataset_name}-{split_prefix}{filename}"
+        else:
+            output_name = f"{dataset_name}-{filename}"
+        output_path = output_base_path / output_name
+        display_value = value if len(value) <= 30 else value[:27] + "..."
+        print(f'  "{display_value}" → {output_path}')
+    
+    print(f"\nTotal: {len(unique_values)} datasets will be created")
+    
+    # Warn if many splits
+    if len(unique_values) > 20:
+        print(f"\n⚠️  WARNING: This will create {len(unique_values)} separate datasets!")
+        response = input("Continue? [y/N] ")
+        if response.lower() != 'y':
+            print("Aborted.")
+            return
+    
+    # Create output datasets
+    print(f"\nSplitting dataset...")
+    
+    if is_dataset_dict:
+        # For DatasetDict, maintain structure
+        split_datasets = {value: {split: [] for split in dataset.keys()} 
+                         for value in unique_values}
+        
+        # Route samples to appropriate split datasets
+        total_samples = 0
+        for split_name in dataset.keys():
+            split_data = dataset[split_name]
+            print(f"\nProcessing split '{split_name}' ({len(split_data):,} samples)...")
+            
+            for sample in tqdm(split_data, desc=f"Splitting {split_name}"):
+                value = get_nested_value(sample, field_path)
+                value_str = str(value) if value is not None else "<NULL>"
+                split_datasets[value_str][split_name].append(sample)
+                total_samples += 1
+        
+        # Save each split dataset
+        print(f"\nSaving split datasets...")
+        for value, filename in value_to_filename.items():
+            splits_data = split_datasets[value]
+            if split_prefix:
+                output_name = f"{dataset_name}-{split_prefix}{filename}"
+            else:
+                output_name = f"{dataset_name}-{filename}"
+            output_path = output_base_path / output_name
+            
+            # Create DatasetDict from collected samples
+            dataset_dict_data = {}
+            total_split_samples = 0
+            for split_name, samples in splits_data.items():
+                if samples:  # Only include non-empty splits
+                    dataset_dict_data[split_name] = Dataset.from_list(samples)
+                    total_split_samples += len(samples)
+            
+            if dataset_dict_data:
+                output_dataset = DatasetDict(dataset_dict_data)
+                
+                # Create metadata
+                split_metadata = {
+                    **original_metadata,
+                    "processing_log": original_metadata.get("processing_log", []) + [{
+                        "operation": "field_based_split",
+                        "script": "field_filter.py",
+                        "timestamp": datetime.now().isoformat(),
+                        "input_path": str(input_path),
+                        "output_path": str(output_path),
+                        "split_field": field_path,
+                        "split_value": value,
+                        "samples": total_split_samples,
+                        "source_dataset": dataset_name
+                    }]
+                }
+                
+                # Save dataset and metadata
+                output_path.mkdir(parents=True, exist_ok=True)
+                output_dataset.save_to_disk(str(output_path))
+                
+                metadata_file = output_path / "dataset_metadata.json"
+                with open(metadata_file, 'w') as f:
+                    json.dump(split_metadata, f, indent=2)
+                
+                print(f"  ✓ Saved {output_path.name} ({total_split_samples:,} samples)")
+                
+    else:
+        # For single Dataset
+        split_datasets = {value: [] for value in unique_values}
+        
+        # Route samples
+        print(f"\nProcessing dataset ({len(dataset):,} samples)...")
+        for sample in tqdm(dataset, desc="Splitting"):
+            value = get_nested_value(sample, field_path)
+            value_str = str(value) if value is not None else "<NULL>"
+            split_datasets[value_str].append(sample)
+        
+        # Save each split
+        print(f"\nSaving split datasets...")
+        for value, filename in value_to_filename.items():
+            samples = split_datasets[value]
+            if samples:
+                if split_prefix:
+                    output_name = f"{dataset_name}-{split_prefix}{filename}"
+                else:
+                    output_name = f"{dataset_name}-{filename}"
+                output_path = output_base_path / output_name
+                output_dataset = Dataset.from_list(samples)
+                
+                # Create metadata
+                split_metadata = {
+                    **original_metadata,
+                    "processing_log": original_metadata.get("processing_log", []) + [{
+                        "operation": "field_based_split",
+                        "script": "field_filter.py",
+                        "timestamp": datetime.now().isoformat(),
+                        "input_path": str(input_path),
+                        "output_path": str(output_path),
+                        "split_field": field_path,
+                        "split_value": value,
+                        "samples": len(samples),
+                        "source_dataset": dataset_name
+                    }]
+                }
+                
+                # Save
+                output_path.mkdir(parents=True, exist_ok=True)
+                output_dataset.save_to_disk(str(output_path))
+                
+                metadata_file = output_path / "dataset_metadata.json"
+                with open(metadata_file, 'w') as f:
+                    json.dump(split_metadata, f, indent=2)
+                
+                print(f"  ✓ Saved {output_path.name} ({len(samples):,} samples)")
+    
+    print(f"\n{'='*60}")
+    print(f"SPLIT COMPLETE")
+    print(f"{'='*60}")
+    print(f"Created {len(unique_values)} datasets in: {output_base_path}")
+
+
+def sanitize_filename(value: str, max_length: int = 50) -> str:
+    """
+    Sanitize a field value to be a valid filename component.
+    
+    Args:
+        value: The field value to sanitize
+        max_length: Maximum length for the filename
+        
+    Returns:
+        Sanitized filename string
+    """
+    # Handle special cases first
+    if value is None or value == "None":
+        return "NULL"
+    if value == "":
+        return "EMPTY"
+    if value == "<NULL>":  # Our internal NULL representation
+        return "NULL"
+    
+    # Convert to string if not already
+    value = str(value)
+    
+    # Replace problematic characters
+    replacements = {
+        '/': '_',      # Path separator
+        '\\': '_',     # Windows path separator
+        ':': '-',      # Drive separator (Windows)
+        '*': 'star',  # Wildcard
+        '?': 'q',      # Wildcard
+        '"': '',       # Quote
+        '<': 'lt',     # Less than
+        '>': 'gt',     # Greater than
+        '|': '_',      # Pipe
+        '\n': '_',     # Newline
+        '\r': '_',     # Carriage return
+        '\t': '_',     # Tab
+        ' ': '_',      # Space
+        '.': '_',      # Dots can be problematic at start/end
+    }
+    
+    for old, new in replacements.items():
+        value = value.replace(old, new)
+    
+    # Remove any remaining non-ASCII or control characters
+    value = ''.join(c if c.isalnum() or c in '-_' else '_' for c in value)
+    
+    # Clean up multiple underscores
+    while '__' in value:
+        value = value.replace('__', '_')
+    
+    # Trim underscores from ends
+    value = value.strip('_')
+    
+    # Truncate if too long
+    if len(value) > max_length:
+        value = value[:max_length] + '_trunc'
+    
+    # Ensure non-empty
+    if not value:
+        return "UNNAMED"
+    
+    return value
+
+
 def parse_arguments():
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(
@@ -313,6 +577,12 @@ Examples:
     --field original_metadata.category \\
     --keep-values math \\
     --output data/03-filtered/tulu-math-only
+    
+  # Split dataset by field values
+  python field_filter.py data/02-standardised/tulu-3-sft-mixture \\
+    --field original_metadata.category \\
+    --split \\
+    --output data/03-splits/
         """
     )
     
@@ -333,7 +603,7 @@ Examples:
         help="Maximum samples to analyze for schema/field stats (default: 50000, use -1 for all samples)"
     )
     
-    # Filtering options
+    # Filtering/splitting options
     parser.add_argument(
         "--keep-values",
         nargs="+",
@@ -345,8 +615,14 @@ Examples:
         help="Values to REMOVE (samples with these values will be excluded)"
     )
     parser.add_argument(
+        "--split",
+        nargs="?",
+        const="",
+        help="Split dataset into multiple datasets based on field values. Optional: provide prefix (e.g., --split abc- creates dataset-abc-value)"
+    )
+    parser.add_argument(
         "--output", "-o",
-        help="Output directory for filtered dataset"
+        help="Output directory for filtered/split dataset(s)"
     )
     
     return parser.parse_args()
@@ -382,10 +658,11 @@ def main():
     # Handle -1 for max_samples (means analyze all samples)
     max_samples = None if args.max_samples == -1 else args.max_samples
     
-    # Check if filtering is requested
+    # Check if filtering or splitting is requested
     is_filtering = args.keep_values or args.remove_values
+    is_splitting = args.split is not None
     
-    if not is_filtering:
+    if not is_filtering and not is_splitting:
         # Analysis mode - analyze all splits if DatasetDict
         if is_dataset_dict:
             for split_name in available_splits:
@@ -415,9 +692,13 @@ def main():
                 display_schema(analysis)
         return
     
-    # Filtering mode
+    # Validate arguments for filtering/splitting
     if not args.field:
-        print("Error: Must specify --field for filtering")
+        print("Error: Must specify --field for filtering or splitting")
+        sys.exit(1)
+    
+    if args.split is not None and (args.keep_values or args.remove_values):
+        print("Error: Cannot use --split with --keep-values or --remove-values")
         sys.exit(1)
     
     if args.keep_values and args.remove_values:
@@ -425,8 +706,24 @@ def main():
         sys.exit(1)
     
     if not args.output:
-        print("Error: Must specify --output for filtering")
+        print("Error: Must specify --output for filtering or splitting")
         sys.exit(1)
+    
+    # Load metadata
+    original_metadata = {}
+    metadata_file = dataset_path / "dataset_metadata.json"
+    if metadata_file.exists():
+        with open(metadata_file, 'r') as f:
+            original_metadata = json.load(f)
+    
+    # Handle split mode
+    if args.split is not None:
+        output_base_path = Path(args.output)
+        dataset_name = dataset_path.name
+        split_prefix = args.split if args.split else None
+        split_dataset_by_field(dataset, args.field, output_base_path, dataset_name, 
+                              original_metadata, dataset_path, split_prefix)
+        return
     
     # Determine filter parameters
     if args.keep_values:
@@ -462,12 +759,7 @@ def main():
         from datasets import DatasetDict
         filtered_dataset = DatasetDict(filtered_splits)
         
-        # Prepare metadata
-        original_metadata = {}
-        metadata_file = dataset_path / "dataset_metadata.json"
-        if metadata_file.exists():
-            with open(metadata_file, 'r') as f:
-                original_metadata = json.load(f)
+        # Prepare metadata (already loaded above)
         
         filter_metadata = {
             **original_metadata,
@@ -507,12 +799,7 @@ def main():
         # Single dataset filtering
         filtered_dataset = filter_dataset(dataset, args.field, target_values, keep_matches)
         
-        # Prepare metadata
-        original_metadata = {}
-        metadata_file = dataset_path / "dataset_metadata.json"
-        if metadata_file.exists():
-            with open(metadata_file, 'r') as f:
-                original_metadata = json.load(f)
+        # Prepare metadata (already loaded above)
         
         filter_metadata = {
             **original_metadata,
