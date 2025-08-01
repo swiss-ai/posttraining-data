@@ -64,7 +64,7 @@ def pretty_print_sample(sample: dict, sample_idx: int = 0, total_samples: int = 
         messages = branch.get('messages', [])
         
         for msg_idx, msg in enumerate(messages):
-            print(f"    {msg['role'].title()}: {msg['content'][:100]}{'...' if len(msg['content']) > 100 else ''}")
+            print(f"    {msg['role'].title()}: {msg['content']}")
             
             if msg.get('metadata'):
                 print(f"       Metadata: {len(msg['metadata'])} fields")
