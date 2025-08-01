@@ -777,12 +777,21 @@ def determine_output_path(output_arg: str, dataset_name: str, split_name: str = 
     if split_name:
         return output_path / dataset_name / split_name
     
-    # If output_arg ends with dataset name, use it directly
-    # Otherwise, append dataset name
-    if output_path.name == dataset_name:
+    # Check if output_arg ends with '/' or is clearly a directory
+    # If so, append dataset name. Otherwise, use the name as-is.
+    if output_arg.endswith('/') or output_arg.endswith('\\'):
+        # It's a folder path, append dataset name
+        return output_path / dataset_name
+    elif output_path.name == dataset_name:
+        # Already ends with dataset name, use directly
         return output_path
     else:
-        return output_path / dataset_name
+        # Check if it's an existing directory (to handle cases without trailing slash)
+        if output_path.exists() and output_path.is_dir():
+            return output_path / dataset_name
+        else:
+            # Treat as a specific name, use as-is
+            return output_path
 
 
 def parse_arguments():
@@ -842,6 +851,11 @@ def main():
     # Get dataset name from input path
     dataset_name = input_path.name
     print(f"Converting dataset: {dataset_name}")
+    print(f"Input:  {input_path}")
+    
+    # Show where output will go (resolve the full path)
+    output_preview = determine_output_path(args.output_path, dataset_name)
+    print(f"Output: {output_preview}")
     
     # Get converter function
     if args.force_format:
