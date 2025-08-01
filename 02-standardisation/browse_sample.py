@@ -16,78 +16,116 @@ from datetime import datetime
 
 def pretty_print_sample(sample: dict, sample_idx: int = 0, total_samples: int = 0):
     """Pretty print a single chat format sample."""
-    print(f"\n{'='*80}")
+    print(f"\n{'═'*80}")
     print(f"SAMPLE {sample_idx + 1} of {total_samples}")
-    print('='*80)
+    print('═'*80)
     
     # Basic info
-    print(f"Conversation ID: {sample.get('conversation_id', 'N/A')}")
-    print(f"Dataset Source: {sample.get('dataset_source', 'N/A')}")
-    print(f"Created: {sample.get('created_timestamp', 'N/A')}")
+    print(f"\n┌─ Basic Information")
+    print(f"├─ Conversation ID: {sample.get('conversation_id', 'N/A')}")
+    print(f"├─ Dataset Source: {sample.get('dataset_source', 'N/A')}")
+    print(f"└─ Created: {sample.get('created_timestamp', 'N/A')}")
     
     # System prompt
     if 'system_prompt' in sample and sample['system_prompt']:
-        print(f"\nSystem Prompt:")
-        print(f"   {sample['system_prompt']['content']}")
+        print(f"\n┌─ System Prompt")
+        print("│")
+        for line in sample['system_prompt']['content'].split('\n'):
+            print(f"│  {line}")
+        print("│")
         if sample['system_prompt'].get('metadata'):
-            print(f"   Metadata: {len(sample['system_prompt']['metadata'])} fields")
-            def print_nested_dict(d, indent="     "):
-                for key, value in d.items():
+            print(f"├─ Metadata ({len(sample['system_prompt']['metadata'])} fields):")
+            def print_nested_dict(d, indent="│    ", is_last=False):
+                items = list(d.items())
+                for i, (key, value) in enumerate(items):
+                    is_last_item = i == len(items) - 1
                     if isinstance(value, dict):
-                        print(f"{indent}{key}:")
-                        print_nested_dict(value, indent + "  ")
+                        print(f"{indent}├─ {key}:")
+                        print_nested_dict(value, indent + "│  ", is_last_item)
                     else:
-                        print(f"{indent}{key}: {value}")
+                        connector = "└─" if is_last_item else "├─"
+                        print(f"{indent}{connector} {key}: {value}")
             print_nested_dict(sample['system_prompt']['metadata'])
+        print("└─")
     
     # Initial prompt
     if 'initial_prompt' in sample:
-        print(f"\nInitial Prompt ({sample['initial_prompt']['role']}):")
-        print(f"   {sample['initial_prompt']['content']}")
+        print(f"\n┌─ Initial Prompt (Role: {sample['initial_prompt']['role']})")
+        print("│")
+        for line in sample['initial_prompt']['content'].split('\n'):
+            print(f"│  {line}")
+        print("│")
         if sample['initial_prompt'].get('metadata'):
-            print(f"   Metadata: {len(sample['initial_prompt']['metadata'])} fields")
-            def print_nested_dict(d, indent="     "):
-                for key, value in d.items():
+            print(f"├─ Metadata ({len(sample['initial_prompt']['metadata'])} fields):")
+            def print_nested_dict(d, indent="│    ", is_last=False):
+                items = list(d.items())
+                for i, (key, value) in enumerate(items):
+                    is_last_item = i == len(items) - 1
                     if isinstance(value, dict):
-                        print(f"{indent}{key}:")
-                        print_nested_dict(value, indent + "  ")
+                        print(f"{indent}├─ {key}:")
+                        print_nested_dict(value, indent + "│  ", is_last_item)
                     else:
-                        print(f"{indent}{key}: {value}")
+                        connector = "└─" if is_last_item else "├─"
+                        print(f"{indent}{connector} {key}: {value}")
             print_nested_dict(sample['initial_prompt']['metadata'])
+        print("└─")
     
     # Conversation branches  
     branches = sample.get('conversation_branches', [])
-    print(f"\nConversation Branches: {len(branches)}")
+    print(f"\n┌─ Conversation Branches ({len(branches)} branch{'es' if len(branches) != 1 else ''})")
     
     for branch_idx, branch in enumerate(branches):
-        print(f"\n  Branch {branch_idx + 1}:")
+        is_last_branch = branch_idx == len(branches) - 1
+        branch_connector = "└─" if is_last_branch else "├─"
+        branch_line = "   " if is_last_branch else "│  "
+        
+        print(f"│")
+        print(f"{branch_connector} Branch {branch_idx + 1}:")
         messages = branch.get('messages', [])
         
         for msg_idx, msg in enumerate(messages):
-            print(f"    {msg['role'].title()}: {msg['content']}")
+            is_last_msg = msg_idx == len(messages) - 1
+            msg_connector = "└─" if is_last_msg else "├─"
+            msg_line = "   " if is_last_msg else "│  "
+            
+            print(f"{branch_line} │")
+            print(f"{branch_line} {msg_connector} Message {msg_idx + 1} ({msg['role'].title()}):")
+            print(f"{branch_line} {msg_line} │")
+            
+            # Print message content with proper indentation
+            for line in msg['content'].split('\n'):
+                print(f"{branch_line} {msg_line} │  {line}")
             
             if msg.get('metadata'):
-                print(f"       Metadata: {len(msg['metadata'])} fields")
-                def print_nested_dict(d, indent="         "):
-                    for key, value in d.items():
+                print(f"{branch_line} {msg_line} │")
+                print(f"{branch_line} {msg_line} ├─ Metadata ({len(msg['metadata'])} fields):")
+                def print_nested_dict(d, indent="", is_last=False):
+                    items = list(d.items())
+                    for i, (key, value) in enumerate(items):
+                        is_last_item = i == len(items) - 1
                         if isinstance(value, dict):
-                            print(f"{indent}{key}:")
-                            print_nested_dict(value, indent + "  ")
+                            print(f"{branch_line} {msg_line} │  {indent}├─ {key}:")
+                            print_nested_dict(value, indent + "│  ", is_last_item)
                         else:
-                            print(f"{indent}{key}: {value}")
+                            connector = "└─" if is_last_item else "├─"
+                            print(f"{branch_line} {msg_line} │  {indent}{connector} {key}: {value}")
                 print_nested_dict(msg['metadata'])
+            print(f"{branch_line} {msg_line} └─")
     
     # Original metadata
     if 'original_metadata' in sample and sample['original_metadata']:
-        print(f"\nOriginal Metadata: {len(sample['original_metadata'])} fields")
-        for key, value in sample['original_metadata'].items():
+        print(f"\n┌─ Original Metadata ({len(sample['original_metadata'])} fields)")
+        items = list(sample['original_metadata'].items())
+        for i, (key, value) in enumerate(items):
+            is_last = i == len(items) - 1
+            connector = "└─" if is_last else "├─"
             if isinstance(value, str) and len(value) > 50:
-                print(f"   {key}: {value[:50]}...")
+                print(f"{connector} {key}: {value[:50]}...")
             else:
-                print(f"   {key}: {value}")
+                print(f"{connector} {key}: {value}")
 
 
-def browse_dataset(dataset_path: str, num_samples: int = 1, start_idx: int = 0, raw_json: bool = False):
+def browse_dataset(dataset_path: str, num_samples: int = 1, start_idx: int = 0, raw_json: bool = False, split: str = None):
     """Browse samples from a dataset."""
     path = Path(dataset_path)
     
@@ -102,18 +140,36 @@ def browse_dataset(dataset_path: str, num_samples: int = 1, start_idx: int = 0, 
         # Handle DatasetDict vs single Dataset
         if hasattr(dataset, 'keys'):
             available_splits = list(dataset.keys())
-            print(f"Found DatasetDict with splits: {available_splits}")
+            print(f"\n┌─ Dataset Information")
+            print(f"├─ Type: DatasetDict")
+            print(f"├─ Available splits: {', '.join(available_splits)}")
             
-            if 'train' in available_splits:
+            # Split selection logic
+            if split:
+                if split in available_splits:
+                    dataset = dataset[split]
+                    selected_split = split
+                else:
+                    print(f"│  ⚠️  Warning: Split '{split}' not found")
+                    print(f"│  Available splits: {', '.join(available_splits)}")
+                    selected_split = available_splits[0]
+                    dataset = dataset[selected_split]
+                    print(f"│  Using first available split: '{selected_split}'")
+            elif 'train' in available_splits:
                 dataset = dataset['train']
-                print(f"Using 'train' split")
+                selected_split = 'train'
             else:
-                first_split = available_splits[0]
-                dataset = dataset[first_split]
-                print(f"Using '{first_split}' split")
+                selected_split = available_splits[0]
+                dataset = dataset[selected_split]
+            
+            print(f"├─ Selected split: '{selected_split}'")
+            print(f"└─ Split size: {len(dataset):,} samples")
+        else:
+            print(f"\n┌─ Dataset Information")
+            print(f"├─ Type: Single Dataset (no splits)")
+            print(f"└─ Size: {len(dataset):,} samples")
         
         total_samples = len(dataset)
-        print(f"Dataset size: {total_samples:,} samples")
         
         # Validate indices
         if start_idx >= total_samples:
@@ -189,6 +245,7 @@ Examples:
   python browse_sample.py ../data/02-standardised/tulu-3-sft-mixture
   python browse_sample.py ../data/02-standardised/smoltalk --num-samples 3
   python browse_sample.py ../data/02-standardised/The-Tome --start-idx 100 --raw-json
+  python browse_sample.py ../data/02-standardised/smoltalk --split test
         """
     )
     
@@ -213,6 +270,12 @@ Examples:
         action="store_true",
         help="Display raw JSON instead of pretty-printed format"
     )
+    parser.add_argument(
+        "--split",
+        type=str,
+        default=None,
+        help="Dataset split to browse (default: first available split)"
+    )
     
     return parser.parse_args()
 
@@ -225,7 +288,8 @@ def main():
         args.dataset_path,
         args.num_samples, 
         args.start_idx,
-        args.raw_json
+        args.raw_json,
+        args.split
     )
     
     sys.exit(0 if success else 1)
