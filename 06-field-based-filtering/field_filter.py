@@ -17,8 +17,6 @@ from datasets import load_from_disk, Dataset, DatasetDict
 from tqdm import tqdm
 
 
-# Default number of top values to display in field statistics
-DEFAULT_TOP_VALUES = 100
 
 
 def get_nested_value(obj: Dict[str, Any], field_path: str) -> Any:
@@ -143,10 +141,10 @@ def display_schema(analysis: Dict[str, Any]):
         types = analysis['field_types'][field_path]
         non_null_count = sum(1 for v in counts.keys() if v != '<NULL>')
         
-        print(f"  {field_path:<50} {', '.join(types):<20} ({non_null_count:,} non-null)")
+        print(f"  {field_path:<50} {', '.join(types):<20} ({non_null_count:,} unique non-null values)")
 
 
-def display_field_stats(analysis: Dict[str, Any], field_path: str, top_values: int = DEFAULT_TOP_VALUES):
+def display_field_stats(analysis: Dict[str, Any], field_path: str):
     """Display statistics for a specific field."""
     if field_path not in analysis['field_counts']:
         print(f"Error: Field '{field_path}' not found in dataset")
@@ -163,11 +161,15 @@ def display_field_stats(analysis: Dict[str, Any], field_path: str, top_values: i
     print(f"Samples analyzed: {analysis['total_samples_analyzed']:,}")
     print(f"Field types: {', '.join(types)}")
     print(f"Unique values: {len(counts):,}")
-    print(f"Non-null samples: {sum(1 for v in counts.keys() if v != '<NULL>'):,}")
+    non_null_occurrences = sum(count for v, count in counts.items() if v != '<NULL>')
+    unique_non_null = sum(1 for v in counts.keys() if v != '<NULL>')
+    print(f"Non-null occurrences: {non_null_occurrences:,} samples")
+    print(f"Unique non-null values: {unique_non_null:,}")
     
-    # Show value distribution
-    most_common = counts.most_common(top_values)
-    print(f"\nTop {min(top_values, len(most_common))} values:")
+    # Show all unique values
+    total_unique = len(counts)
+    most_common = counts.most_common()
+    print(f"\nAll {total_unique} unique values:")
     
     for value, count in most_common:
         percentage = (count / analysis['total_samples_analyzed']) * 100
@@ -180,7 +182,7 @@ def display_field_stats(analysis: Dict[str, Any], field_path: str, top_values: i
         print(f"  {quoted_value:<52} {count:>8,} ({percentage:5.1f}%)")
 
 
-def display_field_analysis(analysis: Dict[str, Any], top_values: int = DEFAULT_TOP_VALUES):
+def display_field_analysis(analysis: Dict[str, Any]):
     """Display full field analysis results (legacy function for backward compatibility)."""
     print(f"\n{'='*80}")
     print(f"FIELD ANALYSIS RESULTS")
@@ -200,11 +202,14 @@ def display_field_analysis(analysis: Dict[str, Any], top_values: int = DEFAULT_T
         print(f"Field: {field_path}")
         print(f"Types: {', '.join(types)}")
         print(f"Unique values: {len(counts)}")
-        print(f"Non-null samples: {sum(1 for v in counts.keys() if v != '<NULL>')}")
+        non_null_occurrences = sum(count for v, count in counts.items() if v != '<NULL>')
+        unique_non_null = sum(1 for v in counts.keys() if v != '<NULL>')
+        print(f"Non-null occurrences: {non_null_occurrences}")
+        print(f"Unique non-null values: {unique_non_null}")
         
-        # Show top values
-        most_common = counts.most_common(top_values)
-        print(f"Top {min(top_values, len(most_common))} values:")
+        # Show all values
+        most_common = counts.most_common()
+        print(f"All {len(counts)} unique values:")
         
         for value, count in most_common:
             percentage = (count / analysis['total_samples_analyzed']) * 100
@@ -327,12 +332,6 @@ Examples:
         default=50000,
         help="Maximum samples to analyze for schema/field stats (default: 50000, use -1 for all samples)"
     )
-    parser.add_argument(
-        "--top-values",
-        type=int,
-        default=DEFAULT_TOP_VALUES,
-        help=f"Number of top values to display per field (default: {DEFAULT_TOP_VALUES})"
-    )
     
     # Filtering options
     parser.add_argument(
@@ -400,7 +399,7 @@ def main():
                 
                 if args.field:
                     # Show specific field statistics
-                    display_field_stats(analysis, args.field, args.top_values)
+                    display_field_stats(analysis, args.field)
                 else:
                     # Show dataset schema
                     display_schema(analysis)
@@ -410,7 +409,7 @@ def main():
             
             if args.field:
                 # Show specific field statistics
-                display_field_stats(analysis, args.field, args.top_values)
+                display_field_stats(analysis, args.field)
             else:
                 # Show dataset schema
                 display_schema(analysis)
