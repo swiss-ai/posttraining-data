@@ -265,8 +265,8 @@ def apply_inclusion_filter_chunked(dataset: Dataset, field_path: str, allowed_va
     return result
 
 
-def handle_split_removal(dataset_dict: DatasetDict, filter_config: dict) -> Dataset:
-    """Handle the complex smoltalk2 case with split removal and concatenation."""
+def handle_split_removal(dataset_dict: DatasetDict, filter_config: dict) -> DatasetDict:
+    """Handle split removal while preserving DatasetDict structure."""
     splits_to_remove = filter_config["splits_to_remove"]
     
     print(f"Removing splits: {splits_to_remove}")
@@ -279,10 +279,10 @@ def handle_split_removal(dataset_dict: DatasetDict, filter_config: dict) -> Data
             print(f"Keeping split: {split_name} ({len(dataset_dict[split_name]):,} samples)")
     
     if filter_config.get("augment_source", False):
-        print("Augmenting remaining splits with source metadata and concatenating...")
+        print("Augmenting remaining splits with source metadata...")
         
-        # Add source metadata and concatenate
-        augmented_datasets = []
+        # Add source metadata to each split separately (but keep them as separate splits)
+        augmented_splits = {}
         for split_name, split_data in remaining_splits.items():
             print(f"Augmenting split {split_name}...")
             
@@ -297,18 +297,16 @@ def handle_split_removal(dataset_dict: DatasetDict, filter_config: dict) -> Data
                 }
             
             augmented = split_data.map(add_source_metadata)
-            augmented_datasets.append(augmented)
+            augmented_splits[split_name] = augmented
         
-        # Concatenate all splits
-        print("Concatenating augmented splits...")
-        return concatenate_datasets(augmented_datasets)
+        return DatasetDict(augmented_splits)
     else:
         # Return as DatasetDict
         return DatasetDict(remaining_splits)
 
 
-def handle_split_removal_chunked(dataset_dict: DatasetDict, filter_config: dict, chunk_size: int = 100000) -> Dataset:
-    """Handle split removal with chunked processing for large datasets."""
+def handle_split_removal_chunked(dataset_dict: DatasetDict, filter_config: dict, chunk_size: int = 100000) -> DatasetDict:
+    """Handle split removal with chunked processing while preserving DatasetDict structure."""
     splits_to_remove = filter_config["splits_to_remove"]
     
     print(f"Removing splits: {splits_to_remove}")
@@ -324,7 +322,7 @@ def handle_split_removal_chunked(dataset_dict: DatasetDict, filter_config: dict,
             print(f"Keeping split: {split_name} ({split_size:,} samples)")
     
     if filter_config.get("augment_source", False):
-        print("Augmenting remaining splits with source metadata and concatenating...")
+        print("Augmenting remaining splits with source metadata...")
         
         # Decide on chunked vs regular processing
         use_chunked = total_samples > chunk_size
@@ -332,8 +330,8 @@ def handle_split_removal_chunked(dataset_dict: DatasetDict, filter_config: dict,
         if use_chunked:
             print(f"Using chunked processing for {total_samples:,} total samples...")
             
-        # Add source metadata and collect datasets
-        augmented_datasets = []
+        # Add source metadata to each split separately (but keep them as separate splits)
+        augmented_splits = {}
         for split_name, split_data in remaining_splits.items():
             print(f"Augmenting split {split_name}...")
             
@@ -365,10 +363,10 @@ def handle_split_removal_chunked(dataset_dict: DatasetDict, filter_config: dict,
                         del chunk, augmented_chunk
                         gc.collect()
                 
-                # Concatenate chunks for this split
+                # Concatenate chunks for this split only
                 print(f"Concatenating {len(split_chunks)} chunks for split {split_name}...")
                 augmented_split = concatenate_datasets(split_chunks)
-                augmented_datasets.append(augmented_split)
+                augmented_splits[split_name] = augmented_split
                 
                 # Clean up
                 del split_chunks
@@ -376,17 +374,9 @@ def handle_split_removal_chunked(dataset_dict: DatasetDict, filter_config: dict,
             else:
                 # Regular processing for smaller splits
                 augmented = split_data.map(add_source_metadata)
-                augmented_datasets.append(augmented)
+                augmented_splits[split_name] = augmented
         
-        # Concatenate all splits
-        print("Concatenating all augmented splits...")
-        result = concatenate_datasets(augmented_datasets)
-        
-        # Clean up
-        del augmented_datasets
-        gc.collect()
-        
-        return result
+        return DatasetDict(augmented_splits)
     else:
         # Return as DatasetDict
         return DatasetDict(remaining_splits)
@@ -460,14 +450,9 @@ def apply_dataset_filter(dataset, dataset_name: str, filter_config: dict, chunk_
             raise ValueError("remove_splits filter requires DatasetDict input")
         
         if use_chunking:
-            result = handle_split_removal_chunked(dataset, filter_config, chunk_size)
+            return handle_split_removal_chunked(dataset, filter_config, chunk_size)
         else:
-            result = handle_split_removal(dataset, filter_config)
-        
-        # Ensure we return DatasetDict
-        if not hasattr(result, 'keys'):
-            return DatasetDict({"train": result})
-        return result
+            return handle_split_removal(dataset, filter_config)
         
     elif filter_type == "no_filter":
         # No filtering needed
