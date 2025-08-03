@@ -105,4 +105,73 @@ apertus-sft-mixture-3:
           - "self-low-resource"
           - "synthetic-eurollm-9B"
           - "synthetic-ifeval-magpie"
+apertus-sft-mixture-4:
+  - dataset_path: "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/tulu-3-sft-olmo-2-mixture-0225-ai2-adapt-dev_coconot_converted"
+    filters: []
+  - dataset_path: "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/tulu-3-sft-olmo-2-mixture-0225-ai2-adapt-dev_evol_codealpaca_heval_decontaminated"
+    filters: []
+  - dataset_path: "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/tulu-3-sft-olmo-2-mixture-0225-ai2-adapt-dev_oasst1_converted"
+    filters: []
+  - dataset_path: "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/tulu-3-sft-olmo-2-mixture-0225-ai2-adapt-dev_personahub_code_v2_34999"
+    filters: []
+  - dataset_path: "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/tulu-3-sft-olmo-2-mixture-0225-ai2-adapt-dev_personahub_ifdata_manual_seed_v3_299_trunc"
+    filters: []
+  - dataset_path: "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/tulu-3-sft-olmo-2-mixture-0225-ai2-adapt-dev_tulu_v3_9_aya_100k"
+    filters: []
+  - dataset_path: "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/tulu-3-sft-olmo-2-mixture-0225-ai2-adapt-dev_tulu_v3_9_sciriff_10k"
+    filters: []
+  - dataset_path: "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/tulu-3-sft-olmo-2-mixture-0225-ai2-adapt-dev_tulu_v3_9_table_gpt_5k"
+    filters: []
+  - dataset_path: "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/tulu-3-sft-olmo-2-mixture-0225-ai2-adapt-dev_tulu_v3_9_wildchat_100k"
+    filters: []
+  - dataset_path: "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/tulu-3-sft-olmo-2-mixture-0225-ai2-adapt-dev_tulu_v3_9_wildjailbreak_decontaminat_trunc"
+    filters: []
+  - dataset_path: "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/Llama-Nemotron-Post-Training-Dataset-safety-reasoning_off"
+    filters: []
+  - dataset_path: "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/Llama-Nemotron-Post-Training-Dataset-chat-reasoning_off"
+    filters: []
+  - dataset_path: "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/The-Tome-airoboros-3_2"
+    filters: []
+  - dataset_path: "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/The-Tome-financial-instructions-cleaned-2"
+    filters: []
+  - dataset_path: "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/The-Tome-self-instruct-sharegpt"
+    filters: []
+  - dataset_path: "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/The-Tome-WebInstructSub_axolotl"
+    filters: []
+  - dataset_path: "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/EuroBlocks-SFT-Synthetic-1124-CohereForAI_aya_dataset"
+    filters: []
+  - dataset_path: "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/EuroBlocks-SFT-Synthetic-1124-harmful-instruction-refusal"
+    filters: []
+  - dataset_path: "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/EuroBlocks-SFT-Synthetic-1124-instruction-generation"
+    filters: []
+  - dataset_path: "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/EuroBlocks-SFT-Synthetic-1124-instruction-generation-ifeval"
+    filters: []
+  - dataset_path: "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/EuroBlocks-SFT-Synthetic-1124-Magpie-Align_Magpie-Llama-3_1-Pro-DPO-100K-v0_1"
+    filters: []
+  - dataset_path: "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/EuroBlocks-SFT-Synthetic-1124-Magpie-Align_Magpie-Qwen-Air-300K-Filtered"
+    filters: []
+  - dataset_path: "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/EuroBlocks-SFT-Synthetic-1124-multilingual-synthetic-llama3_1-70B"
+    filters: []
+  - dataset_path: "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/EuroBlocks-SFT-Synthetic-1124-multilingual-synthetic-mmlu"
+    filters: []
+  - dataset_path: "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/EuroBlocks-SFT-Synthetic-1124-self-low-resource"
+    filters: []
+  - dataset_path: "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/EuroBlocks-SFT-Synthetic-1124-synthetic-eurollm-9B"
+    filters: []
+  - dataset_path: "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/EuroBlocks-SFT-Synthetic-1124-synthetic-ifeval-magpie"
+    filters: []
+  - dataset_path: "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/smoltalk2-OpenThoughts3_1.2M_no_think_no_think"
+    filters: []
+  - dataset_path: "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/smoltalk2-smoltalk_multilingual_8languages_lang_5_no_think"
+    filters: []
+  - dataset_path: "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/smoltalk2-smoltalk_smollm3_everyday_conversations_no_think"
+    filters: []
+  - dataset_path: "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/smoltalk2-smoltalk_smollm3_smol_magpie_ultra_no_think"
+    filters: []
+  - dataset_path: "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/smoltalk2-table_gpt_no_think"
+    filters: []
+  - dataset_path: "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/smoltalk2-tulu_3_sft_personas_instruction_following_no_think"
+    filters: []
+  - dataset_path: "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/smoltalk-train-smol-constraints"
+    filters: []
 
