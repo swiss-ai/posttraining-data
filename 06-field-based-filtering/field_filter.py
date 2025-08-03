@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """
-Field-based dataset filtering tool.
+Memory-efficient field-based dataset filtering tool.
 
 This script analyzes and filters chat format datasets based on field values.
 It can display field statistics and create filtered copies of datasets.
+Uses HuggingFace's native filtering for memory efficiency on large datasets.
 """
 
 import sys
@@ -298,7 +299,7 @@ def save_filtered_dataset(dataset, output_path: Path, metadata: Dict[str, Any]):
 def split_dataset_by_field(dataset, field_path: str, output_base_path: Path, dataset_name: str, 
                           original_metadata: Dict[str, Any], input_path: Path, split_prefix: str = None) -> None:
     """
-    Split dataset into multiple datasets based on field values.
+    Split dataset into multiple datasets based on field values using memory-efficient approach.
     
     Args:
         dataset: HuggingFace Dataset or DatasetDict
@@ -373,53 +374,63 @@ def split_dataset_by_field(dataset, field_path: str, output_base_path: Path, dat
             print("Aborted.")
             return
     
-    # Create output datasets
-    print(f"\nSplitting dataset...")
+    # Create output datasets using memory-efficient approach
+    print(f"\nSplitting dataset using memory-efficient approach...")
     
-    if is_dataset_dict:
-        # For DatasetDict, maintain structure
-        split_datasets = {value: {split: [] for split in dataset.keys()} 
-                         for value in unique_values}
+    # Process each unique value separately
+    for value, filename in sorted(value_to_filename.items()):
+        print(f"\n{'='*60}")
+        print(f"Creating split for value: '{value}'")
+        print(f"{'='*60}")
         
-        # Route samples to appropriate split datasets
-        total_samples = 0
-        for split_name in dataset.keys():
-            split_data = dataset[split_name]
-            print(f"\nProcessing split '{split_name}' ({len(split_data):,} samples)...")
-            
-            for sample in tqdm(split_data, desc=f"Splitting {split_name}"):
-                value = get_nested_value(sample, field_path)
-                value_str = str(value) if value is not None else "<NULL>"
-                split_datasets[value_str][split_name].append(sample)
-                total_samples += 1
+        if split_prefix:
+            output_name = f"{dataset_name}-{split_prefix}{filename}"
+        else:
+            output_name = f"{dataset_name}-{filename}"
+        output_path = output_base_path / output_name
         
-        # Save each split dataset
-        print(f"\nSaving split datasets...")
-        for value, filename in value_to_filename.items():
-            splits_data = split_datasets[value]
-            if split_prefix:
-                output_name = f"{dataset_name}-{split_prefix}{filename}"
-            else:
-                output_name = f"{dataset_name}-{filename}"
-            output_path = output_base_path / output_name
-            
-            # Create DatasetDict from collected samples
-            dataset_dict_data = {}
+        # Define filter function for this value
+        def make_filter_fn(target_value):
+            def filter_fn(sample):
+                field_value = get_nested_value(sample, field_path)
+                field_value_str = str(field_value) if field_value is not None else "<NULL>"
+                return field_value_str == target_value
+            return filter_fn
+        
+        filter_fn = make_filter_fn(value)
+        
+        if is_dataset_dict:
+            # For DatasetDict, filter each split
+            filtered_splits = {}
             total_split_samples = 0
-            for split_name, samples in splits_data.items():
-                if samples:  # Only include non-empty splits
-                    dataset_dict_data[split_name] = Dataset.from_list(samples)
-                    total_split_samples += len(samples)
             
-            if dataset_dict_data:
-                output_dataset = DatasetDict(dataset_dict_data)
+            for split_name in dataset.keys():
+                print(f"  Filtering split '{split_name}'...")
+                
+                # Use HuggingFace's native filter with batching
+                filtered_split = dataset[split_name].filter(
+                    filter_fn,
+                    batch_size=10000,  # Process in 10k sample batches
+                    desc=f"Filtering {split_name}"
+                )
+                
+                if len(filtered_split) > 0:
+                    filtered_splits[split_name] = filtered_split
+                    total_split_samples += len(filtered_split)
+                    print(f"    Found {len(filtered_split):,} matching samples")
+                else:
+                    print(f"    No matching samples found")
+            
+            if filtered_splits:
+                # Create DatasetDict and save immediately
+                output_dataset = DatasetDict(filtered_splits)
                 
                 # Create metadata
                 split_metadata = {
                     **original_metadata,
                     "processing_log": original_metadata.get("processing_log", []) + [{
                         "operation": "field_based_split",
-                        "script": "field_filter.py",
+                        "script": "field_filter_memory_efficient.py",
                         "timestamp": datetime.now().isoformat(),
                         "input_path": str(input_path),
                         "output_path": str(output_path),
@@ -431,6 +442,7 @@ def split_dataset_by_field(dataset, field_path: str, output_base_path: Path, dat
                 }
                 
                 # Save dataset and metadata
+                print(f"  Saving to {output_path}...")
                 output_path.mkdir(parents=True, exist_ok=True)
                 output_dataset.save_to_disk(str(output_path))
                 
@@ -439,60 +451,54 @@ def split_dataset_by_field(dataset, field_path: str, output_base_path: Path, dat
                     json.dump(split_metadata, f, indent=2)
                 
                 print(f"  ✓ Saved {output_path.name} ({total_split_samples:,} samples)")
+            else:
+                print(f"  ⚠️  No samples found for value '{value}', skipping...")
                 
-    else:
-        # For single Dataset
-        split_datasets = {value: [] for value in unique_values}
-        
-        # Route samples
-        print(f"\nProcessing dataset ({len(dataset):,} samples)...")
-        for sample in tqdm(dataset, desc="Splitting"):
-            value = get_nested_value(sample, field_path)
-            value_str = str(value) if value is not None else "<NULL>"
-            split_datasets[value_str].append(sample)
-        
-        # Save each split
-        print(f"\nSaving split datasets...")
-        for value, filename in value_to_filename.items():
-            samples = split_datasets[value]
-            if samples:
-                if split_prefix:
-                    output_name = f"{dataset_name}-{split_prefix}{filename}"
-                else:
-                    output_name = f"{dataset_name}-{filename}"
-                output_path = output_base_path / output_name
-                output_dataset = Dataset.from_list(samples)
-                
+        else:
+            # For single Dataset
+            print(f"  Filtering dataset...")
+            
+            # Use HuggingFace's native filter
+            filtered_dataset = dataset.filter(
+                filter_fn,
+                batch_size=10000,
+                desc="Filtering"
+            )
+            
+            if len(filtered_dataset) > 0:
                 # Create metadata
                 split_metadata = {
                     **original_metadata,
                     "processing_log": original_metadata.get("processing_log", []) + [{
                         "operation": "field_based_split",
-                        "script": "field_filter.py",
+                        "script": "field_filter_memory_efficient.py",
                         "timestamp": datetime.now().isoformat(),
                         "input_path": str(input_path),
                         "output_path": str(output_path),
                         "split_field": field_path,
                         "split_value": value,
-                        "samples": len(samples),
+                        "samples": len(filtered_dataset),
                         "source_dataset": dataset_name
                     }]
                 }
                 
-                # Save
+                # Save immediately
+                print(f"  Saving to {output_path}...")
                 output_path.mkdir(parents=True, exist_ok=True)
-                output_dataset.save_to_disk(str(output_path))
+                filtered_dataset.save_to_disk(str(output_path))
                 
                 metadata_file = output_path / "dataset_metadata.json"
                 with open(metadata_file, 'w') as f:
                     json.dump(split_metadata, f, indent=2)
                 
-                print(f"  ✓ Saved {output_path.name} ({len(samples):,} samples)")
+                print(f"  ✓ Saved {output_path.name} ({len(filtered_dataset):,} samples)")
+            else:
+                print(f"  ⚠️  No samples found for value '{value}', skipping...")
     
     print(f"\n{'='*60}")
     print(f"SPLIT COMPLETE")
     print(f"{'='*60}")
-    print(f"Created {len(unique_values)} datasets in: {output_base_path}")
+    print(f"Created datasets in: {output_base_path}")
 
 
 def sanitize_filename(value: str, max_length: int = 50) -> str:
@@ -562,24 +568,24 @@ def sanitize_filename(value: str, max_length: int = 50) -> str:
 def parse_arguments():
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(
-        description="Analyze and filter chat format datasets by field values",
+        description="Analyze and filter chat format datasets by field values (memory-efficient version)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
   # Show dataset schema (all fields)
-  python field_filter.py data/02-standardised/tulu-3-sft-mixture
+  python field_filter_memory_efficient.py data/02-standardised/tulu-3-sft-mixture
 
   # Analyze specific field
-  python field_filter.py data/02-standardised/tulu-3-sft-mixture --field original_metadata.category
+  python field_filter_memory_efficient.py data/02-standardised/tulu-3-sft-mixture --field original_metadata.category
 
   # Filter to keep only samples where original_metadata.category = "math"
-  python field_filter.py data/02-standardised/tulu-3-sft-mixture \\
+  python field_filter_memory_efficient.py data/02-standardised/tulu-3-sft-mixture \\
     --field original_metadata.category \\
     --keep-values math \\
     --output data/03-filtered/tulu-math-only
     
-  # Split dataset by field values
-  python field_filter.py data/02-standardised/tulu-3-sft-mixture \\
+  # Split dataset by field values (memory-efficient)
+  python field_filter_memory_efficient.py data/02-standardised/tulu-3-sft-mixture \\
     --field original_metadata.category \\
     --split \\
     --output data/03-splits/
