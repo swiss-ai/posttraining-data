@@ -54,9 +54,26 @@ venv/bin/python 04-annotations/classify_quality.py \
 FastText-based language detection (176 languages, offline processing).
 
 ```bash
-venv/bin/python 04-annotations/language_annotate.py \
+venv/bin/python 05-annotations/language_annotate.py \
   data/02-standardised/dataset-name \
-  data/04-annotations/dataset-name-lang
+  data/05-annotations/dataset-name-lang
+```
+
+### 6. Boxed Answer Extraction
+Extracts \\boxed{answer} patterns from assistant messages, commonly found in mathematical reasoning datasets. Removes the \\boxed{} wrapper and stores extracted answers in metadata.
+
+```bash
+# Auto-generate output name with -boxedRemoved suffix
+venv/bin/python 05-annotations/extract_boxed_answers.py \
+  data/04-decontaminated/math-dataset \
+  --output data/05-annotations/
+
+# Custom output name
+venv/bin/python 05-annotations/extract_boxed_answers.py \
+  data/04-decontaminated/math-dataset \
+  --output data/05-annotations/math-dataset-extracted \
+  --batch-size 50000 \
+  --num-proc 8
 ```
 
 ## Chained Processing
@@ -100,6 +117,15 @@ venv/bin/python 04-annotations/classify_quality.py \
         "completeness": {"reasoning": "...", "score": 3}
       }
     }
+  }
+}
+```
+
+### Boxed Answer Extraction
+```json
+{
+  "metadata": {
+    "verifiable_answer": ["x^2 + 1", "42"]
   }
 }
 ```
