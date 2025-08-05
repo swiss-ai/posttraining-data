@@ -1,41 +1,25 @@
 #!/usr/bin/env python3
 """
-convert_think.py — final uniform schema (all messages -> content: list[blocks])
+convert_to_parts_schema.py — final
 
-What it does
-------------
-1) For every message (assistant, user, etc.), `content` is a LIST of blocks.
-   - Assistant:
-       • Parse <think>...</think> from string content.
-       • Build blocks: [{"role":"thought","content":...},{"role":"text","content":...}]
-       • If already a list, keep only roles {"thought","text"} and normalize.
-   - Non-assistant:
-       • Wrap string content into a single block [{"role":"text","content":...}]
-       • If already a list, normalize to {"role":"text","content":...} blocks.
+Outputs messages[*] with:
+  { "role": "<user|assistant|system>", "parts": [ ... ], "metadata": {} }
 
-   This avoids mixing list vs string at:
-   conversation_branches[].messages[].content (fixes ArrowInvalid).
+Assistant parts:
+  - "thought" (from <think>…</think>)
+  - "response" (assistant visible text)
+  - optional tool parts passed through / normalized:
+      "function-call"  {name, args}
+      "function-output" {content}
+      "verifiable-responses" {answers}
 
-2) `system_prompt`:
-   - Keep existing non-empty `system_prompt.content`.
-   - Else backfill from original_metadata.chat_template_kwargs.custom_instructions.
-   - Ensure `system_prompt.metadata = {}`.
+User/System parts:
+  - single {type:"response", content:"..."}
 
-3) `initial_prompt`:
-   - If row already has a non-empty `initial_prompt.content`, keep it as-is.
-   - Else find the earliest user message across ALL branches, set as `initial_prompt`,
-     and remove that one instance from its branch.
-   - Else fallback to {"role":"user","content":""}.
-
-4) Preserve metadata everywhere (message-level and block-level; default {}).
-
-CLI
----
-python convert_think.py <INPUT_DATASET_DIR> \
-  --output <OUT_DIR or prefix/> \
-  [--batch-size 10000] [--num-proc 8] [--limit N]
-
-• If --output ends with '/', the script appends "<input_name>-thinkPromoted".
+Also:
+  - Keep existing non-empty initial_prompt as-is (don’t remove any user turn).
+  - Else lift earliest user across ALL branches into initial_prompt and remove that one.
+  - Keep/backfill system_prompt.content from original_metadata.chat_template_kwargs.custom_instructions.
 """
 
 import re
@@ -49,17 +33,14 @@ from typing import Dict, Any, List, Tuple, Optional
 from datasets import load_from_disk, Dataset, DatasetDict
 
 THINK_BLOCK = re.compile(r"<think\s*>(.*?)</think\s*>", re.IGNORECASE | re.DOTALL)
-ASSISTANT_BLOCK_ROLES_KEEP = {"thought", "text"}
 
 # ------------------------------- helpers ------------------------------------ #
 def extract_thinks(text: str) -> Tuple[str, List[str]]:
     """Return (cleaned_text, [think1, think2, …]) from a string."""
     thinks: List[str] = []
-
     def _collect(m: re.Match) -> str:
         thinks.append(m.group(1))
-        return ""  # remove the whole block
-
+        return ""  # strip the think block
     cleaned = THINK_BLOCK.sub(_collect, text or "")
     return (cleaned or "").strip(), [t.strip() for t in thinks if t and t.strip()]
 
@@ -68,150 +49,173 @@ def _ensure_metadata(d: Dict[str, Any]) -> Dict[str, Any]:
         d["metadata"] = {}
     return d
 
-def _assistant_blocks_from_string(content: Optional[str]) -> List[Dict[str, Any]]:
-    """Assistant: parse <think>, produce list of {'thought'|'text'} blocks."""
-    cleaned, thinks = extract_thinks(content or "")
-    blocks: List[Dict[str, Any]] = []
-    for t in thinks:
-        blocks.append(_ensure_metadata({"role": "thought", "content": t}))
-    if cleaned:
-        blocks.append(_ensure_metadata({"role": "text", "content": cleaned}))
-    return blocks
+def _norm_type(raw: Optional[str]) -> Optional[str]:
+    if not raw:
+        return None
+    t = str(raw).lower().replace("_", "-")
+    if t in ("response", "thought"):
+        return t
+    if t in ("function-call",):
+        return "function-call"
+    if t in ("function-output",):
+        return "function-output"
+    if t in ("verifiable-response", "verifiable-responses"):
+        return "verifiable-responses"
+    return None
 
-def _normalize_assistant_blocks(blocks: Any) -> List[Dict[str, Any]]:
+# --------------- parts builders ---------------- #
+def assistant_parts_from_string(content: Optional[str]) -> List[Dict[str, Any]]:
+    """Assistant string → parts: [thought*] + response?"""
+    cleaned, thinks = extract_thinks(content or "")
+    parts: List[Dict[str, Any]] = []
+    for t in thinks:
+        parts.append(_ensure_metadata({"type": "thought", "content": t}))
+    if cleaned:
+        parts.append(_ensure_metadata({"type": "response", "content": cleaned}))
+    return parts
+
+def assistant_parts_from_blocks(blocks: Any) -> List[Dict[str, Any]]:
     """
-    Assistant: normalize existing list content:
-      - keep only roles in ASSISTANT_BLOCK_ROLES_KEEP
-      - coerce strings to {"role":"text","content":...}
-      - ensure 'metadata' exists
+    Accept legacy assistant blocks:
+      {role: text|assistant_text|thought} OR
+      {type: response|thought|function-call|function-output|verifiable-response(s)} OR
+      plain strings (→ response).
+    Preserve tool fields (name/args/content/answers).
     """
     out: List[Dict[str, Any]] = []
     if not isinstance(blocks, list):
         return out
+
     for b in blocks:
         if isinstance(b, str):
-            out.append(_ensure_metadata({"role": "text", "content": b.strip()}))
+            out.append(_ensure_metadata({"type": "response", "content": b.strip()}))
             continue
         if not isinstance(b, dict):
             continue
+
+        # prefer explicit role→type mapping if present; else use 'type'
         role = b.get("role")
-        if role not in ASSISTANT_BLOCK_ROLES_KEEP:
+        typ = b.get("type")
+        if role:
+            r = str(role).lower()
+            if r in ("text", "assistant_text"):
+                typ = "response"
+            elif r == "thought":
+                typ = "thought"
+        tnorm = _norm_type(typ)
+
+        if tnorm is None:
+            # Unknown block (e.g., tool stuff we don't recognize) → skip
             continue
-        content = b.get("content")
-        if isinstance(content, str):
-            content = content.strip()
-        out.append(_ensure_metadata({"role": role, "content": content}))
+
+        if tnorm in ("response", "thought"):
+            part = {"type": tnorm, "content": b.get("content")}
+            out.append(_ensure_metadata(part))
+        elif tnorm == "function-call":
+            out.append({
+                "type": "function-call",
+                "name": b.get("name"),
+                "args": b.get("args") or b.get("arguments") or {},
+            })
+        elif tnorm == "function-output":
+            out.append({
+                "type": "function-output",
+                "content": b.get("content"),
+            })
+        elif tnorm == "verifiable-responses":
+            answers = b.get("answers")
+            if answers is None and "answer" in b:
+                answers = [b.get("answer")]
+            out.append({
+                "type": "verifiable-responses",
+                "answers": answers or []
+            })
+
     return out
 
-def _nonassistant_blocks_from_any(content: Any) -> List[Dict[str, Any]]:
-    """
-    Non-assistant: always return a list of 'text' blocks.
-      - If string -> single text block.
-      - If list -> flatten any dict/string into text blocks.
-    """
-    blocks: List[Dict[str, Any]] = []
+def user_or_system_parts_from_any(content: Any) -> List[Dict[str, Any]]:
+    """User/System → one response part with string content (join list-y content)."""
     if isinstance(content, list):
+        pieces = []
         for x in content:
             if isinstance(x, dict):
-                txt = x.get("content")
-                if isinstance(txt, str):
-                    txt = txt.strip()
-                blocks.append(_ensure_metadata({"role": "text", "content": txt}))
+                v = x.get("content")
+                pieces.append(v if isinstance(v, str) else ("" if v is None else str(v)))
             elif isinstance(x, str):
-                blocks.append(_ensure_metadata({"role": "text", "content": x.strip()}))
-            else:
-                blocks.append(_ensure_metadata({"role": "text", "content": ""}))
+                pieces.append(x)
+        text = "\n".join(p for p in pieces if p)
     else:
-        # string/None/other -> single text block
-        txt = content if isinstance(content, str) else ""
-        blocks.append(_ensure_metadata({"role": "text", "content": txt.strip()}))
-    return blocks
+        text = content if isinstance(content, str) else ""
+    return [_ensure_metadata({"type": "response", "content": text.strip()})]
 
-def normalize_message(msg: Dict[str, Any]) -> Dict[str, Any]:
+def normalize_message_to_parts(msg: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Return a new message dict with:
-      - role preserved
-      - content -> list[blocks] (assistant vs non-assistant policies)
-      - metadata ensured
+    Convert any input message into {role, parts[], metadata} — removes any 'content' key entirely.
     """
     role = msg.get("role")
     content = msg.get("content")
-    new_msg = {"role": role}
+    out = {"role": role}
 
     if role == "assistant":
         if isinstance(content, list):
-            blocks = _normalize_assistant_blocks(content)
-        elif isinstance(content, str) or content is None:
-            blocks = _assistant_blocks_from_string(content or "")
+            parts = assistant_parts_from_blocks(content)
         else:
-            blocks = []
-        new_msg["content"] = blocks
+            parts = assistant_parts_from_string(content)
+        out["parts"] = parts
     else:
-        # user/system/other
-        new_msg["content"] = _nonassistant_blocks_from_any(content)
+        out["parts"] = user_or_system_parts_from_any(content)
 
-    new_msg = _ensure_metadata({**new_msg, "metadata": msg.get("metadata")})
-    return new_msg
-
-def normalize_messages(messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Normalize every message so `content` is list[blocks] with consistent schema."""
-    out: List[Dict[str, Any]] = []
-    for m in messages or []:
-        out.append(normalize_message(m))
+    out = _ensure_metadata({**out, "metadata": msg.get("metadata")})
     return out
 
-def extract_initial_prompt_if_missing(
+def normalize_messages_to_parts(messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    return [normalize_message_to_parts(m) for m in (messages or [])]
+
+# --------------- initial_prompt handling --------------- #
+def keep_or_lift_initial_prompt(
     current_initial: Optional[Dict[str, Any]],
     branches: List[Dict[str, Any]]
 ) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
     """
-    - If current_initial has non-empty string content -> keep and do NOT remove any user msg.
-    - Else: find earliest 'user' across ALL branches; set as initial_prompt; remove that instance.
-    - Else fallback to {"role":"user","content":""}.
-    Note: since we normalized, user content is a list[{"role":"text","content":...}], we will join text blocks.
+    If current initial_prompt has non-empty string content → keep & don't alter branches.
+    Else: lift earliest user msg across ALL branches → initial_prompt; remove that one.
+    Else: fallback to empty user initial_prompt.
     """
-    # Respect existing non-empty initial_prompt
     if isinstance(current_initial, dict):
         c = current_initial.get("content")
         if isinstance(c, str) and c.strip():
-            ip = {
+            return {
                 "role": current_initial.get("role", "user"),
                 "content": c,
                 "metadata": current_initial.get("metadata") or {}
-            }
-            return ip, branches
+            }, branches
 
-    # Search for earliest user message
     new_branches: List[Dict[str, Any]] = []
     captured: Optional[Dict[str, Any]] = None
-    removed_once = False
+    removed = False
 
     for br in branches or []:
         msgs = (br or {}).get("messages") or []
-        new_msgs = []
-        for msg in msgs:
-            if (not removed_once) and msg.get("role") == "user":
-                # Build a plain string from list blocks
-                parts = []
-                for blk in msg.get("content") or []:
-                    if isinstance(blk, dict):
-                        v = blk.get("content")
-                        if isinstance(v, str):
-                            parts.append(v)
-                        elif v is None:
-                            continue
-                        else:
-                            parts.append(str(v))
+        nm = []
+        for m in msgs:
+            if not removed and m.get("role") == "user":
+                # compose content from this user message's response parts
+                parts = m.get("parts") or []
+                texts = []
+                for p in parts:
+                    if isinstance(p, dict) and p.get("type") == "response":
+                        v = p.get("content")
+                        texts.append(v if isinstance(v, str) else ("" if v is None else str(v)))
                 captured = {
                     "role": "user",
-                    "content": "\n".join(p for p in parts if p).strip(),
-                    "metadata": msg.get("metadata") or {}
+                    "content": "\n".join(t for t in texts if t).strip(),
+                    "metadata": m.get("metadata") or {}
                 }
-                removed_once = True
-                continue  # remove this user message
-            new_msgs.append(msg)
+                removed = True
+                continue
+            nm.append(m)
         nb = dict(br)
-        nb["messages"] = new_msgs
+        nb["messages"] = nm
         new_branches.append(nb)
 
     if not captured:
@@ -222,53 +226,53 @@ def extract_initial_prompt_if_missing(
 # ---------------------------- map operations -------------------------------- #
 def process_batch(batch: Dict[str, List]) -> Dict[str, List]:
     """
-    Per-batch:
-      • system_prompt: keep/backfill content, ensure metadata.
-      • conversation_branches: normalize ALL messages to list[blocks].
-      • initial_prompt: keep if non-empty else extract earliest user across ALL branches.
+    Per-row:
+      • system_prompt: keep/backfill content; ensure metadata.
+      • conversation_branches: convert ALL messages to {role, parts[], metadata}.
+      • initial_prompt: keep if non-empty else lift earliest user.
+      • Never keep 'content' on messages (only 'parts').
     """
     import copy
     out = copy.deepcopy(batch)
     n = len(out["conversation_id"])
 
-    # Ensure columns exist
     if "system_prompt" not in out:
         out["system_prompt"] = [None] * n
     if "initial_prompt" not in out:
         out["initial_prompt"] = [None] * n
 
     for i in range(n):
-        # ----- system_prompt handling -----
-        current_sp = (out.get("system_prompt") or [None]*n)[i]
-        current_content = current_sp.get("content") if isinstance(current_sp, dict) else None
-
+        # system_prompt
+        sp = (out.get("system_prompt") or [None]*n)[i]
+        current_content = sp.get("content") if isinstance(sp, dict) else None
         orig_meta_i = (out.get("original_metadata") or [None]*n)[i] or {}
         ctk = (orig_meta_i.get("chat_template_kwargs") or {})
-        fallback_custom = ctk.get("custom_instructions") or ""
-
+        fallback = ctk.get("custom_instructions") or ""
         out["system_prompt"][i] = {
-            "content": (current_content if isinstance(current_content, str) and current_content.strip()
-                        else fallback_custom),
+            "content": (current_content if isinstance(current_content, str) and current_content.strip() else fallback),
             "metadata": {}
         }
 
-        # ----- normalize messages in branches -----
-        branches = (out.get("conversation_branches") or [None]*n)[i] or []
-        norm_branches: List[Dict[str, Any]] = []
-        for br in branches:
+        # branches -> normalize to parts (and REMOVE any 'content' keys)
+        in_branches = (out.get("conversation_branches") or [None]*n)[i] or []
+        new_branches: List[Dict[str, Any]] = []
+        for br in in_branches:
             msgs = br.get("messages") or []
-            norm_msgs = normalize_messages(msgs)
+            norm_msgs = normalize_messages_to_parts(msgs)
+            # ensure no 'content' key leaked
+            for m in norm_msgs:
+                m.pop("content", None)
             nb = {"messages": norm_msgs}
             for k, v in br.items():
                 if k != "messages":
                     nb[k] = v
-            norm_branches.append(nb)
+            new_branches.append(nb)
 
-        # ----- initial_prompt (preserve/extract) -----
+        # initial_prompt (keep or lift earliest user)
         existing_init = (out.get("initial_prompt") or [None]*n)[i]
-        new_init, new_branches = extract_initial_prompt_if_missing(existing_init, norm_branches)
+        new_init, stripped = keep_or_lift_initial_prompt(existing_init, new_branches)
         out["initial_prompt"][i] = new_init
-        out["conversation_branches"][i] = new_branches
+        out["conversation_branches"][i] = stripped
 
     return out
 
@@ -279,7 +283,7 @@ def map_split(ds: Dataset, num_proc: int, batch_size: int) -> Dataset:
         batch_size=batch_size,
         num_proc=num_proc,
         load_from_cache_file=False,
-        desc="Uniform content schema (list[blocks]); embed <think>; keep/backfill system_prompt; preserve/extract initial_prompt"
+        desc="Convert to messages[*].parts; keep tools; backfill system_prompt; keep/lift initial_prompt"
     )
 
 # ------------------------------- I/O & main --------------------------------- #
@@ -287,11 +291,10 @@ def subset(ds: Dataset, n: Optional[int]) -> Dataset:
     return ds if n is None or n <= 0 or n >= ds.num_rows else ds.select(range(n))
 
 def load_existing_metadata(input_path: Path) -> Optional[Dict[str, Any]]:
-    """Load existing dataset metadata if it exists."""
-    metadata_file = Path(input_path) / "dataset_metadata.json"
-    if metadata_file.exists():
+    meta_file = Path(input_path) / "dataset_metadata.json"
+    if meta_file.exists():
         try:
-            with open(metadata_file, 'r') as f:
+            with open(meta_file, 'r') as f:
                 return json.load(f)
         except (json.JSONDecodeError, IOError):
             pass
@@ -303,31 +306,28 @@ def save_with_meta(out_ds: DatasetDict, out_path: Path,
     out_ds.save_to_disk(str(out_path))
 
     metadata = load_existing_metadata(in_path) or {}
-    processing_entry = {
-        "operation": "convert_to_new_chat_format_uniform_blocks",
-        "script": "convert_think.py",
+    metadata.setdefault("processing_log", []).append({
+        "operation": "convert_to_parts_schema_final",
+        "script": "convert_to_parts_schema.py",
         "timestamp": datetime.now().isoformat(),
         "input_path": str(in_path),
         "output_path": str(out_path),
         "batch_size": args.batch_size,
         "num_processes": args.num_proc,
         "limit": args.limit,
-    }
-    metadata.setdefault("processing_log", []).append(processing_entry)
-
-    metadata_file = out_path / "dataset_metadata.json"
-    with open(metadata_file, "w") as f:
+    })
+    with open(out_path / "dataset_metadata.json", "w") as f:
         json.dump(metadata, f, indent=2)
     print(f"Saved dataset + metadata to {out_path}")
 
 def parse_args():
-    p = argparse.ArgumentParser(description="Convert to new chat format with uniform content blocks")
+    p = argparse.ArgumentParser(description="Convert dataset to messages[*].parts schema (assistant/user/system)")
     p.add_argument("input_path", help="Path to dataset saved via datasets.save_to_disk")
     p.add_argument("--output", "-o", required=True,
-                   help="Output directory (if ends with '/', appends '<input>-thinkPromoted')")
+                   help="Output dir (if ends with '/', appends '<input>-thinkPromoted')")
     p.add_argument("--batch-size", type=int, default=10000)
-    p.add_argument("--num-proc",   type=int, default=8)
-    p.add_argument("--limit", type=int, default=None, help="Process only first N rows of each split")
+    p.add_argument("--num-proc", type=int, default=8)
+    p.add_argument("--limit", type=int, default=None, help="Process first N rows of each split")
     return p.parse_args()
 
 def main():

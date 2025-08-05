@@ -9,3 +9,4 @@ __pycache__/
 benchmark_cache/
 slurm_logs/
 test/
+tests/
