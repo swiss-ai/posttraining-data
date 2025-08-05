@@ -9,11 +9,56 @@ New format: Assistant/user content becomes a list of parts with types
 import argparse
 import copy
 import json
+import os
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 from datasets import Dataset, DatasetDict, load_from_disk
 from tqdm import tqdm
 from datetime import datetime
+
+
+def load_existing_metadata(dataset_path: Path) -> Dict[str, Any]:
+    """Load existing metadata from dataset directory."""
+    metadata_file = dataset_path / "dataset_metadata.json"
+    if metadata_file.exists():
+        with open(metadata_file, 'r') as f:
+            return json.load(f)
+    return {}
+
+
+def save_dataset_with_processing_log(dataset_dict: DatasetDict, output_path: Path, 
+                                   input_path: str, total_samples: int):
+    """Save dataset and update processing log."""
+    # Load existing metadata
+    original_metadata = load_existing_metadata(Path(input_path))
+    
+    # Create processing log entry
+    processing_entry = {
+        "operation": "format_conversion",
+        "script": "convert_old_to_new_format.py",
+        "timestamp": datetime.now().isoformat(),
+        "input_path": input_path,
+        "output_path": str(output_path),
+        "samples_processed": total_samples,
+        "conversion_details": {
+            "from_format": "string_content", 
+            "to_format": "parts_structure",
+            "description": "Convert assistant and user messages from string content to parts list structure"
+        }
+    }
+    
+    # Update metadata
+    metadata = {
+        **original_metadata,
+        "processing_log": original_metadata.get("processing_log", []) + [processing_entry]
+    }
+    
+    # Save dataset and metadata
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    dataset_dict.save_to_disk(str(output_path))
+    
+    with open(output_path / "dataset_metadata.json", 'w') as f:
+        json.dump(metadata, f, indent=2)
 
 
 def convert_message_to_parts(message: Dict[str, Any]) -> Dict[str, Any]:
@@ -74,15 +119,6 @@ def convert_sample_to_new_format(sample: Dict[str, Any]) -> Dict[str, Any]:
     # Update timestamp to reflect conversion
     if "created_timestamp" not in new_sample:
         new_sample["created_timestamp"] = datetime.now().isoformat()
-    
-    # Add conversion metadata
-    if "original_metadata" not in new_sample:
-        new_sample["original_metadata"] = {}
-    new_sample["original_metadata"]["format_conversion"] = {
-        "from": "old_format",
-        "to": "new_format",
-        "converted_at": datetime.now().isoformat()
-    }
     
     return new_sample
 
@@ -240,6 +276,9 @@ def main():
         
         print(f"Converted {len(converted_split)} samples")
     
+    # Calculate total samples for processing log
+    total_samples = sum(len(split_dataset) for split_dataset in converted_dataset.values())
+    
     # Save converted dataset
     output_path = Path(args.output_path)
     
@@ -248,10 +287,8 @@ def main():
         input_name = Path(args.input_path).name
         output_path = output_path / input_name
     
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    
     print(f"\nSaving converted dataset to: {output_path}")
-    converted_dataset.save_to_disk(str(output_path))
+    save_dataset_with_processing_log(converted_dataset, output_path, args.input_path, total_samples)
     
     # Print summary
     print("\n" + "="*50)
