@@ -76,6 +76,23 @@ venv/bin/python 05-annotations/extract_boxed_answers.py \
   --num-proc 8
 ```
 
+### 7. System Prompt Fix (smoltalk2 datasets)
+Moves system prompts from `original_metadata.chat_template_kwargs.custom_instructions` to the top-level `system_prompt` field as required by the standardized chat format schema. This is specifically needed for smoltalk2 datasets where system prompts were not properly extracted during conversion.
+
+```bash
+# Auto-generate output name with -systemPromptFix suffix
+venv/bin/python 05-annotations/fix_system_prompts.py \
+  data/04-decontaminated/smoltalk2-dataset \
+  --output data/05-annotations/
+
+# Custom output name
+venv/bin/python 05-annotations/fix_system_prompts.py \
+  data/04-decontaminated/smoltalk2-dataset \
+  --output data/05-annotations/dataset-fixed \
+  --batch-size 50000 \
+  --num-proc 8
+```
+
 ## Chained Processing
 Classifications can be chained by using output as input:
 
