@@ -175,3 +175,13 @@ apertus-sft-mixture-4:
   - dataset_path: "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/smoltalk-train-smol-constraints"
     filters: []
 
+test-numina-mixture:
+  - dataset_path: "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/tulu-3-sft-olmo-2-mixture-0225-ai2-adapt-dev_coconot_converted"
+    filters: []
+  - dataset_path: "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/tulu-3-sft-olmo-2-mixture-0225-ai2-adapt-dev_evol_codealpaca_heval_decontaminated"
+    filters: []
+  - dataset_path: "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/tulu-3-sft-olmo-2-mixture-0225-ai2-adapt-dev_oasst1_converted"
+    filters: []
+  - dataset_path: "data/numina_test"
+    filters: []
+

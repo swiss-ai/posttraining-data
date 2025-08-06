@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """
-extract_tool_new_format.py — robust extraction for ```python ...``` and ```output ...```
+process_numinamath_tir_math_with_function_call.py — Extract ```python ...``` and ```output ...``` blocks
+from NuminaMath TIR dataset and convert to function call format.
 
 ONLY two tool shapes are recognized:
-- ```python ...```  -> {type:"function-call", name:"execute_python", parameters:{properties:"...", required:[...], type:"object"}}
+- ```python ...```  -> {type:"function-call", name:"execute_python", args:{"code": "..."}}
 - ```output ...```  -> {type:"function-output", content:"..."}
 
 All other text (including other fenced languages) is kept as
@@ -13,6 +14,9 @@ User/System messages -> single response part (string; list joined).
 Keeps/backfills system_prompt; preserves existing non-empty initial_prompt
 (else lifts earliest user and removes that one instance).
 Adds available_functions to the conversation structure.
+
+All parts include unified schema fields for Arrow compatibility:
+- type, content, metadata, name, args (empty strings when not used)
 """
 
 import re
@@ -64,31 +68,56 @@ def _ensure_metadata(d: Dict[str, Any]) -> Dict[str, Any]:
 def _strip(s: Any) -> str:
     return s.strip() if isinstance(s, str) else ""
 
+def _create_unified_part(part_type: str, 
+                         content: str = "", 
+                         name: str = "", 
+                         args: Any = None,
+                         metadata: Optional[Dict] = None) -> Dict[str, Any]:
+    """Create a part with unified schema for Arrow compatibility."""
+    # Convert args to proper format
+    if args is None:
+        args_str = ""
+    elif isinstance(args, dict):
+        args_str = json.dumps(args) if args else ""
+    else:
+        args_str = str(args) if args else ""
+    
+    return {
+        "type": part_type,
+        "content": content or "",
+        "metadata": metadata or {},
+        "name": name or "",
+        "args": args_str
+    }
+
 def _validate_part(part: Dict[str, Any]) -> Dict[str, Any]:
-    """Validate and ensure proper structure for a part."""
+    """Validate and ensure proper structure for a part with unified schema."""
     if not isinstance(part, dict):
-        return {"type": "response", "content": str(part), "metadata": {}}
+        return _create_unified_part("response", content=str(part))
     
     part_type = part.get("type", "").lower()
     
     if part_type == "function-call":
-        return {
-            "type": "function-call",
-            "name": part.get("name", ""),
-            "parameters": part.get("parameters") or {},
-            "metadata": part.get("metadata") or {}
-        }
+        # Extract args - could be dict or string
+        args = part.get("args") or part.get("parameters") or {}
+        return _create_unified_part(
+            "function-call",
+            name=part.get("name", ""),
+            args=args,
+            metadata=part.get("metadata")
+        )
     elif part_type == "function-output":
-        return {
-            "type": "function-output",
-            "content": part.get("content", ""),
-            "metadata": part.get("metadata") or {}
-        }
+        return _create_unified_part(
+            "function-output",
+            content=part.get("content", ""),
+            metadata=part.get("metadata")
+        )
     else:
-        return _ensure_metadata({
-            "type": "response",
-            "content": part.get("content", ""),
-        })
+        return _create_unified_part(
+            "response",
+            content=part.get("content", ""),
+            metadata=part.get("metadata")
+        )
 
 def pick_split(ds):
     if isinstance(ds, DatasetDict):
@@ -124,46 +153,35 @@ def assistant_parts_from_string(text: Optional[str], debug: bool = False) -> Lis
         # preamble text before fence
         pre = _strip(s[pos:start])
         if pre:
-            parts.append(_ensure_metadata({"type": "response", "content": pre}))
+            parts.append(_create_unified_part("response", content=pre))
 
         if lang == "python":
-            # Create parameters structure for execute_python function
-            parameters = {
-                "properties": {
-                    "code": {
-                        "type": "string",
-                        "description": "The Python code to be executed. Supports multi-line code blocks, standard library imports, and variable persistence within the execution context."
-                    }
-                },
-                "required": ["code"],
-                "type": "object"
-            }
-            
-            parts.append(_validate_part({
-                "type": "function-call",
-                "name": "execute_python",
-                "parameters": parameters
-            }))
+            # Create function call with actual code as argument
+            parts.append(_create_unified_part(
+                "function-call",
+                name="execute_python",
+                args={"code": body}
+            ))
         elif lang == "output":
-            parts.append(_validate_part({
-                "type": "function-output",
-                "content": body
-            }))
+            parts.append(_create_unified_part(
+                "function-output",
+                content=body
+            ))
         else:
             # keep unknown fenced block as visible response
             fenced = s[start:end]
-            parts.append(_ensure_metadata({"type": "response", "content": fenced.strip()}))
+            parts.append(_create_unified_part("response", content=fenced.strip()))
 
         pos = end
 
     # trailing text after last fence
     tail = _strip(s[pos:])
     if tail:
-        parts.append(_ensure_metadata({"type": "response", "content": tail}))
+        parts.append(_create_unified_part("response", content=tail))
 
     # Safety: if nothing matched but there was text, emit a single response
     if not parts and _strip(s):
-        parts.append(_ensure_metadata({"type": "response", "content": s.strip()}))
+        parts.append(_create_unified_part("response", content=s.strip()))
 
     return parts
 
@@ -186,18 +204,19 @@ def assistant_parts_from_blocks(blocks: Any) -> List[Dict[str, Any]]:
         # Already in parts shape?
         t = (b.get("type") or "").lower().replace("_", "-")
         if t in ("response", "thought"):
-            out.append(_ensure_metadata({"type": t, "content": b.get("content")}))
+            out.append(_create_unified_part(t, content=b.get("content")))
         elif t == "function-call":
-            out.append(_ensure_metadata({
-                "type": "function-call",
-                "name": b.get("name"),
-                "parameters": b.get("parameters") or {},
-            }))
+            args = b.get("args") or b.get("parameters") or {}
+            out.append(_create_unified_part(
+                "function-call",
+                name=b.get("name"),
+                args=args
+            ))
         elif t == "function-output":
-            out.append(_ensure_metadata({
-                "type": "function-output",
-                "content": b.get("content"),
-            }))
+            out.append(_create_unified_part(
+                "function-output",
+                content=b.get("content")
+            ))
         else:
             # Legacy role text/thought?
             role = (b.get("role") or "").lower()
@@ -208,9 +227,9 @@ def assistant_parts_from_blocks(blocks: Any) -> List[Dict[str, Any]]:
                     if typ == "response":
                         out.extend(assistant_parts_from_string(c))
                     else:
-                        out.append(_ensure_metadata({"type": "thought", "content": c.strip()}))
+                        out.append(_create_unified_part("thought", content=c.strip()))
                 else:
-                    out.append(_ensure_metadata({"type": typ, "content": _strip(c)}))
+                    out.append(_create_unified_part(typ, content=_strip(c)))
             else:
                 # Unknown dict — salvage text if present
                 c = b.get("content")
@@ -231,7 +250,7 @@ def user_or_system_parts_from_any(content: Any) -> List[Dict[str, Any]]:
         text = "\n".join(f for f in frags if f)
     else:
         text = content if isinstance(content, str) else ""
-    return [_ensure_metadata({"type": "response", "content": text.strip()})]
+    return [_create_unified_part("response", content=text.strip())]
 
 def normalize_message_to_parts(msg: Dict[str, Any]) -> Dict[str, Any]:
     """Return {role, parts, metadata} with tool extraction applied."""
@@ -268,7 +287,7 @@ def normalize_message_to_parts(msg: Dict[str, Any]) -> Dict[str, Any]:
         if not parts:
             s = _strip(msg.get("content") or "")
             if s:
-                parts = [{"type": "response", "content": s, "metadata": {}}]
+                parts = [_create_unified_part("response", content=s)]
         out["parts"] = parts
     else:
         out["parts"] = user_or_system_parts_from_any(msg.get("content"))
@@ -384,7 +403,7 @@ def save_with_meta(out_ds: DatasetDict, out_path: Path,
     metadata = load_existing_metadata(in_path) or {}
     metadata.setdefault("processing_log", []).append({
         "operation": "extract_execute_python_and_output_fences_with_available_functions",
-        "script": "extract_tool.py",
+        "script": "process_numinamath_tir_math_with_function_call.py",
         "timestamp": datetime.now().isoformat(),
         "input_path": str(in_path),
         "output_path": str(out_path),
@@ -490,7 +509,7 @@ Thus, the point at which the rod should be supported to remain balanced is at 2.
         print(f"Part {i+1}: {part['type']}")
         if part['type'] == 'function-call':
             print(f"  Name: {part['name']}")
-            print(f"  Parameters: {part['parameters']}")
+            print(f"  Args: {part['args'][:100]}...")
         elif part['type'] == 'function-output':
             print(f"  Content: {part['content'][:100]}...")
         else:
