@@ -52,7 +52,7 @@ The new standard format uses parts structure for all messages, enabling support 
   },
   "initial_prompt": {
     "role": "user",
-    "content": "hey this my example prompt. Can you tell me the weather?",
+    "content": "Hey, can you tell me the weather in Bern?",
     "metadata": {}
   },
   "available_functions": [
@@ -79,16 +79,6 @@ The new standard format uses parts structure for all messages, enabling support 
   "conversation_branches": [
     {
       "messages": [
-        {
-          "role": "user",
-          "parts": [
-            {
-              "type": "response",
-              "content": "Hey, can you tell me the weather in Bern?",
-              "metadata": {}
-            }
-          ],
-        },
         {
           "role": "assistant",
           "parts": [
