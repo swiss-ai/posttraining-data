@@ -93,6 +93,23 @@ venv/bin/python 05-annotations/fix_system_prompts.py \
   --num-proc 8
 ```
 
+### 8. Thinking Tag Extraction (smoltalk2 datasets)
+Converts smoltalk2 think datasets to the new augmented format with parts structure. Extracts `<think>...</think>` tags from assistant messages and converts them to separate "thought" parts, while preserving the cleaned response text. Also handles tool use, function calls, and verifiable responses if present.
+
+```bash
+# Auto-generate output name with -thinkPromoted suffix
+venv/bin/python 05-annotations/convert_smoltalk2_think.py \
+  data/04-decontaminated/smoltalk2-think-dataset \
+  --output data/05-annotations/
+
+# Custom output name
+venv/bin/python 05-annotations/convert_smoltalk2_think.py \
+  data/04-decontaminated/smoltalk2-think-dataset \
+  --output data/05-annotations/dataset-think-converted \
+  --batch-size 10000 \
+  --num-proc 8
+```
+
 ## Chained Processing
 Classifications can be chained by using output as input:
 
