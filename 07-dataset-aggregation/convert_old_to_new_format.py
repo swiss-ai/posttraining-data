@@ -195,6 +195,7 @@ def process_dataset(dataset: Dataset, validate: bool = True) -> Dataset:
         convert_batch,
         batched=True,
         batch_size=1000,
+        num_proc=16,
         desc="Converting to new format"
     )
     
