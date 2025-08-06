@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-convert_to_parts_schema.py — final
+convert_smoltalk2_think.py
 
 Outputs messages[*] with:
   { "role": "<user|assistant|system>", "parts": [ ... ], "metadata": {} }
@@ -307,8 +307,8 @@ def save_with_meta(out_ds: DatasetDict, out_path: Path,
 
     metadata = load_existing_metadata(in_path) or {}
     metadata.setdefault("processing_log", []).append({
-        "operation": "convert_to_parts_schema_final",
-        "script": "convert_to_parts_schema.py",
+        "operation": "convert_smoltalk2_think",
+        "script": "convert_smoltalk2_think.py",
         "timestamp": datetime.now().isoformat(),
         "input_path": str(in_path),
         "output_path": str(out_path),
