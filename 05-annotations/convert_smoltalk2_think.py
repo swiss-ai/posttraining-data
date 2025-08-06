@@ -240,8 +240,15 @@ def process_batch(batch: Dict[str, List]) -> Dict[str, List]:
         out["system_prompt"] = [None] * n
     if "initial_prompt" not in out:
         out["initial_prompt"] = [None] * n
+    if "available_functions" not in out:
+        out["available_functions"] = [[] for _ in range(n)]
 
     for i in range(n):
+        # Ensure available_functions is always a list (not None)
+        if "available_functions" in out:
+            if out["available_functions"][i] is None:
+                out["available_functions"][i] = []
+        
         # system_prompt
         sp = (out.get("system_prompt") or [None]*n)[i]
         current_content = sp.get("content") if isinstance(sp, dict) else None

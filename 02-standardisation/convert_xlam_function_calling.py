@@ -253,9 +253,9 @@ def convert_xlam_sample(sample: Dict[str, Any]) -> Dict[str, Any]:
                 "messages": [
                     {
                         "role": "assistant",
-                        "parts": function_call_parts
+                        "parts": function_call_parts if function_call_parts else []
                     }
-                ] if function_call_parts else []
+                ]
             }
         ],
         "created_timestamp": datetime.now().isoformat()

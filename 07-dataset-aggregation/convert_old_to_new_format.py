@@ -116,6 +116,10 @@ def convert_sample_to_new_format(sample: Dict[str, Any]) -> Dict[str, Any]:
                         converted_messages.append(message)
                 branch["messages"] = converted_messages
     
+    # Ensure available_functions field exists (empty list for non-function-calling datasets)
+    if "available_functions" not in new_sample:
+        new_sample["available_functions"] = []
+    
     # Update timestamp to reflect conversion
     if "created_timestamp" not in new_sample:
         new_sample["created_timestamp"] = datetime.now().isoformat()
@@ -186,6 +190,11 @@ def process_dataset(dataset: Dataset, validate: bool = True) -> Dataset:
             # Put converted values back
             for key, value in converted.items():
                 if key in processed_examples:
+                    processed_examples[key][idx] = value
+                else:
+                    # Add new field if it doesn't exist yet
+                    if key not in processed_examples:
+                        processed_examples[key] = [None] * num_examples
                     processed_examples[key][idx] = value
         
         return processed_examples
