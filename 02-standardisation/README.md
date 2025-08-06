@@ -2,7 +2,7 @@
 
 Converts datasets to the unified chat format for downstream processing.
 
-## Chat Format Schema
+## Old Chat Format
 
 All datasets are standardized to this unified chat format:
 
@@ -35,6 +35,89 @@ All datasets are standardized to this unified chat format:
 }
 ```
 
+## New Chat Format
+
+If a dataset has augmentations to the assistant, the assistant content is not a str but a list. 
+
+```json
+{
+  "conversation_id": "unique_identifier",
+  "dataset_source": "source_dataset_name",
+  "original_metadata": {},
+  "system_prompt": {
+    "content": "you are a friendly assistant. Here is a list of tools you have available ... ",
+    "metadata": {}
+  },
+  "initial_prompt": {
+    "role": "user",
+    "content": "hey this my example prompt. Can you tell me the weather?",
+    "metadata": {}
+  },
+  "available_functions": [
+    {"name": "get_weather_data", "description": "Retrieves weather information and takes two args ..."}
+    {"name": "another_tool", "description": "this tool ..."}
+    {"name": "python_exec", "description": "this tool takes as an argument python code, executes it, and returns the output"}
+  ],
+  "conversation_branches": [
+    {
+      "messages": [
+        {
+          "role": "user",
+          "parts": [
+            {
+              "type": "response",
+              "content": "Hey, can you tell me the weather in Bern?",
+              "metadata": {}
+            }
+          ],
+        },
+        {
+          "role": "assistant",
+          "parts": [
+            {
+              "type": "thought",
+              "content": "The user wants to know the weather. I have a tool ... Let me ... ",
+            },
+            {
+              "type": "function-call",
+              "name": "get_weather_data",
+              "args": {
+                "argname1": "34FR343FLQMP4I946K",
+                "argname2": "Bern"
+              }
+            },
+            {
+              "type": "function-output",
+              "content": "{location: Bern, Temperature: 24, Weather: sunny}",
+            },
+            {
+              "type": "response",
+              "content": "Hey sure. The weather will be sunny.",
+              "metadata": {}
+            },
+            {
+              "type": "verifiable-responses",
+              "answers": ["sunny"],
+            }
+          ],
+        },
+        {
+          "role": "user",
+          "parts": [
+            {
+              "type": "response",
+              "content": "thanks! Is this warmer than last year? ",
+              "metadata": {}
+            }
+          ],
+        }
+      ]
+    }
+  ],
+  "created_timestamp": "ISO datetime"
+}
+```
+
 ## Usage
 
 ### Conversion Commands
@@ -53,8 +136,11 @@ python 02-standardisation/convert_to_chat_format.py data/01-hf-data/Llama-Nemotr
 Use the interactive browser to inspect converted datasets:
 
 ```bash
-# Interactive browsing (default, run from project root)
+# Old format datasets (string content)
 python 02-standardisation/browse_sample.py data/02-standardised/tulu-3-sft-mixture
+
+# New format datasets (parts structure)
+python 02-standardisation/browse_sample_new.py data/converted/dataset
 
 # Start at specific sample
 python 02-standardisation/browse_sample.py data/02-standardised/smoltalk --start-idx 100
