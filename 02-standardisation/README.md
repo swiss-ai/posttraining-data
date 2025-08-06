@@ -118,6 +118,19 @@ If a dataset has augmentations to the assistant, the assistant content is not a 
 }
 ```
 
+## Available Converters
+
+### Standard Chat Format Converter
+`convert_to_chat_format.py` - Handles most conversational datasets including chat messages, ShareGPT, instruction-response, and preference formats.
+
+### XLAM Function Calling Converter  
+`convert_xlam_function_calling.py` - Specialized converter for xlam-function-calling-60k dataset that:
+- Converts XLAM's custom parameter format to OpenAI-compatible JSON Schema
+- Transforms single-turn function calling examples to the new chat format
+- Handles complex parameter types (`List[...]`, `Dict[...]`) properly
+- Preserves all tool definitions and function call arguments
+- Generates 60,000 examples of function calling training data
+
 ## Usage
 
 ### Conversion Commands
@@ -129,6 +142,16 @@ python 02-standardisation/convert_to_chat_format.py data/01-hf-data/smoltalk2 da
 python 02-standardisation/convert_to_chat_format.py data/01-hf-data/The-Tome data/02-standardised/
 python 02-standardisation/convert_to_chat_format.py data/01-hf-data/EuroBlocks-SFT-Synthetic-1124 data/02-standardised/
 python 02-standardisation/convert_to_chat_format.py data/01-hf-data/Llama-Nemotron-Post-Training-Dataset data/02-standardised/
+
+# Function calling datasets (new format with OpenAI-compatible functions)
+venv/bin/python 02-standardisation/convert_xlam_function_calling.py \
+  /users/schlag/store/posttrain_data/01_raw_hf_data/xlam-function-calling-60k \
+  --output data/02-standardised/
+
+# Or specify exact output name
+venv/bin/python 02-standardisation/convert_xlam_function_calling.py \
+  /users/schlag/store/posttrain_data/01_raw_hf_data/xlam-function-calling-60k \
+  --output data/02-standardised/xlam-function-calling-60k
 ```
 
 ### Browse Converted Datasets
