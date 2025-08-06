@@ -1,7 +1,0 @@
-test-local-merge:
-  - dataset_path: "/capstor/store/cscs/swissai/infra01/posttrain_data/02_standardised/xlam-function-calling-60k"
-    filters: []
-  - dataset_path: "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated_newformat/smoltalk2-multi_turn_reasoning_if_think-thinkPromoted"
-    filters: []
-  - dataset_path: "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated_newformat/The-Tome-airoboros-3_2"
-    filters: []
