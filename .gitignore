@@ -8,3 +8,5 @@ __pycache__/
 05-annotations/models/
 benchmark_cache/
 slurm_logs/
+test/
+tests/
