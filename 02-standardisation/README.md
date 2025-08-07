@@ -188,6 +188,15 @@ The `available_functions` list follows the OpenAI API function calling specifica
 - Preserves all tool definitions and function call arguments
 - Generates 60,000 examples of function calling training data
 
+### APIGen Function Calling Converter
+`convert_apigen_function_calling.py` - Specialized converter for APIGen-MT-5k dataset that:
+- Converts multi-turn conversations with embedded function calling workflows
+- Preserves conversation structure with proper user/assistant message alternation
+- Maps function_call/observation pairs to function-call/function-output parts
+- Handles think function calls as thought parts for reasoning steps
+- Processes 5,000 examples of multi-turn function calling conversations
+- Tools already in OpenAI-compatible format (no parameter conversion needed)
+
 ## Usage
 
 ### Conversion Commands
@@ -204,6 +213,11 @@ python 02-standardisation/convert_to_chat_format.py data/01-hf-data/Llama-Nemotr
 venv/bin/python 02-standardisation/convert_xlam_function_calling.py \
   /users/schlag/store/posttrain_data/01_raw_hf_data/xlam-function-calling-60k \
   --output data/02-standardised/
+
+# APIGen multi-turn function calling dataset
+venv/bin/python 02-standardisation/convert_apigen_function_calling.py \
+  /capstor/store/cscs/swissai/infra01/posttrain_data/01_raw_hf_data/APIGen-MT-5k \
+  --output data/02-standardised/apigen-mt-5k
 
 # Or specify exact output name
 venv/bin/python 02-standardisation/convert_xlam_function_calling.py \
