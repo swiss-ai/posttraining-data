@@ -47,7 +47,7 @@ The new standard format uses parts structure for all messages, enabling support 
   "dataset_source": "source_dataset_name",
   "original_metadata": {},
   "system_prompt": {
-    "content": "you are a friendly assistant. Here is a list of tools you have available ... ",
+    "content": "You are a friendly assistant with access to some functions.",
     "metadata": {}
   },
   "initial_prompt": {
