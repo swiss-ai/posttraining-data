@@ -197,6 +197,14 @@ The `available_functions` list follows the OpenAI API function calling specifica
 - Processes 5,000 examples of multi-turn function calling conversations
 - Tools already in OpenAI-compatible format (no parameter conversion needed)
 
+### OLMO Prompts-Only Converter (New Format)
+`convert_olmo_prompts_only_newformat.py` - Extracts prompts from OLMO-2-0325-32b-preference-mix dataset:
+- Extracts only the user prompts from preference data (discards chosen/rejected responses)
+- Outputs in new chat format with empty conversation branches (prompts only)
+- Selectively preserves metadata (keeps `id` and `source`, excludes model names)
+- Generates 377,807 prompt-only examples for prompt diversity
+- Useful for prompt augmentation and diversity in training mixtures
+
 ## Usage
 
 ### Conversion Commands
@@ -223,6 +231,11 @@ venv/bin/python 02-standardisation/convert_apigen_function_calling.py \
 venv/bin/python 02-standardisation/convert_xlam_function_calling.py \
   /users/schlag/store/posttrain_data/01_raw_hf_data/xlam-function-calling-60k \
   --output data/02-standardised/xlam-function-calling-60k
+
+# OLMO prompts-only extraction (new format)
+venv/bin/python 02-standardisation/convert_olmo_prompts_only_newformat.py \
+  /capstor/store/cscs/swissai/infra01/posttrain_data/01_raw_hf_data/olmo-2-0325-32b-preference-mix \
+  --output data/02-standardisation_newformat/
 ```
 
 ### Browse Converted Datasets

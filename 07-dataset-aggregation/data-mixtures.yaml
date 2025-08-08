@@ -185,3 +185,41 @@ test-new-format-mixture:
   - dataset_path: "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated_newformat_test/tulu-3-sft-olmo-2-mixture-0225-ai2-adapt-dev_oasst1_converted"
     filters: []
 
+tulu3-sft-original-baseline:
+  - dataset_path: "/capstor/store/cscs/swissai/infra01/posttrain_data/02_standardised_newformat/tulu-3-sft-mixture"
+    filters: []
+
+tulu3-sft-decontaminated-baseline:
+  - dataset_path: "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated_newformat_test/tulu-3-sft-mixture-ai2-adapt-dev_coconot_converted"
+    filters: []
+  - dataset_path: "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated_newformat_test/tulu-3-sft-mixture-ai2-adapt-dev_evol_codealpaca_heval_decontaminated"
+    filters: []
+  - dataset_path: "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated_newformat_test/tulu-3-sft-mixture-ai2-adapt-dev_numinamath_tir_math_decontaminated"
+    filters: []
+  - dataset_path: "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated_newformat_test/tulu-3-sft-mixture-ai2-adapt-dev_oasst1_converted"
+    filters: []
+  - dataset_path: "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated_newformat_test/tulu-3-sft-mixture-ai2-adapt-dev_personahub_code_v2_34999"
+    filters: []
+  - dataset_path: "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated_newformat_test/tulu-3-sft-mixture-ai2-adapt-dev_personahub_ifdata_manual_seed_v3_299_trunc"
+    filters: []
+  - dataset_path: "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated_newformat_test/tulu-3-sft-mixture-ai2-adapt-dev_personahub_math_v5_regen_149960"
+    filters: []
+  - dataset_path: "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated_newformat_test/tulu-3-sft-mixture-ai2-adapt-dev_tulu_v3_9_aya_100k"
+    filters: []
+  - dataset_path: "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated_newformat_test/tulu-3-sft-mixture-ai2-adapt-dev_tulu_v3_9_open_math_2_gsm8k_50k"
+    filters: []
+  - dataset_path: "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated_newformat_test/tulu-3-sft-mixture-ai2-adapt-dev_tulu_v3_9_personahub_math_interm_alg_trunc"
+    filters: []
+  - dataset_path: "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated_newformat_test/tulu-3-sft-mixture-ai2-adapt-dev_tulu_v3_9_sciriff_10k"
+    filters: []
+  - dataset_path: "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated_newformat_test/tulu-3-sft-mixture-ai2-adapt-dev_tulu_v3_9_synthetic_finalresp_wildgu_trunc"
+    filters: []
+  - dataset_path: "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated_newformat_test/tulu-3-sft-mixture-ai2-adapt-dev_tulu_v3_9_table_gpt_5k"
+    filters: []
+  - dataset_path: "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated_newformat_test/tulu-3-sft-mixture-ai2-adapt-dev_tulu_v3_9_wildchat_100k"
+    filters: []
+  - dataset_path: "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated_newformat_test/tulu-3-sft-mixture-ai2-adapt-dev_tulu_v3_9_wildjailbreak_decontaminat_trunc"
+    filters: []
+  - dataset_path: "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated_newformat_test/tulu-3-sft-mixture-allenai_tulu-3-sft-personas-math-grade"
+    filters: []
+
