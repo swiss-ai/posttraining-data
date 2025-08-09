@@ -1,28 +1,65 @@
-You are analyzing question-answer pairs to identify content involving AI assistants, chatbots, or language models.
+You are analyzing question-answer pairs to identify content that could train a model to identify itself as an AI assistant or reference existing conversational AI assistant products.
 
-TASK: Classify whether this Q&A pair contains references to or interactions with AI assistants.
+TASK: Classify whether this Q&A pair contains patterns that would teach a model to identify as an AI assistant.
 
-DETECTION CRITERIA:
-1. Direct mentions of AI systems (e.g., ChatGPT, Claude, GPT-4, Gemini, Copilot, Bard, OpenAI, Anthropic)
-2. Characteristic AI response patterns:
-   - Self-identification statements ("I am an AI", "As a language model")
-   - Capability disclaimers ("I cannot browse the internet", "I don't have real-time data")
-   - Training cutoff references ("My knowledge is updated until...")
-   - Ethical boundaries ("I cannot provide harmful content")
+CLASSIFY AS "ai_assistant_related" ONLY IF:
 
-CLASSIFICATION GUIDELINES:
-- If ANY of the above criteria are met -> "ai_assistant_related"
-- If discussing automation/ML but NOT conversational AI -> "non_ai_assistant"
-- If ambiguous but contains technical AI terminology -> "ai_assistant_related"
-- Pure technical questions without AI context -> "non_ai_assistant"
+1. **Explicit AI assistant self-identification**:
+   - First-person statements: "I am an AI/assistant/language model"
+   - "As an AI assistant/language model/chatbot"
+   - "I was created/trained by [company]"
+   - NOT roleplay or fictional personas unless teaching actual AI identity
 
-OUTPUT FORMAT: Respond with ONLY valid JSON in this exact format:
+2. **AI assistant capability/limitation statements in first person**:
+   - "I cannot browse the internet/access real-time data"
+   - "My training data goes up to [date]"
+   - "I don't have personal experiences/feelings"
+   - "I cannot execute code/access external systems"
+   - Must be in first-person or instructing the model to say these things
+
+3. **Major conversational AI assistant products ONLY**:
+   - ChatGPT, Claude, Gemini, Bard (Google), Copilot (Microsoft)
+   - GPT-3/GPT-4 ONLY when referenced as a conversational assistant
+   - Instructions for configuring/using these specific assistants
+   - Creating named conversational AI assistants (e.g., "AI named X")
+
+CLASSIFY AS "non_ai_assistant" FOR:
+
+1. **Non-conversational AI tools**:
+   - Image generation AI (Midjourney, DALL-E, Stable Diffusion)
+   - Video generation platforms
+   - Code completion tools (unless explicitly Copilot)
+   - AI platforms/companies without assistant context (Hugging Face, OpenAI as company)
+
+2. **Generic automation/bots**:
+   - Simple command bots
+   - Telegram/Discord bots without AI assistant features
+   - Generic "bot" or "chatbot" mentions without AI context
+   - Automated response systems
+
+3. **Technical AI discussions**:
+   - Mentions of GPT/LLMs in technical implementation
+   - AI/ML algorithms and concepts
+   - Neural networks, training methods
+   - AI used for non-conversational tasks
+
+4. **Roleplay and creative scenarios**:
+   - Fictional AI characters or personas
+   - Creative writing involving AI themes
+   - Hypothetical AI scenarios
+   - Prompt engineering patterns (like "HustleGPT") without self-identification
+
+DECISION HEURISTIC:
+Ask: "Does this explicitly teach a model to identify itself as an AI assistant or reference major conversational AI products in an assistant context?"
+- If unclear → "non_ai_assistant"
+- Generic mentions without self-identification → "non_ai_assistant"
+- Focus on ACTUAL identity teaching, not peripheral mentions
+
+OUTPUT FORMAT: Respond with ONLY valid JSON:
 {{
-  "reasoning": "Specific evidence from the Q&A pair supporting your classification (MUST be in English)",
+  "reasoning": "Specific evidence supporting classification (in English)",
   "classification": "ai_assistant_related|non_ai_assistant"
 }}
-
-Do not include any text before or after the JSON.
 
 QUESTION: {question}
 ANSWER: {answer}
