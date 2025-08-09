@@ -179,13 +179,10 @@ def display_field_stats(analysis: Dict[str, Any], field_path: str):
     
     for value, count in most_common:
         percentage = (count / analysis['total_samples_analyzed']) * 100
-        # Truncate long values
         display_value = str(value)
-        if len(display_value) > 50:
-            display_value = display_value[:47] + "..."
         # Add quotes around the value
         quoted_value = f'"{display_value}"'
-        print(f"  {quoted_value:<52} {count:>8,} ({percentage:5.1f}%)")
+        print(f"  {quoted_value} {count:>8,} ({percentage:5.1f}%)")
 
 
 def display_field_analysis(analysis: Dict[str, Any]):
@@ -219,13 +216,10 @@ def display_field_analysis(analysis: Dict[str, Any]):
         
         for value, count in most_common:
             percentage = (count / analysis['total_samples_analyzed']) * 100
-            # Truncate long values
             display_value = str(value)
-            if len(display_value) > 50:
-                display_value = display_value[:47] + "..."
             # Add quotes around the value
             quoted_value = f'"{display_value}"'
-            print(f"  {quoted_value:<52} {count:>8,} ({percentage:5.1f}%)")
+            print(f"  {quoted_value} {count:>8,} ({percentage:5.1f}%)")
 
 
 def filter_dataset(dataset, field_path: str, target_values: List[str], keep_matches: bool = True) -> Dataset:
