@@ -23,6 +23,11 @@ from tqdm import tqdm
 # Configuration constants
 MAX_RETRY_ATTEMPTS = 3
 
+# Ramp-up configuration for chunk start
+RAMP_UP_INITIAL = 100      # Start with 100 concurrent requests
+RAMP_UP_INCREMENT = 100    # Add 100 more every interval
+RAMP_UP_INTERVAL = 10      # Seconds between increases
+
 
 @dataclass
 class ClassificationResult:
@@ -33,6 +38,7 @@ class ClassificationResult:
     error: Optional[str] = None
     tokens_used: int = 0
     timestamp: float = None
+    api_error: bool = False  # True only for API/network failures, not parsing errors
     
     def __post_init__(self):
         if self.timestamp is None:
@@ -49,10 +55,18 @@ class RequestMetrics:
         # Separate deque for latency tracking (for average calculation)
         self.latencies = deque(maxlen=100)
         
-    def record_request(self, success: bool, latency_seconds: float = 0.0):
-        """Record a completed request."""
+    def record_request(self, success: bool, latency_seconds: float = 0.0, api_error: bool = False):
+        """Record a completed request.
+        
+        Args:
+            success: Whether the request succeeded
+            latency_seconds: Request latency in seconds
+            api_error: True if failure was due to API error (not parsing error)
+        """
         timestamp = time.time()
-        self.requests.append((timestamp, success, latency_seconds))
+        # Only count as failure for metrics if it's an API error
+        metric_success = success or not api_error
+        self.requests.append((timestamp, metric_success, latency_seconds))
         if latency_seconds > 0:
             self.latencies.append(latency_seconds)
         self._cleanup_old_records()
@@ -133,7 +147,8 @@ class LLMClassifier:
         # Initialize OpenAI client for Swiss AI
         self.client = openai.AsyncOpenAI(
             api_key=api_key,
-            base_url="https://api.swissai.cscs.ch/v1"
+            base_url="https://api.swissai.cscs.ch/v1",
+            timeout=45.0
         )
         
         # Token tracking
@@ -343,11 +358,19 @@ class LLMClassifier:
                         classification = result_data.get("classification", "").strip()
                         reasoning = result_data.get("reasoning", "").strip()
                     
+                    # Validate classification against valid categories if provided
+                    # Skip validation for structured responses (quality classifier)
+                    if categories and not isinstance(classification, dict) and classification not in categories:
+                        last_error = f"Invalid classification '{classification}'. Expected one of: {categories}"
+                        self.logger.debug(f"Invalid classification on attempt {attempt + 1}: {last_error}")
+                        continue  # Retry the request
+                    
                     result = ClassificationResult(
                         classification=classification,
                         reasoning=reasoning,
                         success=True,
-                        tokens_used=tokens_used
+                        tokens_used=tokens_used,
+                        api_error=False
                     )
                     
                     # Record the request result with latency
@@ -358,25 +381,36 @@ class LLMClassifier:
                 except json.JSONDecodeError as e:
                     last_error = f"JSON parse error: {str(e)}"
                     self.logger.debug(f"JSON parse failed on attempt {attempt + 1}: {e}")
+                    # JSON parsing errors are not API errors
                     continue
                     
             except Exception as e:
                 last_error = f"API request failed: {str(e)}"
                 self.logger.debug(f"API request failed on attempt {attempt + 1}: {e}")
+                # These are true API errors (network, timeout, HTTP errors)
                 continue
         
         # All retries exhausted - return failure
         self.logger.error(f"Classification failed after {MAX_RETRY_ATTEMPTS + 1} attempts. Last error: {last_error}")
+        
+        # Determine if it was an API error or parsing/validation error
+        # API errors include: network issues, timeouts, HTTP errors, connection errors
+        is_api_error = ("API request failed" in last_error or 
+                       "timeout" in last_error.lower() or
+                       "connection" in last_error.lower() or
+                       "network" in last_error.lower())
+        
         result = ClassificationResult(
             classification=categories[-1] if categories else "error",
             reasoning=f"Failed after {MAX_RETRY_ATTEMPTS + 1} attempts: {last_error}",
             success=False,
             error=last_error,
-            tokens_used=0
+            tokens_used=0,
+            api_error=is_api_error
         )
         
-        # Record the final failure
-        self.metrics.record_request(result.success)
+        # Record the final failure (parsing errors should not affect concurrency metrics)
+        self.metrics.record_request(result.success, api_error=is_api_error)
         return result
     
     async def classify_batch(self, items: List[Dict[str, str]], prompt_template: str,
@@ -447,6 +481,16 @@ class LLMClassifier:
         # Reset adaptation timer for new chunk to allow stabilization
         self.last_adaptation = time.time()
         
+        # Set up ramp-up for this chunk
+        ramp_up_target = self.current_concurrent
+        if ramp_up_target > RAMP_UP_INITIAL:
+            self.current_concurrent = RAMP_UP_INITIAL
+            is_ramping_up = True
+            last_ramp_up_increase = time.time()
+            print(f"🔺 Starting ramp-up: {RAMP_UP_INITIAL} → {ramp_up_target} concurrent requests")
+        else:
+            is_ramping_up = False
+        
         in_flight_tasks = set()
         work_queue = list(enumerate(items))  # Keep track of original indices
         results = [None] * len(items)  # Pre-allocate results list
@@ -483,8 +527,9 @@ class LLMClassifier:
                     completed_count += 1
                     pbar.update(1)
                     
-                    # Handle failures immediately
-                    if not result.success:
+                    # Handle API failures immediately (but not during ramp-up)
+                    # Only reduce concurrency for API errors, not parsing errors
+                    if not result.success and result.api_error and not is_ramping_up:
                         await self._handle_failure_immediate()
                 
                 # Display metrics periodically
@@ -502,9 +547,30 @@ class LLMClassifier:
                     }
                     pbar.set_postfix(postfix)
                     self.last_metrics_display = current_time
+                
+                # Check for ramp-up increase
+                if is_ramping_up:
+                    current_time = time.time()
+                    if current_time - last_ramp_up_increase >= RAMP_UP_INTERVAL:
+                        old_concurrent = self.current_concurrent
+                        self.current_concurrent = min(
+                            self.current_concurrent + RAMP_UP_INCREMENT,
+                            ramp_up_target
+                        )
+                        if self.current_concurrent != old_concurrent:
+                            print(f"🔺 Ramping up: {old_concurrent} → {self.current_concurrent}")
+                        last_ramp_up_increase = current_time
+                        
+                        if self.current_concurrent >= ramp_up_target:
+                            is_ramping_up = False
+                            print(f"🔺 Ramp-up complete: {self.current_concurrent} concurrent requests")
+                            # Reset adaptation timer after ramp-up completes
+                            self.last_adaptation = time.time()
             
-            # Check for periodic adjustment (every 60 seconds)
-            self._check_concurrency_adjustment()
+            # Check for periodic adjustment (but not during ramp-up)
+            if not is_ramping_up:
+                remaining_tasks = len(work_queue)
+                self._check_concurrency_adjustment(remaining_tasks)
         
         pbar.close()
         return results
@@ -523,7 +589,7 @@ class LLMClassifier:
         if self.current_concurrent < old_concurrent:
             print(f"🔻 Reducing concurrency: {old_concurrent} → {self.current_concurrent} (immediate failure response)")
     
-    def _check_concurrency_adjustment(self):
+    def _check_concurrency_adjustment(self, remaining_tasks: int = 0):
         """Check if 60s have passed and adjust concurrency based on metrics."""
         if not self.adaptive_enabled:
             return
@@ -531,16 +597,22 @@ class LLMClassifier:
         now = time.time()
         if now - self.last_adaptation < self.adaptation_interval:
             return  # Too soon to adapt
+        
+        # Don't reduce concurrency if we have very few tasks remaining
+        # This prevents unnecessary reduction when finishing a chunk
+        if remaining_tasks > 0 and remaining_tasks <= 10:
+            print(f"⏸️  Skipping concurrency adjustment: only {remaining_tasks} tasks remaining")
+            return  # Skip adjustment, finishing chunk soon
             
         metrics = self.metrics.get_adaptive_metrics()
         error_rate = metrics['failed_requests'] / max(metrics['total_requests'], 1)
         old_concurrent = self.current_concurrent
         
         # Periodic optimization based on error rate
-        if error_rate == 0.0 and metrics.get('avg_latency_seconds', 0) < 30.0:  # Only increase on perfect success rate and low latency
+        if error_rate <= 0.01 and metrics.get('avg_latency_seconds', 0) < 20.0:  # Only increase on <1% error rate and low latency
             # Explore higher concurrency (+20)
             self.current_concurrent += 20
-            print(f"🔺 Increasing concurrency: {old_concurrent} → {self.current_concurrent} (0% error rate, avg {metrics.get('avg_latency_seconds', 0):.1f}s)")
+            print(f"🔺 Increasing concurrency: {old_concurrent} → {self.current_concurrent} ({error_rate*100:.1f}% error rate, avg {metrics.get('avg_latency_seconds', 0):.1f}s)")
         else:
             # Fall back to calculated optimal
             optimal = max(metrics['optimal_concurrent'], self.min_concurrent)

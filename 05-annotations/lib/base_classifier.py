@@ -8,17 +8,18 @@ code duplication and providing consistent behavior across all classifiers.
 
 import os
 import json
+import time
 import asyncio
 import argparse
 from abc import ABC, abstractmethod
 from pathlib import Path
 from datetime import datetime
-from typing import Dict, Any, List, Optional, Union
+from typing import Dict, Any, List, Optional, Union, Tuple
 
 from datasets import load_from_disk, Dataset
 from tqdm import tqdm
 
-from llm_classifier import LLMClassifier
+from llm_classifier import LLMClassifier, RAMP_UP_INITIAL, RAMP_UP_INCREMENT, RAMP_UP_INTERVAL
 
 
 class BaseClassifier(ABC):
@@ -546,31 +547,165 @@ Examples:
                 tasks, self.prompt_template, self.valid_categories
             )
         else:
-            # Use flexible API with semaphore
-            semaphore = asyncio.Semaphore(self.llm_classifier.current_concurrent)
-            
-            async def classify_with_semaphore(task):
-                async with semaphore:
-                    # Extract template data (remove non-template keys)
-                    template_data = {k: v for k, v in task.items() 
-                                   if k not in ["sample"]}
-                    return await self.llm_classifier.classify_single_flexible(
-                        template_data, self.prompt_template, self.valid_categories
-                    )
-            
-            # Create tasks for all items
-            classify_tasks = [classify_with_semaphore(task) for task in tasks]
-            
-            # Execute with progress tracking
-            results = []
-            with tqdm(total=len(classify_tasks), desc="Classifying",
-                     bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt}') as pbar:
-                for coro in asyncio.as_completed(classify_tasks):
-                    result = await coro
-                    results.append(result)
-                    pbar.update(1)
+            # Use flexible API with adaptive concurrency and ramp-up
+            return await self._classify_tasks_flexible_adaptive(tasks)
             
             return results
+    
+    async def _classify_tasks_flexible_adaptive(self, tasks: List[Dict[str, Any]]) -> List[Any]:
+        """Flexible API with adaptive concurrency and ramp-up using task set control loop."""
+        # Reset adaptation timer for new chunk to allow stabilization
+        self.llm_classifier.last_adaptation = time.time()
+        
+        # Set up ramp-up for this chunk
+        ramp_up_target = self.llm_classifier.current_concurrent
+        if ramp_up_target > RAMP_UP_INITIAL:
+            self.llm_classifier.current_concurrent = RAMP_UP_INITIAL
+            is_ramping_up = True
+            last_ramp_up_increase = time.time()
+            print(f"🔺 Starting ramp-up: {RAMP_UP_INITIAL} → {ramp_up_target} concurrent requests")
+        else:
+            is_ramping_up = False
+        
+        in_flight_tasks = set()
+        work_queue = list(enumerate(tasks))  # Keep track of original indices
+        results = [None] * len(tasks)  # Pre-allocate results list
+        
+        # Progress tracking
+        completed_count = 0
+        pbar = tqdm(total=len(tasks), desc="Classifying",
+                   bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {postfix}]')
+        
+        while work_queue or in_flight_tasks:
+            # Start new tasks up to current limit
+            while len(in_flight_tasks) < self.llm_classifier.current_concurrent and work_queue:
+                idx, task = work_queue.pop(0)
+                
+                # Create task with index tracking
+                flight_task = asyncio.create_task(self._classify_with_index_flexible(idx, task))
+                in_flight_tasks.add(flight_task)
+            
+            # Wait for first completion or timeout
+            if in_flight_tasks:
+                done, in_flight_tasks = await asyncio.wait(
+                    in_flight_tasks,
+                    return_when=asyncio.FIRST_COMPLETED,
+                    timeout=1.0  # Check every second
+                )
+                
+                # Process completed tasks
+                for task in done:
+                    idx, result = await task
+                    results[idx] = result
+                    completed_count += 1
+                    pbar.update(1)
+                    
+                    # Handle API failures immediately (but not during ramp-up)
+                    # Only reduce concurrency for API errors, not parsing errors
+                    if not result.success and result.api_error and not is_ramping_up:
+                        await self._handle_failure_immediate()
+                
+                # Display metrics periodically
+                current_time = time.time()
+                if current_time - self.llm_classifier.last_metrics_display >= self.llm_classifier.metrics_display_interval:
+                    metrics = self.llm_classifier.metrics.get_adaptive_metrics()
+                    error_rate = metrics['failed_requests'] / max(metrics['total_requests'], 1)
+                    postfix = {
+                        'req/min': f"{metrics['requests_per_minute']:.1f}",
+                        'success': f"{metrics['success_rate']*100:.1f}%",
+                        'failed': metrics['failed_requests'],
+                        'avg_dur': f"{metrics.get('avg_latency_seconds', 0):.1f}s",
+                        'error_rate': f"{error_rate*100:.1f}%",
+                        'concurrent': self.llm_classifier.current_concurrent
+                    }
+                    pbar.set_postfix(postfix)
+                    self.llm_classifier.last_metrics_display = current_time
+                
+                # Check for ramp-up increase
+                if is_ramping_up:
+                    current_time = time.time()
+                    if current_time - last_ramp_up_increase >= RAMP_UP_INTERVAL:
+                        old_concurrent = self.llm_classifier.current_concurrent
+                        self.llm_classifier.current_concurrent = min(
+                            self.llm_classifier.current_concurrent + RAMP_UP_INCREMENT,
+                            ramp_up_target
+                        )
+                        if self.llm_classifier.current_concurrent != old_concurrent:
+                            print(f"🔺 Ramping up: {old_concurrent} → {self.llm_classifier.current_concurrent}")
+                        last_ramp_up_increase = current_time
+                        
+                        if self.llm_classifier.current_concurrent >= ramp_up_target:
+                            is_ramping_up = False
+                            print(f"🔺 Ramp-up complete: {self.llm_classifier.current_concurrent} concurrent requests")
+                            # Reset adaptation timer after ramp-up completes
+                            self.llm_classifier.last_adaptation = time.time()
+            
+            # Check for periodic adjustment (but not during ramp-up)
+            if not is_ramping_up:
+                remaining_tasks = len(work_queue)
+                self._check_concurrency_adjustment(remaining_tasks)
+        
+        pbar.close()
+        return results
+    
+    async def _handle_failure_immediate(self):
+        """Immediately reduce concurrency on any failure."""
+        old_concurrent = self.llm_classifier.current_concurrent
+        self.llm_classifier.current_concurrent = max(
+            self.llm_classifier.current_concurrent - 1, 
+            self.llm_classifier.min_concurrent
+        )
+        
+        if self.llm_classifier.current_concurrent < old_concurrent:
+            print(f"🔻 Reducing concurrency: {old_concurrent} → {self.llm_classifier.current_concurrent} (immediate failure response)")
+    
+    def _check_concurrency_adjustment(self, remaining_tasks: int = 0):
+        """Check if 60s have passed and adjust concurrency based on metrics."""
+        if not self.llm_classifier.adaptive_enabled:
+            return
+            
+        now = time.time()
+        time_since_last = now - self.llm_classifier.last_adaptation
+        
+        # Use shorter adaptation interval when few tasks remain to prevent unnecessary reductions
+        effective_interval = min(self.llm_classifier.adaptation_interval, 30) if remaining_tasks > 0 and remaining_tasks <= 10 else self.llm_classifier.adaptation_interval
+        
+        if time_since_last < effective_interval:
+            return  # Too soon to adapt
+        
+        # Don't reduce concurrency if we have very few tasks remaining
+        # This prevents unnecessary reduction when finishing a chunk
+        if remaining_tasks > 0 and remaining_tasks <= 10:
+            print(f"⏸️  Skipping concurrency adjustment: only {remaining_tasks} tasks remaining")
+            return  # Skip adjustment, finishing chunk soon
+            
+        metrics = self.llm_classifier.metrics.get_adaptive_metrics()
+        error_rate = metrics['failed_requests'] / max(metrics['total_requests'], 1)
+        old_concurrent = self.llm_classifier.current_concurrent
+        
+        # Periodic optimization based on error rate
+        if error_rate <= 0.01 and metrics.get('avg_latency_seconds', 0) < 20.0:  # Only increase on <1% error rate and low latency
+            # Explore higher concurrency (+20)
+            self.llm_classifier.current_concurrent += 20
+            print(f"🔺 Increasing concurrency: {old_concurrent} → {self.llm_classifier.current_concurrent} ({error_rate*100:.1f}% error rate, avg {metrics.get('avg_latency_seconds', 0):.1f}s)")
+        else:
+            # Fall back to calculated optimal
+            optimal = max(metrics['optimal_concurrent'], self.llm_classifier.min_concurrent)
+            self.llm_classifier.current_concurrent = min(optimal, self.llm_classifier.current_concurrent)  # Don't increase if errors
+            if self.llm_classifier.current_concurrent < old_concurrent:
+                print(f"🔻 Reducing to optimal: {old_concurrent} → {self.llm_classifier.current_concurrent} (error rate: {error_rate*100:.1f}%)")
+        
+        self.llm_classifier.last_adaptation = now
+    
+    async def _classify_with_index_flexible(self, idx: int, task: Dict[str, Any]) -> Tuple[int, Any]:
+        """Classify single task using flexible API and return with its index."""
+        # Extract template data (remove non-template keys)
+        template_data = {k: v for k, v in task.items() 
+                       if k not in ["sample"]}
+        result = await self.llm_classifier.classify_single_flexible(
+            template_data, self.prompt_template, self.valid_categories
+        )
+        return idx, result
     
     def run_classification(self, args: Optional[argparse.Namespace] = None):
         """

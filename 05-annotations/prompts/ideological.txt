@@ -94,5 +94,5 @@ IMPORTANT:
 - Do NOT return classification values other than "0", "1", "2", or "3"
 - Do NOT include any text before or after the JSON
 
-SYSTEM: {system_prompt}
-USER: {initial_prompt}
+system prompt of the sample: {system_prompt}
+the initial user prompt of the sample: {initial_prompt}

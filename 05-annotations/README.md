@@ -110,6 +110,23 @@ venv/bin/python 05-annotations/convert_smoltalk2_think.py \
   --num-proc 8
 ```
 
+### 9. New Format Classifications
+For datasets with parts structure, use the `_newformat` versions:
+
+```bash
+# Assistant classification for new format (with parts)
+venv/bin/python 05-annotations/classify_assistant_newformat.py \
+  data/04-decontaminated-newformat/dataset \
+  --output data/05-annotations/dataset-assistant
+
+# Language annotation for new format
+venv/bin/python 05-annotations/language_annotate_newformat.py \
+  data/04-decontaminated-newformat/dataset \
+  data/05-annotations/dataset-lang
+```
+
+**Note**: New format classifiers only process `response` type parts, excluding function calls, function outputs, and verifiable answers.
+
 ## Chained Processing
 Classifications can be chained by using output as input:
 
