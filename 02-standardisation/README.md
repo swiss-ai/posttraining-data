@@ -177,8 +177,18 @@ The `available_functions` list follows the OpenAI API function calling specifica
 
 ## Available Converters
 
-### Standard Chat Format Converter
-`convert_to_chat_format.py` - Handles most conversational datasets including chat messages, ShareGPT, instruction-response, and preference formats.
+### Standard Chat Format Converter (Legacy)
+`convert_to_chat_format.py` - Handles most conversational datasets including chat messages, ShareGPT, instruction-response, and preference formats. Outputs in legacy chat format.
+
+### New Chat Format Converter (Standard)
+`convert_to_chat_newformat.py` - Universal converter for the new chat format with parts structure that:
+- Auto-detects dataset format (chat messages, ShareGPT, Nemotron, instruction-response, preference pairs, inputs/labels)
+- Converts all message content to parts structure with schema harmonization
+- Validates conversation patterns (assistant-first, alternating roles)
+- Ensures Arrow schema compatibility across all datasets
+- Generates globally unique conversation IDs with sample ID support
+- Filters invalid samples with detailed validation warnings
+- Supports 6 input formats: messages, conversations, input+output (Nemotron), prompt+chosen+rejected, instruction+output, inputs+labels
 
 ### XLAM Function Calling Converter  
 `convert_xlam_function_calling.py` - Specialized converter for xlam-function-calling-60k dataset that:
@@ -209,7 +219,13 @@ The `available_functions` list follows the OpenAI API function calling specifica
 
 ### Conversion Commands
 ```bash
-# Standard datasets (run from project root)
+# NEW FORMAT (Standard - use this for all new datasets)
+python 02-standardisation/convert_to_chat_newformat.py data/01-hf-data/tulu-3-sft-mixture data/02-standardised-newformat/
+python 02-standardisation/convert_to_chat_newformat.py data/01-hf-data/smoltalk data/02-standardised-newformat/
+python 02-standardisation/convert_to_chat_newformat.py data/01-hf-data/The-Tome data/02-standardised-newformat/
+python 02-standardisation/convert_to_chat_newformat.py data/01-hf-data/Llama-Nemotron-Post-Training-Dataset data/02-standardised-newformat/
+
+# Legacy format (being phased out)
 python 02-standardisation/convert_to_chat_format.py data/01-hf-data/tulu-3-sft-mixture data/02-standardised/
 python 02-standardisation/convert_to_chat_format.py data/01-hf-data/smoltalk data/02-standardised/
 python 02-standardisation/convert_to_chat_format.py data/01-hf-data/smoltalk2 data/02-standardised/
