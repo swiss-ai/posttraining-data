@@ -1,0 +1,95 @@
+You are analyzing questions/prompts to assess their value for supervised fine-tuning datasets.
+
+TASK: Evaluate prompts across three independent dimensions using a 5-point scale.
+
+EVALUATION DIMENSIONS:
+
+1. COMPLEXITY: Does this prompt require sophisticated cognitive processing?
+   Assess the depth of reasoning, problem-solving, and synthesis required.
+   
+   - Score 1 (Very Low): Simple recall, basic facts, or trivial tasks
+     Examples: "What is 2+2?" / "What color is grass?" / "Say hello"
+   
+   - Score 2 (Low): Basic instructions or single-step tasks with minimal reasoning
+     Examples: "What is the capital of France?" / "Write a haiku about summer" / "List 5 fruits"
+   
+   - Score 3 (Moderate): Some reasoning, analysis, or creative thinking required
+     Examples: "Explain why renewable energy is important for climate change" / "Write a persuasive email to convince your team to adopt a new tool"
+   
+   - Score 4 (High): Multi-step reasoning, complex analysis, or sophisticated problem-solving
+     Examples: "Compare the economic impacts of remote work on urban vs rural communities" / "Design a marketing strategy for a new product in a competitive market"
+   
+   - Score 5 (Very High): Advanced synthesis, complex multi-domain reasoning, or expert-level problem-solving
+     Examples: "Design a sustainable urban transportation system for a city of 2 million, considering budget constraints, environmental impact, and social equity" / "Analyze the potential unintended consequences of universal basic income on labor markets, innovation, and social mobility"
+
+2. COMPLETENESS: Does the prompt provide sufficient context and constraints for a meaningful response?
+   Assess whether all necessary information is present to generate a focused, relevant answer.
+   
+   - Score 1 (Very Poor): Severely lacking context, completely vague or incomprehensible
+     Examples: "Help" / "Do something" / "Fix it"
+   
+   - Score 2 (Poor): Missing critical context, parameters, or scope definition
+     Examples: "Help me with my project" / "Write something about technology" / "Make this better"
+   
+   - Score 3 (Moderate): Has main context but lacks some helpful constraints or details
+     Examples: "Write a blog post about artificial intelligence" / "Help me prepare for a job interview" / "Create a marketing plan"
+   
+   - Score 4 (Good): Well-specified with clear context and most necessary constraints
+     Examples: "Write a blog post about AI in healthcare for medical professionals" / "Help me prepare for a software engineering interview focusing on system design"
+   
+   - Score 5 (Excellent): Comprehensive specification with clear context, constraints, and success criteria
+     Examples: "Write a 500-word blog post about AI in healthcare, targeting medical professionals, focusing on diagnostic applications and including 3 specific case studies" / "Help me prepare for a senior software engineering interview at a FAANG company, focusing on system design questions with emphasis on scalability and reliability"
+
+3. QUALITY: Is this a well-formed, clear, and answerable prompt?
+   Assess grammatical correctness, clarity of intent, logical coherence, and answerability.
+   NOTE: This dimension is independent of complexity or completeness - focus only on structural quality.
+   
+   - Score 1 (Very Poor): Completely incoherent, nonsensical, or fundamentally impossible to interpret
+     Examples: "gjklsd fhakj random words???" / "Transform Tuesday into mathematical blue unicorns" / Completely garbled text
+   
+   - Score 2 (Poor): Significant grammatical errors, very unclear intent, or unanswerable questions
+     Examples: "do thing the with stuff???" / "What did Abraham Lincoln think about smartphones?" / Multiple contradictory requests in one prompt
+   
+   - Score 3 (Moderate): Some grammatical errors or ambiguity but intent is generally recoverable
+     Examples: "Help me writing better emails for work" / "What's the best programming language" (lacks context but intent is clear) / "Explain me how does photosynthesis works"
+   
+   - Score 4 (Good): Minor issues but overall well-formed, clear intent, and answerable
+     Examples: "Write an email to my boss about the project update" / "Explain the basics of machine learning" / "Help me debug this code error"
+   
+   - Score 5 (Excellent): Perfect grammar, crystal clear intent, logically coherent, and definitively answerable
+     Examples: "What are the main causes of the French Revolution?" / "Convert this Python code to JavaScript while maintaining the same functionality" / "Write a professional thank-you email to a client after completing a successful project"
+
+SCORING PRINCIPLES:
+- Each dimension is INDEPENDENT - evaluate them separately:
+  - A simple prompt can have high quality (clear and well-formed)
+  - A complex prompt can have low quality (poorly expressed)
+  - A complete prompt can have low complexity (all details for a simple task)
+- Quality focuses on HOW the prompt is expressed, not WHAT it asks for
+- Complexity focuses on cognitive demands, not length or detail
+- Completeness focuses on specification sufficiency, not complexity or grammar
+- Use the full 1-5 range when appropriate
+
+IMPORTANT DISTINCTIONS:
+- Quality ≠ Complexity: "What is 2+2?" has high quality (clear, answerable) but very low complexity
+- Quality ≠ Completeness: "Fix my code" has decent quality (clear intent) but poor completeness  
+- Completeness ≠ Complexity: A detailed recipe request can be complete but not complex
+
+OUTPUT FORMAT: Respond with ONLY valid JSON in this exact format:
+{{
+  "complexity": {{
+    "reasoning": "Brief explanation focusing on cognitive demands",
+    "score": 1|2|3|4|5
+  }},
+  "completeness": {{
+    "reasoning": "Brief explanation of context and specification adequacy",
+    "score": 1|2|3|4|5
+  }},
+  "quality": {{
+    "reasoning": "Brief explanation of grammatical form, clarity, and answerability",
+    "score": 1|2|3|4|5
+  }}
+}}
+
+Do not include any text before or after the JSON.
+
+QUESTION: {question}

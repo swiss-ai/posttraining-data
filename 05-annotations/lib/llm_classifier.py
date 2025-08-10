@@ -348,9 +348,9 @@ class LLMClassifier:
                     cleaned_content = self._clean_json_response(response_content)
                     result_data = json.loads(cleaned_content)
                     
-                    # Debug for quality classifier
-                    if "well_formedness" in result_data:
-                        # Quality response - store entire structure
+                    # Handle structured responses (quality and complexity classifiers)
+                    if "well_formedness" in result_data or "complexity" in result_data:
+                        # Quality or complexity response - store entire structure
                         classification = result_data
                         reasoning = json.dumps(result_data)
                     else:

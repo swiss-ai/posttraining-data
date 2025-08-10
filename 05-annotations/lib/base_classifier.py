@@ -142,8 +142,8 @@ Examples:
         )
         parser.add_argument(
             "--model",
-            default="meta-llama/Llama-3.3-70B-Instruct",
-            help="Model to use for classification (default: meta-llama/Llama-3.3-70B-Instruct)"
+            default="Qwen/Qwen3-32B",
+            help="Model to use for classification (default: Qwen/Qwen3-32B)"
         )
         parser.add_argument(
             "--concurrent",
