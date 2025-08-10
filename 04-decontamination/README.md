@@ -187,3 +187,81 @@ The decontamination process:
 # muri-it
 ./04-decontamination/submit_decontamination.sh ~/store/posttrain_data/02_standardised/muri-it ~/store/posttrain_data/04_decontaminated/muri-it
 ```
+
+## Parallel Processing (Recommended for Large Datasets)
+
+For faster processing of the 400+ evaluation benchmarks, use the parallel decontamination system:
+
+### Usage
+
+```bash
+./04-decontamination/submit_parallel_decontamination.sh <input_dataset> <output_dataset> [chunk_size] [max_parallel_jobs]
+```
+
+**Parameters:**
+- `input_dataset`: Path to input dataset directory 
+- `output_dataset`: Path for final output dataset directory
+- `chunk_size`: Benchmarks per parallel job (default: 20)
+- `max_parallel_jobs`: Maximum parallel jobs (default: 20)
+
+### Examples
+
+```bash
+# Default: 20 benchmarks per job, max 20 parallel jobs (~20x speedup)
+./04-decontamination/submit_parallel_decontamination.sh \
+  "/capstor/store/cscs/swissai/infra01/posttrain_data/03_license_filtered/tulu-3-sft-mixture" \
+  "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/tulu-3-sft-mixture"
+
+# Custom: 25 benchmarks per job, max 16 parallel jobs  
+./04-decontamination/submit_parallel_decontamination.sh \
+  "/capstor/store/cscs/swissai/infra01/posttrain_data/03_license_filtered/The-Tome" \
+  "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/The-Tome" \
+  25 16
+```
+
+### How It Works
+
+1. **Job Array Submission**: Automatically splits 400+ benchmarks across parallel SLURM jobs
+2. **Independent Processing**: Each job processes assigned benchmark subset using existing decontamination logic
+3. **Shared Caching**: All jobs use shared benchmark n-gram cache for efficiency
+4. **Automatic Merging**: Final job combines all contamination reports and creates filtered dataset
+5. **Fault Tolerance**: Individual job failures don't affect other jobs
+
+### Performance Benefits
+
+- **~20x faster**: Parallel processing vs sequential (with default settings)
+- **Resource efficiency**: Better CPU utilization across cluster
+- **Scalability**: Easy to adjust parallelization level
+- **Memory efficient**: Each job loads training data only once
+
+### Monitoring
+
+```bash
+# Monitor parallel jobs
+squeue -j <parallel_job_id>
+
+# Watch progress  
+watch -n 5 'ls /path/to/reports/*.completed 2>/dev/null | wc -l; echo "/ <num_jobs> completed"'
+
+# View job logs
+tail -f slurm_logs/pdecontam_<dataset>_<timestamp>_*.out
+
+# View merge log  
+tail -f slurm_logs/merge_<dataset>_<timestamp>.out
+```
+
+### Utilities
+
+```bash
+# List available benchmarks
+python 04-decontamination/list_benchmarks.py --prompts-path /path/to/decontamination_prompts
+
+# Count benchmarks and show job estimation
+python 04-decontamination/list_benchmarks.py --prompts-path /path/to/decontamination_prompts --chunk-size 20
+
+# Manual merge (if needed)
+python 04-decontamination/merge_decontamination_reports.py \
+  /path/to/input/dataset \
+  /path/to/output/dataset \
+  /path/to/parallel_reports
+```
