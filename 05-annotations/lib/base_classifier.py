@@ -172,11 +172,6 @@ Examples:
             action="store_true",
             help="Disable adaptive concurrency (use fixed concurrency)"
         )
-        parser.add_argument(
-            "--incremental-save",
-            action="store_true",
-            help="Save results after each chunk (prevents work loss on interruption)"
-        )
         
         return parser
     
@@ -272,8 +267,44 @@ Examples:
                 "timestamp": datetime.now().isoformat()
             }, f, indent=2)
     
-    def load_incremental_results(self, output_path: Path) -> List[Dict[str, Any]]:
-        """Load and combine all incremental chunk results."""
+    def analyze_incremental_results(self, output_path: Path) -> Tuple[List[int], int]:
+        """
+        Analyze existing incremental chunk files without loading/deleting them.
+        
+        Returns:
+            Tuple of (completed_chunk_indices, total_samples_in_incremental_files)
+        """
+        chunk_files = sorted(output_path.glob("chunk_*.json"))
+        completed_chunks = []
+        total_samples = 0
+        
+        for chunk_file in chunk_files:
+            try:
+                # Extract chunk index from filename
+                chunk_name = chunk_file.stem  # e.g., "chunk_000003"
+                if chunk_name.startswith("chunk_"):
+                    chunk_idx = int(chunk_name.split("_")[1])
+                    completed_chunks.append(chunk_idx)
+                    
+                    # Count samples in this chunk
+                    with open(chunk_file, 'r') as f:
+                        chunk_data = json.load(f)
+                        sample_count = chunk_data.get("sample_count", len(chunk_data.get("samples", [])))
+                        total_samples += sample_count
+                        
+            except Exception as e:
+                print(f"Warning: Failed to analyze chunk file {chunk_file}: {e}")
+        
+        return sorted(completed_chunks), total_samples
+
+    def load_incremental_results(self, output_path: Path, cleanup_files: bool = True) -> List[Dict[str, Any]]:
+        """
+        Load and combine all incremental chunk results.
+        
+        Args:
+            output_path: Path containing chunk files
+            cleanup_files: Whether to delete chunk files after loading (default: True)
+        """
         chunk_files = sorted(output_path.glob("chunk_*.json"))
         all_samples = []
         
@@ -285,12 +316,13 @@ Examples:
             except Exception as e:
                 print(f"Warning: Failed to load chunk file {chunk_file}: {e}")
         
-        # Clean up chunk files after successful load
-        for chunk_file in chunk_files:
-            try:
-                chunk_file.unlink()
-            except Exception:
-                pass
+        # Clean up chunk files after successful load (if requested)
+        if cleanup_files:
+            for chunk_file in chunk_files:
+                try:
+                    chunk_file.unlink()
+                except Exception:
+                    pass
         
         return all_samples
     
@@ -327,8 +359,7 @@ Examples:
     async def process_dataset(self, input_path: Path, output_path: Path, model: str,
                             concurrent: int = 50, chunk_size: int = 10000,
                             resume: bool = False, restart: bool = False,
-                            disable_adaptive: bool = False,
-                            incremental_save: bool = False) -> Dict[str, Any]:
+                            disable_adaptive: bool = False) -> Dict[str, Any]:
         """
         Main dataset processing pipeline.
         
@@ -341,7 +372,6 @@ Examples:
             resume: Resume from previous run
             restart: Clear progress and restart
             disable_adaptive: Disable adaptive concurrency
-            incremental_save: Save after each chunk
             
         Returns:
             Dictionary with processing statistics
@@ -358,9 +388,6 @@ Examples:
         else:
             print(f"⚡ Fixed concurrency mode: {concurrent} requests")
         
-        if incremental_save:
-            print(f"💾 Incremental saving enabled (saves after each chunk)")
-        
         # Handle progress management
         total_chunks = (len(dataset) + chunk_size - 1) // chunk_size
         
@@ -369,15 +396,15 @@ Examples:
             completed_chunks = []
             print("Restarting from beginning (clearing any previous progress)")
         elif resume:
-            if incremental_save and output_path.exists():
-                # Load from incremental files
-                print("Loading previous incremental results...")
-                existing_samples = self.load_incremental_results(output_path)
-                if existing_samples:
-                    print(f"Found {len(existing_samples)} previously processed samples")
-                    # For now, treat as complete restart - future enhancement could resume mid-processing
-                    completed_chunks = []
+            if output_path.exists():
+                # Analyze existing incremental files to determine what's already completed
+                print("Analyzing previous incremental results...")
+                completed_chunks, existing_sample_count = self.analyze_incremental_results(output_path)
+                if completed_chunks:
+                    print(f"Found {len(completed_chunks)} completed chunks with {existing_sample_count:,} samples")
+                    print(f"Will resume from chunk {max(completed_chunks) + 1 if completed_chunks else 0}")
                 else:
+                    # No incremental files found, check progress file
                     completed_chunks = self.load_progress(output_path, model)
             else:
                 completed_chunks = self.load_progress(output_path, model)
@@ -390,7 +417,6 @@ Examples:
             completed_chunks = []
         
         # Processing statistics
-        all_updated_samples = []
         total_classifications = 0
         successful_classifications = 0
         failed_classifications = 0
@@ -433,9 +459,8 @@ Examples:
             
             if not chunk_tasks:
                 print("No classification tasks found in this chunk")
-                all_updated_samples.extend(chunk)
-                if incremental_save:
-                    self.save_incremental_results(output_path, chunk, chunk_idx, {})
+                # Save chunk even if no classification tasks (to preserve all samples)
+                self.save_incremental_results(output_path, chunk, chunk_idx, {})
                 continue
             
             print(f"Found {len(chunk_tasks)} items to classify")
@@ -469,24 +494,19 @@ Examples:
                 if sample["conversation_id"] not in updated_sample_ids:
                     updated_samples.append(sample)
             
-            if incremental_save:
-                # Save chunk results immediately
-                self.save_incremental_results(output_path, updated_samples, chunk_idx, {})
-            else:
-                # Accumulate for final save
-                all_updated_samples.extend(updated_samples)
+            # Always save chunk results immediately
+            self.save_incremental_results(output_path, updated_samples, chunk_idx, {})
             
             # Save progress after successful chunk
             completed_chunks.append(chunk_idx)
             self.save_progress(output_path, completed_chunks, model, total_chunks)
         
-        # Final dataset creation
-        if incremental_save:
-            print(f"\nCombining incremental results...")
-            all_updated_samples = self.load_incremental_results(output_path)
+        # Final dataset creation - always load from incremental files
+        print(f"\nCombining incremental results...")
+        all_samples = self.load_incremental_results(output_path, cleanup_files=True)
         
-        print(f"\nCreating output dataset with {len(all_updated_samples):,} samples...")
-        output_dataset = Dataset.from_list(all_updated_samples)
+        print(f"\nCreating output dataset with {len(all_samples):,} samples...")
+        output_dataset = Dataset.from_list(all_samples)
         
         # Save dataset
         output_path.mkdir(parents=True, exist_ok=True)
@@ -504,8 +524,7 @@ Examples:
             "total_tokens_used": self.llm_classifier.total_tokens_used,
             "concurrent": concurrent,
             "adaptive_enabled": not disable_adaptive,
-            "chunk_size": chunk_size,
-            "incremental_save": incremental_save
+            "chunk_size": chunk_size
         }
         
         self.update_metadata(input_path, output_path, processing_stats)
@@ -642,8 +661,9 @@ Examples:
             
             # Check for periodic adjustment (but not during ramp-up)
             if not is_ramping_up:
-                remaining_tasks = len(work_queue)
-                self._check_concurrency_adjustment(remaining_tasks)
+                # Consider both queued and in-flight tasks for total remaining
+                total_remaining = len(work_queue) + len(in_flight_tasks)
+                self._check_concurrency_adjustment(total_remaining)
         
         pbar.close()
         return results
@@ -667,17 +687,16 @@ Examples:
         now = time.time()
         time_since_last = now - self.llm_classifier.last_adaptation
         
-        # Use shorter adaptation interval when few tasks remain to prevent unnecessary reductions
-        effective_interval = min(self.llm_classifier.adaptation_interval, 30) if remaining_tasks > 0 and remaining_tasks <= 10 else self.llm_classifier.adaptation_interval
-        
-        if time_since_last < effective_interval:
+        if time_since_last < self.llm_classifier.adaptation_interval:
             return  # Too soon to adapt
         
-        # Don't reduce concurrency if we have very few tasks remaining
-        # This prevents unnecessary reduction when finishing a chunk
-        if remaining_tasks > 0 and remaining_tasks <= 10:
-            print(f"⏸️  Skipping concurrency adjustment: only {remaining_tasks} tasks remaining")
-            return  # Skip adjustment, finishing chunk soon
+        # Don't adjust concurrency if we're in the final 500 tasks
+        # This prevents unreliable end-of-chunk adjustments that corrupt learned optimal concurrency
+        if remaining_tasks > 0 and remaining_tasks <= 500:
+            # Only print message once when we first enter the stability zone
+            if remaining_tasks == 500:
+                print(f"⏸️  Entered stability zone: skipping concurrency adjustments for final {remaining_tasks} tasks")
+            return  # Skip adjustment, preserve learned optimal for next chunk
             
         metrics = self.llm_classifier.metrics.get_adaptive_metrics()
         error_rate = metrics['failed_requests'] / max(metrics['total_requests'], 1)
@@ -760,8 +779,7 @@ Examples:
             asyncio.run(self.process_dataset(
                 input_path, output_path, args.model,
                 args.concurrent, args.chunk_size,
-                args.resume, args.restart, args.disable_adaptive,
-                args.incremental_save
+                args.resume, args.restart, args.disable_adaptive
             ))
             return 0
         except KeyboardInterrupt:

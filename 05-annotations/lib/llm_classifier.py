@@ -25,7 +25,7 @@ MAX_RETRY_ATTEMPTS = 3
 
 # Ramp-up configuration for chunk start
 RAMP_UP_INITIAL = 100      # Start with 100 concurrent requests
-RAMP_UP_INCREMENT = 100    # Add 100 more every interval
+RAMP_UP_INCREMENT = 200    # Add 100 more every interval
 RAMP_UP_INTERVAL = 10      # Seconds between increases
 
 
@@ -569,8 +569,9 @@ class LLMClassifier:
             
             # Check for periodic adjustment (but not during ramp-up)
             if not is_ramping_up:
-                remaining_tasks = len(work_queue)
-                self._check_concurrency_adjustment(remaining_tasks)
+                # Consider both queued and in-flight tasks for total remaining
+                total_remaining = len(work_queue) + len(in_flight_tasks)
+                self._check_concurrency_adjustment(total_remaining)
         
         pbar.close()
         return results
@@ -598,11 +599,13 @@ class LLMClassifier:
         if now - self.last_adaptation < self.adaptation_interval:
             return  # Too soon to adapt
         
-        # Don't reduce concurrency if we have very few tasks remaining
-        # This prevents unnecessary reduction when finishing a chunk
-        if remaining_tasks > 0 and remaining_tasks <= 10:
-            print(f"⏸️  Skipping concurrency adjustment: only {remaining_tasks} tasks remaining")
-            return  # Skip adjustment, finishing chunk soon
+        # Don't adjust concurrency if we're in the final 500 tasks
+        # This prevents unreliable end-of-chunk adjustments that corrupt learned optimal concurrency
+        if remaining_tasks > 0 and remaining_tasks <= 500:
+            # Only print message once when we first enter the stability zone
+            if remaining_tasks == 500:
+                print(f"⏸️  Entered stability zone: skipping concurrency adjustments for final {remaining_tasks} tasks")
+            return  # Skip adjustment, preserve learned optimal for next chunk
             
         metrics = self.metrics.get_adaptive_metrics()
         error_rate = metrics['failed_requests'] / max(metrics['total_requests'], 1)
