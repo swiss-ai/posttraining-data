@@ -187,6 +187,67 @@ def process_split(ds: Dataset, num_proc: int) -> Dataset:
 def subset(ds: Dataset, lim: Optional[int]):
     return ds if not lim or lim <= 0 or lim >= ds.num_rows else ds.select(range(lim))
 
+def load_existing_metadata(input_path: Path) -> Optional[Dict[str, Any]]:
+    """Load existing dataset metadata if it exists."""
+    meta_file = Path(input_path) / "dataset_metadata.json"
+    if meta_file.exists():
+        try:
+            with open(meta_file, 'r') as f:
+                return json.load(f)
+        except (json.JSONDecodeError, IOError):
+            pass
+    return None
+
+def save_dataset_and_metadata(dataset_dict: DatasetDict, output_path: Path, 
+                             input_path: Path, args: argparse.Namespace):
+    """Save converted dataset with processing metadata."""
+    # Create output directory
+    output_path.mkdir(parents=True, exist_ok=True)
+    
+    # Save dataset
+    dataset_dict.save_to_disk(str(output_path))
+    
+    # Load existing metadata or create new
+    metadata = load_existing_metadata(input_path) or {}
+    
+    # Create processing entry
+    processing_entry = {
+        "operation": "convert_glaive_function_calling",
+        "script": "convert_glaive_function_calling.py",
+        "timestamp": datetime.now(UTC).isoformat(),
+        "input_path": str(input_path),
+        "output_path": str(output_path),
+        "num_processes": args.num_proc,
+        "limit": args.limit,
+        "description": "Converted Glaive function calling dataset to standardized chat format with parts structure"
+    }
+    
+    # Add to processing log
+    if "processing_log" not in metadata:
+        metadata["processing_log"] = []
+    metadata["processing_log"].append(processing_entry)
+    
+    # Add format metadata if not already present
+    if "format" not in metadata:
+        metadata["format"] = "chat_format_v1"
+    if "source_dataset" not in metadata:
+        metadata["source_dataset"] = "glaive-function-calling"
+    if "conversion_details" not in metadata:
+        metadata["conversion_details"] = {
+            "function_format": "parts_based_function_calling",
+            "parameter_schema": "json_string",
+            "conversation_type": "multi_turn_function_calling",
+            "tool_extraction": "regex_based_fence_parsing"
+        }
+    
+    # Save metadata
+    metadata_file = output_path / "dataset_metadata.json"
+    with open(metadata_file, 'w') as f:
+        json.dump(metadata, f, indent=2)
+    
+    print(f"Dataset saved to {output_path}")
+    print(f"Metadata saved to {metadata_file}")
+
 # ───────────— CLI / main ───────────── #
 def cli():
     p = argparse.ArgumentParser()
@@ -215,9 +276,7 @@ def main():
         d = subset(d, a.limit)
         out_ds[split] = process_split(d, a.num_proc)
 
-    out.mkdir(parents=True, exist_ok=True)
-    out_ds.save_to_disk(str(out))
-    print(f"\nSaved converted dataset → {out}")
+    save_dataset_and_metadata(out_ds, out, inp, a)
 
 if __name__ == "__main__":
     main()
