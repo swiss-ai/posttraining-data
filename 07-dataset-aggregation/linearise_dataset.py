@@ -69,6 +69,9 @@ def linearise_sample_for_sft(sample: Dict[str, Any]) -> List[Dict[str, Any]]:
     Linearise a sample for SFT training.
     """
     output_messages = []
+    
+    EMPTY_CALLS = [{"name": "", "arguments": ""}]
+    EMPTY_OUTPUTS = [{"name": "", "output": ""}]
 
     if "system_prompt" in sample:
         output_messages.append(
@@ -105,6 +108,7 @@ def linearise_sample_for_sft(sample: Dict[str, Any]) -> List[Dict[str, Any]]:
             {
                 "role": "developer",
                 "content": {
+                    "text": "",  # We don't have a developer prompt for now
                     "tools": json.dumps(dict_tools),
                     "formatted_tools": formatted_tools[0],
                 },
@@ -141,18 +145,48 @@ def linearise_sample_for_sft(sample: Dict[str, Any]) -> List[Dict[str, Any]]:
 
         elif message_role == "assistant":
             assistant_blocks = []
+            tool_calls_buffer = []
+            tool_outputs_buffer = []
             for part in message["parts"]:
                 part_type = part["type"]
 
                 if part_type == "thought":
+                    if tool_calls_buffer:
+                        tqdm.write(f"Warning: tool calls without tool output. Skipping the remaining parts.")
+                        break
+
+                    if tool_outputs_buffer:
+                        assistant_blocks.append(
+                            {
+                                "type": "tool_outputs",
+                                "text": "",
+                                "calls": EMPTY_CALLS,
+                                "outputs": tool_outputs_buffer,
+                            }
+                        )
+                        tool_outputs_buffer = []
+
                     assistant_blocks.append(
                         {
                             "type": "thoughts",
-                            "content": part["content"],
+                            "text": part["content"],
+                            "calls": EMPTY_CALLS,
+                            "outputs": EMPTY_OUTPUTS
                         }
                     )
                 # For now we assume the tool calls are done sequentially
                 elif part_type == "function-call":
+                    if tool_outputs_buffer:
+                        assistant_blocks.append(
+                            {
+                                "type": "tool_outputs",
+                                "text": "",
+                                "calls": EMPTY_CALLS,
+                                "outputs": tool_outputs_buffer,
+                            }
+                        )
+                        tool_outputs_buffer = []
+                    
                     tool_arguments = part["args"]
 
                     if isinstance(tool_arguments, dict):
@@ -164,43 +198,101 @@ def linearise_sample_for_sft(sample: Dict[str, Any]) -> List[Dict[str, Any]]:
                             )
                             tool_arguments = "{}"
 
-                    assistant_blocks.append(
+                    tool_calls_buffer.append(
                         {
-                            "type": "tool_calls",
-                            "content": [
-                                {
-                                    "name": part["name"],
-                                    "arguments": tool_arguments,
-                                }
-                            ],
+                            "name": part["name"],
+                            "arguments": tool_arguments,
                         }
                     )
                 elif part_type == "function-output":
-                    assistant_blocks.append(
+                    if tool_calls_buffer:
+                        assistant_blocks.append(
+                            {
+                                "type": "tool_calls",
+                                "text": "",
+                                "calls": tool_calls_buffer,
+                                "outputs": EMPTY_OUTPUTS,
+                            }
+                        )
+                        tool_calls_buffer = []
+                    else:
+                        tqdm.write(f"Warning: No tool calls buffer found for tool output: {part['content']}. Skipping the remaining parts.")
+                        break
+                    
+                    tool_outputs_buffer.append(
                         {
-                            "type": "tool_outputs",
-                            "content": [
-                                {
-                                    # "name": We don't have the name of the function that was called
-                                    "output": part["content"],
-                                }
-                            ],
+                            "name": "",  # We don't have the name of the function that was called
+                            "output": part["content"],
                         }
                     )
                 elif part_type == "response":
+                    if tool_calls_buffer:
+                        tqdm.write(f"Warning: Tool calls without tool output. Skipping the remaining parts.")
+                        break
+
+                    if tool_outputs_buffer:
+                        assistant_blocks.append(
+                            {
+                                "type": "tool_outputs",
+                                "text": "",
+                                "calls": EMPTY_CALLS,
+                                "outputs": tool_outputs_buffer,
+                            }
+                        )
+                        tool_outputs_buffer = []
+
                     assistant_blocks.append(
                         {
                             "type": "response",
-                            "content": part["content"],
+                            "text": part["content"],
+                            "calls": EMPTY_CALLS,
+                            "outputs": EMPTY_OUTPUTS,
                         }
                     )
                 elif part_type == "verifiable-responses":
+                    if tool_calls_buffer:
+                        tqdm.write(f"Warning: Tool calls without tool output. Skipping the remaining parts.")
+                        break
+
+                    if tool_outputs_buffer:
+                        assistant_blocks.append(
+                            {
+                                "type": "tool_outputs",
+                                "text": "",
+                                "calls": EMPTY_CALLS,
+                                "outputs": tool_outputs_buffer,
+                            }
+                        )
+                        tool_outputs_buffer = []
+
                     assistant_blocks.append(
                         {
                             "type": "answers",
-                            "content": part["answers"],
+                            "text": part["answers"],
+                            "calls": EMPTY_CALLS,
+                            "outputs": EMPTY_OUTPUTS,
                         }
                     )
+
+            if tool_calls_buffer:
+                assistant_blocks.append(
+                    {
+                        "type": "tool_calls",
+                        "text": "",
+                        "calls": tool_calls_buffer,
+                        "outputs": EMPTY_OUTPUTS,
+                    }
+                )
+
+            if tool_outputs_buffer:
+                assistant_blocks.append(
+                    {
+                        "type": "tool_outputs",
+                        "text": "",
+                        "calls": EMPTY_CALLS,
+                        "outputs": tool_outputs_buffer,
+                    }
+                )
 
             output_messages.append(
                 {"role": "assistant", "content": {"blocks": assistant_blocks}}
@@ -224,43 +316,38 @@ FORMAT_FUNCTIONS = {
 
 def process_dataset(dataset: Dataset, training_type: str) -> Dataset:
     """
-    Process a single dataset split, formatting all samples.
+    Process a single dataset split, formatting all samples using parallel processing.
     """
-    formatted_rows = []
     format_fn = FORMAT_FUNCTIONS[training_type]
-
-    with tqdm(total=len(dataset), desc="Linearising dataset", unit="rows") as pbar:
-        for chunk_start in range(0, len(dataset), 1000):
-            chunk_end = min(chunk_start + 1000, len(dataset))
-            for idx in range(chunk_start, chunk_end):
-                row = dataset[idx]
-                formatted_row = format_fn(row)
-                formatted_rows.append(formatted_row)
-                pbar.update(1)
-
-            pbar.update(chunk_end - chunk_start)
-
-            import gc
-
-            gc.collect()
-
-    print(f"Conversion complete: {len(formatted_rows)} successful")
-
+    
     columns_to_keep = [
         "conversation_id",
-        "dataset_source",
+        "dataset_source", 
         "original_metadata",
         "created_timestamp",
     ]
-    columns_to_drop = [
-        col for col in dataset.column_names if col not in columns_to_keep
-    ]
-
-    dataset = dataset.remove_columns(columns_to_drop).add_column(
-        "messages", formatted_rows
+    
+    def format_sample(sample):
+        """Format a single sample and keep only required columns."""
+        formatted_messages = format_fn(sample)
+        
+        result = {}
+        for col in columns_to_keep:
+            if col in sample:
+                result[col] = sample[col]
+        result["messages"] = formatted_messages
+        
+        return result
+    
+    formatted_dataset = dataset.map(
+        format_sample,
+        desc="Linearising dataset",
+        num_proc=16,
+        remove_columns=[col for col in dataset.column_names if col not in columns_to_keep],
     )
-
-    return dataset
+    
+    print(f"Conversion complete: {len(formatted_dataset)} samples processed")
+    return formatted_dataset
 
 
 def main() -> None:
