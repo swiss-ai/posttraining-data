@@ -81,27 +81,50 @@ class ComplexityClassifier(BaseClassifier):
                     complexity_structure = json.loads(result.reasoning)
                     complexity_data = complexity_structure
                     
-                    # Add computed fields
+                    # Get scores for computation BEFORE converting to strings
                     complexity_score = complexity_data.get("complexity", {}).get("score")
                     completeness_score = complexity_data.get("completeness", {}).get("score") 
                     quality_score = complexity_data.get("quality", {}).get("score")
                     
-                    # Calculate computed fields if all scores are numeric
-                    if (isinstance(complexity_score, int) and 
-                        isinstance(completeness_score, int) and 
-                        isinstance(quality_score, int)):
+                    # Try to parse scores as integers for computation
+                    try:
+                        complexity_int = int(complexity_score) if complexity_score is not None else None
+                        completeness_int = int(completeness_score) if completeness_score is not None else None
+                        quality_int = int(quality_score) if quality_score is not None else None
                         
-                        complexity_data["complexity_x_quality"] = complexity_score * quality_score
-                        complexity_data["complexity_x_quality_x_completeness"] = complexity_score * quality_score * completeness_score
-                    else:
-                        # Set computed fields to error if any input score is non-numeric
+                        if complexity_int is not None and completeness_int is not None and quality_int is not None:
+                            complexity_data["complexity_x_quality"] = str(complexity_int * quality_int)
+                            complexity_data["complexity_x_quality_x_completeness"] = str(complexity_int * quality_int * completeness_int)
+                        else:
+                            complexity_data["complexity_x_quality"] = "error"
+                            complexity_data["complexity_x_quality_x_completeness"] = "error"
+                    except (ValueError, TypeError):
+                        # If any score cannot be parsed as int, set computed fields to error
                         complexity_data["complexity_x_quality"] = "error"
                         complexity_data["complexity_x_quality_x_completeness"] = "error"
+                    
+                    # NOW convert all score fields to strings for consistency
+                    if "complexity" in complexity_data and isinstance(complexity_data["complexity"], dict):
+                        if "score" in complexity_data["complexity"]:
+                            complexity_data["complexity"]["score"] = str(complexity_data["complexity"]["score"])
+                    
+                    if "completeness" in complexity_data and isinstance(complexity_data["completeness"], dict):
+                        if "score" in complexity_data["completeness"]:
+                            complexity_data["completeness"]["score"] = str(complexity_data["completeness"]["score"])
+                    
+                    if "quality" in complexity_data and isinstance(complexity_data["quality"], dict):
+                        if "score" in complexity_data["quality"]:
+                            complexity_data["quality"]["score"] = str(complexity_data["quality"]["score"])
                         
                 except json.JSONDecodeError:
                     complexity_data = {
                         "error": "Failed to parse complexity JSON response",
-                        "raw_response": result.reasoning
+                        "raw_response": result.reasoning,
+                        "complexity": {"reasoning": "JSON parsing failed", "score": "error"},
+                        "completeness": {"reasoning": "JSON parsing failed", "score": "error"},
+                        "quality": {"reasoning": "JSON parsing failed", "score": "error"},
+                        "complexity_x_quality": "error",
+                        "complexity_x_quality_x_completeness": "error"
                     }
             else:
                 # Classification failed - provide error structure matching expected format

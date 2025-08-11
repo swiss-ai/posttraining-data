@@ -25,7 +25,7 @@ MAX_RETRY_ATTEMPTS = 3
 
 # Ramp-up configuration for chunk start
 RAMP_UP_INITIAL = 100      # Start with 100 concurrent requests
-RAMP_UP_INCREMENT = 200    # Add 100 more every interval
+RAMP_UP_INCREMENT = 300    # Add 100 more every interval
 RAMP_UP_INTERVAL = 10      # Seconds between increases
 
 
@@ -165,6 +165,7 @@ class LLMClassifier:
         self.min_concurrent = 1
         self.last_adaptation = time.time()
         self.adaptation_interval = 60  # Adapt every 60 seconds
+        self.stability_zone_entered = False  # Track if we've entered the 500-task stability zone
         
         # Set up logging
         self.logger = logging.getLogger(__name__)
@@ -480,6 +481,7 @@ class LLMClassifier:
         """Adaptive concurrency batch processing using task set control loop pattern."""
         # Reset adaptation timer for new chunk to allow stabilization
         self.last_adaptation = time.time()
+        self.stability_zone_entered = False  # Reset stability zone flag for new chunk
         
         # Set up ramp-up for this chunk
         ramp_up_target = self.current_concurrent
@@ -530,7 +532,9 @@ class LLMClassifier:
                     # Handle API failures immediately (but not during ramp-up)
                     # Only reduce concurrency for API errors, not parsing errors
                     if not result.success and result.api_error and not is_ramping_up:
-                        await self._handle_failure_immediate()
+                        # Calculate remaining tasks for stability zone check
+                        total_remaining = len(work_queue) + len(in_flight_tasks)
+                        await self._handle_failure_immediate(total_remaining)
                 
                 # Display metrics periodically
                 current_time = time.time()
@@ -579,11 +583,30 @@ class LLMClassifier:
     async def _classify_with_index(self, idx: int, question: str, answer: str, 
                                    prompt_template: str, valid_categories: List[str]) -> Tuple[int, ClassificationResult]:
         """Classify single item and return with its index."""
-        result = await self.classify_single(question, answer, prompt_template, valid_categories)
-        return idx, result
+        try:
+            result = await asyncio.wait_for(
+                self.classify_single(question, answer, prompt_template, valid_categories),
+                timeout=60.0  # 60s max per request (more than OpenAI's 45s)
+            )
+            return idx, result
+        except asyncio.TimeoutError:
+            # Create timeout error result
+            timeout_result = ClassificationResult(
+                classification=valid_categories[-1] if valid_categories else "error",
+                reasoning="Request timed out after 60 seconds",
+                success=False,
+                error="Request timeout",
+                tokens_used=0,
+                api_error=True  # Treat as API error to trigger concurrency reduction
+            )
+            return idx, timeout_result
     
-    async def _handle_failure_immediate(self):
+    async def _handle_failure_immediate(self, remaining_tasks: int = 0):
         """Immediately reduce concurrency on any failure."""
+        # Master control: skip ALL adjustments if in stability zone
+        if self.stability_zone_entered:
+            return  # Stability zone active - preserve learned optimal concurrency
+        
         old_concurrent = self.current_concurrent
         self.current_concurrent = max(self.current_concurrent - 1, self.min_concurrent)
         
@@ -599,13 +622,15 @@ class LLMClassifier:
         if now - self.last_adaptation < self.adaptation_interval:
             return  # Too soon to adapt
         
-        # Don't adjust concurrency if we're in the final 500 tasks
-        # This prevents unreliable end-of-chunk adjustments that corrupt learned optimal concurrency
-        if remaining_tasks > 0 and remaining_tasks <= 500:
-            # Only print message once when we first enter the stability zone
-            if remaining_tasks == 500:
-                print(f"⏸️  Entered stability zone: skipping concurrency adjustments for final {remaining_tasks} tasks")
-            return  # Skip adjustment, preserve learned optimal for next chunk
+        # Check if we should enter stability zone (≤500 tasks remaining)
+        if not self.stability_zone_entered and remaining_tasks <= 500 and remaining_tasks > 0:
+            print(f"⏸️  Entered stability zone: skipping concurrency adjustments for final {remaining_tasks} tasks")
+            self.stability_zone_entered = True
+            return  # Skip this and all future adjustments for this chunk
+        
+        # Master control: skip ALL adjustments if in stability zone
+        if self.stability_zone_entered:
+            return  # Stability zone active - preserve learned optimal concurrency
             
         metrics = self.metrics.get_adaptive_metrics()
         error_rate = metrics['failed_requests'] / max(metrics['total_requests'], 1)

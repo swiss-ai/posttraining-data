@@ -575,6 +575,7 @@ Examples:
         """Flexible API with adaptive concurrency and ramp-up using task set control loop."""
         # Reset adaptation timer for new chunk to allow stabilization
         self.llm_classifier.last_adaptation = time.time()
+        self.llm_classifier.stability_zone_entered = False  # Reset stability zone flag for new chunk
         
         # Set up ramp-up for this chunk
         ramp_up_target = self.llm_classifier.current_concurrent
@@ -622,7 +623,9 @@ Examples:
                     # Handle API failures immediately (but not during ramp-up)
                     # Only reduce concurrency for API errors, not parsing errors
                     if not result.success and result.api_error and not is_ramping_up:
-                        await self._handle_failure_immediate()
+                        # Calculate remaining tasks for stability zone check
+                        total_remaining = len(work_queue) + len(in_flight_tasks)
+                        await self._handle_failure_immediate(total_remaining)
                 
                 # Display metrics periodically
                 current_time = time.time()
@@ -668,8 +671,12 @@ Examples:
         pbar.close()
         return results
     
-    async def _handle_failure_immediate(self):
+    async def _handle_failure_immediate(self, remaining_tasks: int = 0):
         """Immediately reduce concurrency on any failure."""
+        # Master control: skip ALL adjustments if in stability zone
+        if self.llm_classifier.stability_zone_entered:
+            return  # Stability zone active - preserve learned optimal concurrency
+        
         old_concurrent = self.llm_classifier.current_concurrent
         self.llm_classifier.current_concurrent = max(
             self.llm_classifier.current_concurrent - 1, 
@@ -690,13 +697,15 @@ Examples:
         if time_since_last < self.llm_classifier.adaptation_interval:
             return  # Too soon to adapt
         
-        # Don't adjust concurrency if we're in the final 500 tasks
-        # This prevents unreliable end-of-chunk adjustments that corrupt learned optimal concurrency
-        if remaining_tasks > 0 and remaining_tasks <= 500:
-            # Only print message once when we first enter the stability zone
-            if remaining_tasks == 500:
-                print(f"⏸️  Entered stability zone: skipping concurrency adjustments for final {remaining_tasks} tasks")
-            return  # Skip adjustment, preserve learned optimal for next chunk
+        # Check if we should enter stability zone (≤500 tasks remaining)
+        if not self.llm_classifier.stability_zone_entered and remaining_tasks <= 500 and remaining_tasks > 0:
+            print(f"⏸️  Entered stability zone: skipping concurrency adjustments for final {remaining_tasks} tasks")
+            self.llm_classifier.stability_zone_entered = True
+            return  # Skip this and all future adjustments for this chunk
+        
+        # Master control: skip ALL adjustments if in stability zone
+        if self.llm_classifier.stability_zone_entered:
+            return  # Stability zone active - preserve learned optimal concurrency
             
         metrics = self.llm_classifier.metrics.get_adaptive_metrics()
         error_rate = metrics['failed_requests'] / max(metrics['total_requests'], 1)
@@ -721,10 +730,27 @@ Examples:
         # Extract template data (remove non-template keys)
         template_data = {k: v for k, v in task.items() 
                        if k not in ["sample"]}
-        result = await self.llm_classifier.classify_single_flexible(
-            template_data, self.prompt_template, self.valid_categories
-        )
-        return idx, result
+        try:
+            result = await asyncio.wait_for(
+                self.llm_classifier.classify_single_flexible(
+                    template_data, self.prompt_template, self.valid_categories
+                ),
+                timeout=60.0  # 60s max per request
+            )
+            return idx, result
+        except asyncio.TimeoutError:
+            # Import ClassificationResult for timeout handling
+            from llm_classifier import ClassificationResult
+            # Create timeout error result
+            timeout_result = ClassificationResult(
+                classification=self.valid_categories[-1] if self.valid_categories else "error",
+                reasoning="Request timed out after 60 seconds",
+                success=False,
+                error="Request timeout",
+                tokens_used=0,
+                api_error=True  # Treat as API error to trigger concurrency reduction
+            )
+            return idx, timeout_result
     
     def run_classification(self, args: Optional[argparse.Namespace] = None):
         """
