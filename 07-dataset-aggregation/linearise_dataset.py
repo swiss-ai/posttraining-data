@@ -72,6 +72,7 @@ def linearise_sample_for_sft(sample: Dict[str, Any]) -> List[Dict[str, Any]]:
     
     EMPTY_CALLS = [{"name": "", "arguments": ""}]
     EMPTY_OUTPUTS = [{"name": "", "output": ""}]
+    EMPTY_ANSWERS = [""]
 
     if "system_prompt" in sample:
         output_messages.append(
@@ -121,7 +122,7 @@ def linearise_sample_for_sft(sample: Dict[str, Any]) -> List[Dict[str, Any]]:
                 "role": "user",
                 "content": {
                     "parts": [
-                        {"type": "text", "content": sample["initial_prompt"]["content"]}
+                        {"type": "text", "text": sample["initial_prompt"]["content"]}
                     ]
                 },
             }
@@ -138,7 +139,7 @@ def linearise_sample_for_sft(sample: Dict[str, Any]) -> List[Dict[str, Any]]:
                     {
                         "role": "user",
                         "content": {
-                            "parts": [{"type": "text", "content": part["content"]}]
+                            "parts": [{"type": "text", "text": part["content"]}]
                         },
                     }
                 )
@@ -160,6 +161,7 @@ def linearise_sample_for_sft(sample: Dict[str, Any]) -> List[Dict[str, Any]]:
                             {
                                 "type": "tool_outputs",
                                 "text": "",
+                                "answers": EMPTY_ANSWERS,
                                 "calls": EMPTY_CALLS,
                                 "outputs": tool_outputs_buffer,
                             }
@@ -171,6 +173,7 @@ def linearise_sample_for_sft(sample: Dict[str, Any]) -> List[Dict[str, Any]]:
                             "type": "thoughts",
                             "text": part["content"],
                             "calls": EMPTY_CALLS,
+                            "answers": EMPTY_ANSWERS,
                             "outputs": EMPTY_OUTPUTS
                         }
                     )
@@ -182,6 +185,7 @@ def linearise_sample_for_sft(sample: Dict[str, Any]) -> List[Dict[str, Any]]:
                                 "type": "tool_outputs",
                                 "text": "",
                                 "calls": EMPTY_CALLS,
+                                "answers": EMPTY_ANSWERS,
                                 "outputs": tool_outputs_buffer,
                             }
                         )
@@ -212,6 +216,7 @@ def linearise_sample_for_sft(sample: Dict[str, Any]) -> List[Dict[str, Any]]:
                                 "text": "",
                                 "calls": tool_calls_buffer,
                                 "outputs": EMPTY_OUTPUTS,
+                                "answers": EMPTY_ANSWERS,
                             }
                         )
                         tool_calls_buffer = []
@@ -237,6 +242,7 @@ def linearise_sample_for_sft(sample: Dict[str, Any]) -> List[Dict[str, Any]]:
                                 "text": "",
                                 "calls": EMPTY_CALLS,
                                 "outputs": tool_outputs_buffer,
+                                "answers": EMPTY_ANSWERS,
                             }
                         )
                         tool_outputs_buffer = []
@@ -245,6 +251,7 @@ def linearise_sample_for_sft(sample: Dict[str, Any]) -> List[Dict[str, Any]]:
                         {
                             "type": "response",
                             "text": part["content"],
+                            "answers": EMPTY_ANSWERS,
                             "calls": EMPTY_CALLS,
                             "outputs": EMPTY_OUTPUTS,
                         }
@@ -261,6 +268,7 @@ def linearise_sample_for_sft(sample: Dict[str, Any]) -> List[Dict[str, Any]]:
                                 "text": "",
                                 "calls": EMPTY_CALLS,
                                 "outputs": tool_outputs_buffer,
+                                "answers": EMPTY_ANSWERS,
                             }
                         )
                         tool_outputs_buffer = []
@@ -268,7 +276,8 @@ def linearise_sample_for_sft(sample: Dict[str, Any]) -> List[Dict[str, Any]]:
                     assistant_blocks.append(
                         {
                             "type": "answers",
-                            "text": part["answers"],
+                            "text": "",
+                            "answers": part["answers"],
                             "calls": EMPTY_CALLS,
                             "outputs": EMPTY_OUTPUTS,
                         }
@@ -281,6 +290,7 @@ def linearise_sample_for_sft(sample: Dict[str, Any]) -> List[Dict[str, Any]]:
                         "text": "",
                         "calls": tool_calls_buffer,
                         "outputs": EMPTY_OUTPUTS,
+                        "answers": EMPTY_ANSWERS,
                     }
                 )
 
@@ -291,6 +301,7 @@ def linearise_sample_for_sft(sample: Dict[str, Any]) -> List[Dict[str, Any]]:
                         "text": "",
                         "calls": EMPTY_CALLS,
                         "outputs": tool_outputs_buffer,
+                        "answers": EMPTY_ANSWERS,
                     }
                 )
 
