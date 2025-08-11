@@ -74,12 +74,12 @@ def linearise_sample_for_sft(sample: Dict[str, Any]) -> List[Dict[str, Any]]:
     EMPTY_OUTPUTS = [{"name": "", "output": ""}]
     EMPTY_ANSWERS = [""]
 
-    if "system_prompt" in sample:
+    if "system_prompt" in sample and sample["system_prompt"]:
         output_messages.append(
             {"role": "system", "content": {"text": sample["system_prompt"]["content"]}}
         )
 
-    if "available_functions" in sample:
+    if "available_functions" in sample and sample["available_functions"]:
         dict_tools = []
         for tool in sample["available_functions"]:
             tool_parameters = tool["parameters"]
@@ -116,7 +116,7 @@ def linearise_sample_for_sft(sample: Dict[str, Any]) -> List[Dict[str, Any]]:
             }
         )
 
-    if "initial_prompt" in sample:
+    if "initial_prompt" in sample and sample["initial_prompt"]:
         output_messages.append(
             {
                 "role": "user",
