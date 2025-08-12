@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 """
-convert_numinamath.py
-─────────────────────
+convert_numinamath_variation.py
+──────────────────────────────
 Convert the HuggingFace *NuminaMath-1.5* dataset into the unified chat-tool schema 
 we use for XLAM.
+
+This is a variation of convert_numinamath.py that uses different answer formats
+instead of just "The answer is: {answer}".
 
 The NuminaMath dataset contains mathematical problems with solutions, structured as:
 • `problem` - The mathematical problem statement
@@ -19,7 +22,7 @@ Problem statement    → role="user"          part.type="response"
 Solution/Answer     → role="assistant"     part.type="response"
 """
 
-import re, json, sys, argparse, hashlib
+import re, json, sys, argparse, hashlib, random
 from pathlib import Path
 from datetime import datetime, UTC
 from typing import List, Dict, Any, Optional
@@ -27,6 +30,51 @@ from typing import List, Dict, Any, Optional
 from datasets import Dataset, DatasetDict, load_from_disk
 
 SRC = "numina-math-1.5"
+
+# ───────────── answer format variations ───────────── #
+ANSWER_FORMATS = [
+    "The {label} is: {answer}",
+    "{label}: {answer}",
+    "{label} — {answer}",
+    "{label} → {answer}",
+    "{label} ⇒ {answer}",
+    "{label} = {answer}",
+    "I conclude the {label} is: {answer}",
+    "By inspection, the {label} is: {answer}",
+    "After analysis, the {label} is: {answer}",
+    "This evaluates to: {answer}",
+    "This resolves to: {answer}",
+    "This computes to: {answer}",
+    "Therefore: {answer}",
+    "Thus: {answer}",
+    "Hence: {answer}",
+    "In one line: {answer}",
+    "Plainly put, the {label} is: {answer}",
+    "In summary, the {label} is: {answer}",
+    "Strictly speaking, the {label} is: {answer}",
+    "Calculated {label}: {answer}",
+    "Computed {label}: {answer}",
+    "Evaluated {label}: {answer}",
+    "Derived {label}: {answer}",
+    "Inferred {label}: {answer}",
+    "Final {label}: {answer}",
+    "The computed {label} is: {answer}",
+    "The derived {label} is: {answer}",
+    "The final {label} is: {answer}",
+    "The resulting {label} is: {answer}",
+    '"{answer}" — {label}',
+    'The {label} is: "{answer}"',
+    "The {label} is: '{answer}'"
+]
+
+LABELS = [
+    "Answer",
+    "Solution", 
+    "Result",
+    "Evaluation",
+    "Conclusion",
+    "Expression"
+]
 
 # ───────────── helpers ────────────── #
 def conv_id(seed: str) -> str:
@@ -130,6 +178,17 @@ def clean_solution_text(text: str) -> str:
     
     return '\n'.join(lines).strip()
 
+def get_random_answer_format(answer: str) -> str:
+    """Get a random answer format with appropriate label."""
+    format_template = random.choice(ANSWER_FORMATS)
+    label = random.choice(LABELS)
+    
+    # Make label lowercase if it's not at the start of a sentence
+    if not format_template.startswith("The ") and not format_template.startswith("I ") and not format_template.startswith("By ") and not format_template.startswith("After ") and not format_template.startswith("Plainly ") and not format_template.startswith("In ") and not format_template.startswith("Strictly "):
+        label = label.lower()
+    
+    return format_template.format(label=label, answer=answer)
+
 def create_system_prompt(problem_type: str, question_type: str) -> str:
     """Create a system prompt based on the problem type and question type."""
     base_prompt = "You are a helpful mathematics tutor. Solve the given mathematical problem step by step, showing your work clearly."
@@ -172,8 +231,8 @@ def parse_sample(row: Dict[str, Any]) -> Dict[str, Any]:
         reasoning = None
         verifiable_answer = None
     else:
-        # For regular answers, use "The answer is: {answer}" as assistant text
-        assistant_text = f"The answer is: {answer}"
+        # For regular answers, use a random answer format
+        assistant_text = get_random_answer_format(answer)
         reasoning = solution
         verifiable_answer = answer
     
@@ -295,14 +354,14 @@ def save_dataset_and_metadata(dataset_dict: DatasetDict, output_path: Path,
     
     # Create processing entry
     processing_entry = {
-        "operation": "convert_numinamath",
-        "script": "convert_numinamath.py",
+        "operation": "convert_numinamath_variation",
+        "script": "convert_numinamath_variation.py",
         "timestamp": datetime.now(UTC).isoformat(),
         "input_path": str(input_path),
         "output_path": str(output_path),
         "num_processes": args.num_proc,
         "limit": args.limit,
-        "description": "Converted NuminaMath dataset with filtering, cleaning, and proper field mapping"
+        "description": "Converted NuminaMath dataset with filtering, cleaning, and varied answer formats"
     }
     
     # Add to processing log
@@ -323,7 +382,8 @@ def save_dataset_and_metadata(dataset_dict: DatasetDict, output_path: Path,
             "metadata_preservation": "full_original_metadata",
             "filtering": "removed_links_images_notfound",
             "cleaning": "removed_headers_short_prefixes",
-            "field_mapping": "reasoning_verifiable_answer"
+            "field_mapping": "reasoning_verifiable_answer",
+            "answer_format": "varied_formats_with_random_labels"
         }
     
     # Save metadata
