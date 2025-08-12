@@ -35,10 +35,12 @@ def conv_id(seed: str) -> str:
 def make_part(ptype: str,
               content: str = "",
               name: str = "",
-              args: Optional[Dict[str, Any]] = None) -> Dict[str, str]:
+              args: Optional[Dict[str, Any]] = None,
+              metadata: Optional[Dict[str, Any]] = None) -> Dict[str, str]:
     return {
         "type": ptype,
         "content": content,
+        "metadata": metadata or {},
         "name": name,
         "args": json.dumps(args, ensure_ascii=False) if args else ""
     }
