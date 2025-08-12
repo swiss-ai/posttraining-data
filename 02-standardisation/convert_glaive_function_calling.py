@@ -40,23 +40,42 @@ def make_part(ptype: str,
               content: str = "",
               name: str = "",
               args: Optional[Dict[str, Any]] = None) -> Dict[str, str]:
+    """Create unified part structure compatible with other datasets."""
     return {
         "type": ptype,
         "content": content,
+        "metadata": {},  # Add metadata field for compatibility
         "name": name,
-        "args": json.dumps(args, ensure_ascii=False) if args else ""
+        "args": json.dumps(args, ensure_ascii=False) if args else "",
+        "answers": []  # Add answers field for Tulu compatibility
     }
 
 def norm_functions(funcs: List[Dict[str, Any]]) -> List[Dict[str, str]]:
-    """Flatten & stringify parameters so every element has the same schema."""
+    """Normalize functions with JSON string parameters for schema consistency."""
     out = []
     for f in funcs:
         if not f.get("name"):
             continue
+        
+        # Keep parameters as JSON string to avoid complex schema conflicts
+        params = f.get("parameters", {})
+        if isinstance(params, dict):
+            # Ensure it has proper OpenAI structure before stringifying
+            if "type" not in params:
+                params = {
+                    "type": "object", 
+                    "properties": params if params else {},
+                    "required": []
+                }
+            params_str = json.dumps(params, ensure_ascii=False)
+        else:
+            # Already a string or something else
+            params_str = str(params) if params else "{}"
+        
         out.append({
-            "name":        str(f.get("name", "")),
+            "name": str(f.get("name", "")),
             "description": str(f.get("description", "")),
-            "parameters":  json.dumps(f.get("parameters", {}), ensure_ascii=False)
+            "parameters": params_str  # Keep as JSON string for consistency
         })
     return out
 
@@ -118,7 +137,8 @@ def parse_sample(text: str) -> Dict[str, Any]:
 
         if (m := USER_RE.match(ln)):
             messages.append({"role": "user",
-                             "parts": [make_part("response", m.group(1).strip())]})
+                             "parts": [make_part("response", m.group(1).strip())],
+                             "metadata": {}})  # Add metadata field for message compatibility
 
         elif (m := ASSIST_RE.match(ln)):
             body = m.group(1).strip()
@@ -128,18 +148,22 @@ def parse_sample(text: str) -> Dict[str, Any]:
                     messages.append({"role": "FUNCTION-CALL",
                                      "parts": [make_part("function-call",
                                                          name=j.get("name", ""),
-                                                         args=j.get("arguments", {}))]})
+                                                         args=j.get("arguments", {}))],
+                                     "metadata": {}})  # Add metadata field for message compatibility
                 except json.JSONDecodeError:
                     messages.append({"role": "assistant",
-                                     "parts": [make_part("response", body)]})
+                                     "parts": [make_part("response", body)],
+                                     "metadata": {}})  # Add metadata field for message compatibility
             else:
                 messages.append({"role": "assistant",
-                                 "parts": [make_part("response", body)]})
+                                 "parts": [make_part("response", body)],
+                                 "metadata": {}})  # Add metadata field for message compatibility
 
         elif (m := FUNC_RESP_RE.match(ln)):
             messages.append({"role": "FUNCTION-RESPONSE",
                              "parts": [make_part("function-output",
-                                                 content=m.group(1).strip())]})
+                                                 content=m.group(1).strip())],
+                             "metadata": {}})  # Add metadata field for message compatibility
 
         else:  # continuation
             if messages:
@@ -170,7 +194,7 @@ def convert_row(row: Dict[str, Any], idx: int) -> Dict[str, Any]:
     return {
         "conversation_id": conv_id(p["initial"]["content"] + str(idx)),
         "dataset_source":  SRC,
-        "original_metadata": {"row_index": idx},
+        "original_metadata": {"original_id": idx},  # Use original_id for compatibility
         "system_prompt": {"content": p["system"], "metadata": {}},
         "initial_prompt": p["initial"],
         "available_functions": p["functions"],
@@ -179,10 +203,15 @@ def convert_row(row: Dict[str, Any], idx: int) -> Dict[str, Any]:
     }
 
 def process_split(ds: Dataset, num_proc: int) -> Dataset:
-    return ds.map(convert_row,
-                  with_indices=True,
-                  num_proc=num_proc,
-                  desc="Converting glaive-function-calling")
+    # Remove the 'sample' column after processing to avoid schema conflicts
+    result = ds.map(convert_row,
+                    with_indices=True,
+                    num_proc=num_proc,
+                    desc="Converting glaive-function-calling")
+    # Remove the original 'sample' column to clean up the schema
+    if 'sample' in result.column_names:
+        result = result.remove_columns(['sample'])
+    return result
 
 def subset(ds: Dataset, lim: Optional[int]):
     return ds if not lim or lim <= 0 or lim >= ds.num_rows else ds.select(range(lim))

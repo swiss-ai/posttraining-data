@@ -166,11 +166,12 @@ def convert_xlam_tools(tools_json_str: str) -> List[Dict[str, Any]]:
         if not func_name:  # Skip if function name is empty
             continue
             
-        # Convert to OpenAI function format
+        # Convert to OpenAI function format with JSON string parameters
+        params_dict = convert_xlam_parameters(tool.get("parameters", {}))
         function = {
             "name": func_name,
             "description": tool.get("description", ""),
-            "parameters": convert_xlam_parameters(tool.get("parameters", {}))
+            "parameters": json.dumps(params_dict)  # Convert to JSON string
         }
         
         openai_functions.append(function)
@@ -208,8 +209,11 @@ def convert_xlam_answers(answers_json_str: str) -> List[Dict[str, Any]]:
             
         part = {
             "type": "function-call",
+            "content": "",  # Add content field for compatibility
+            "metadata": {},  # Add metadata field for compatibility
             "name": func_name,
-            "args": normalized_args
+            "args": json.dumps(normalized_args) if normalized_args else "",  # Convert to JSON string
+            "answers": []  # Add answers field for Tulu compatibility
         }
         
         function_call_parts.append(part)
@@ -217,7 +221,7 @@ def convert_xlam_answers(answers_json_str: str) -> List[Dict[str, Any]]:
     return function_call_parts
 
 
-def convert_xlam_sample(sample: Dict[str, Any]) -> Dict[str, Any]:
+def convert_xlam_sample(sample: Dict[str, Any], idx: int = 0) -> Dict[str, Any]:
     """Convert a single XLAM sample to new chat format."""
     dataset_source = "xlam-function-calling-60k"
     query = sample.get("query", "")
@@ -236,7 +240,7 @@ def convert_xlam_sample(sample: Dict[str, Any]) -> Dict[str, Any]:
         "conversation_id": conversation_id,
         "dataset_source": dataset_source,
         "original_metadata": {
-            "original_id": sample.get("id", 0)
+            "original_id": sample.get("id", idx)
         },
         "system_prompt": {
             "content": "You are a helpful assistant with access to tools. Use them to answer the user's questions effectively.",
@@ -253,7 +257,8 @@ def convert_xlam_sample(sample: Dict[str, Any]) -> Dict[str, Any]:
                 "messages": [
                     {
                         "role": "assistant",
-                        "parts": function_call_parts if function_call_parts else []
+                        "parts": function_call_parts if function_call_parts else [],
+                        "metadata": {}  # Add metadata field for message compatibility
                     }
                 ]
             }
@@ -328,7 +333,7 @@ def process_dataset(dataset: Dataset, chunk_size: int = 1000) -> Dataset:
             for idx in range(chunk_start, chunk_end):
                 try:
                     sample = dataset[idx]
-                    converted_sample = convert_xlam_sample(sample)
+                    converted_sample = convert_xlam_sample(sample, idx)
                     if converted_sample:
                         chunk_rows.append(converted_sample)
                     else:
@@ -357,48 +362,11 @@ def process_dataset(dataset: Dataset, chunk_size: int = 1000) -> Dataset:
     
     print("Creating Dataset with explicit schema...")
     
-    # Flatten complex nested structures for Arrow compatibility
-    flattened_rows = []
-    for row in converted_rows:
-        flattened_row = {
-            "conversation_id": row["conversation_id"],
-            "dataset_source": row["dataset_source"],
-            "original_metadata": row["original_metadata"],
-            "system_prompt": row["system_prompt"],
-            "initial_prompt": row["initial_prompt"],
-            "available_functions": [
-                {
-                    "name": func["name"],
-                    "description": func["description"],
-                    "parameters": {
-                        "type": func["parameters"]["type"],
-                        "properties": json.dumps(func["parameters"]["properties"]),
-                        "required": func["parameters"]["required"]
-                    }
-                } for func in row["available_functions"]
-            ],
-            "conversation_branches": [
-                {
-                    "messages": [
-                        {
-                            "role": msg["role"],
-                            "parts": [
-                                {
-                                    "type": part["type"],
-                                    "name": part.get("name"),
-                                    "args": json.dumps(part.get("args", {})) if part.get("args") else None
-                                } for part in msg["parts"]
-                            ]
-                        } for msg in branch["messages"]
-                    ]
-                } for branch in row["conversation_branches"]
-            ],
-            "created_timestamp": row["created_timestamp"]
-        }
-        flattened_rows.append(flattened_row)
+    # Data is already in compatible format, no flattening needed
+    processed_rows = converted_rows
     
     try:
-        return Dataset.from_list(flattened_rows)
+        return Dataset.from_list(processed_rows)
     except Exception as e:
         print(f"Dataset creation failed: {e}")
         return None

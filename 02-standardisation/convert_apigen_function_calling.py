@@ -56,7 +56,8 @@ def create_unified_part(part_type: str, content: str = "", name: str = "",
         "content": content,
         "metadata": metadata or {},
         "name": name,
-        "args": args
+        "args": args,
+        "answers": []  # Add answers field for Tulu compatibility
     }
 
 
@@ -74,6 +75,18 @@ def parse_function_call(msg_value: str) -> Tuple[str, str, str]:
         func_call = json.loads(msg_value)
         func_name = func_call.get("name", "")
         func_args = func_call.get("arguments", {})
+        
+        # Handle case where arguments might be a JSON string instead of dict
+        if isinstance(func_args, str):
+            try:
+                func_args = json.loads(func_args)
+            except json.JSONDecodeError:
+                # If it's not valid JSON, treat it as empty dict
+                func_args = {}
+        
+        # Ensure func_args is a dict
+        if not isinstance(func_args, dict):
+            func_args = {}
         
         # Special handling for think function
         if func_name == "think":
@@ -106,6 +119,11 @@ def parse_conversation_turns(conversations: List[Dict[str, str]]) -> List[List[D
     current_role = None
     
     for msg in conversations:
+        # Skip non-dictionary items that might be in the conversation list
+        if not isinstance(msg, dict):
+            print(f"Warning: Skipping non-dict message: {type(msg)} - {msg}")
+            continue
+            
         msg_type = msg.get("from", "")
         
         if msg_type == "human":
@@ -152,7 +170,8 @@ def create_user_message(human_msgs: List[Dict[str, str]]) -> Dict[str, Any]:
     
     return {
         "role": "user",
-        "parts": parts
+        "parts": parts,
+        "metadata": {}  # Add metadata field for message compatibility
     }
 
 
@@ -199,7 +218,8 @@ def create_assistant_message(assistant_msgs: List[Dict[str, str]]) -> Dict[str, 
     
     return {
         "role": "assistant", 
-        "parts": parts
+        "parts": parts,
+        "metadata": {}  # Add metadata field for message compatibility
     }
 
 
@@ -230,33 +250,43 @@ def convert_apigen_tools(tools_json_str: str) -> List[Dict[str, Any]]:
         if not name:
             continue
             
-        # Ensure tool has required structure
+        # Ensure tool has required structure with JSON string parameters
+        params = tool.get("parameters", {
+            "type": "object",
+            "properties": {},
+            "required": []
+        })
         valid_tool = {
             "name": name,
             "description": tool.get("description", ""),
-            "parameters": tool.get("parameters", {
-                "type": "object",
-                "properties": {},
-                "required": []
-            })
+            "parameters": json.dumps(params)  # Convert to JSON string
         }
         valid_tools.append(valid_tool)
     
     return valid_tools
 
 
-def convert_apigen_sample(sample: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+def convert_apigen_sample(sample: Dict[str, Any], idx: int = 0) -> Optional[Dict[str, Any]]:
     """Convert a single APIGen sample to new chat format."""
     try:
         dataset_source = "apigen-mt-5k"
+        
+        # Validate input sample
+        if not isinstance(sample, dict):
+            print(f"Warning: Sample {idx} is not a dict: {type(sample)}")
+            return None
+            
         conversations = sample.get("conversations", [])
         
         if not conversations:
             return None
         
         # Generate conversation ID from first user message
-        first_human_msg = next((msg.get("value", "") for msg in conversations 
-                              if msg.get("from") == "human"), "")
+        first_human_msg = ""
+        for msg in conversations:
+            if isinstance(msg, dict) and msg.get("from") == "human":
+                first_human_msg = msg.get("value", "")
+                break
         conversation_id = generate_conversation_id(dataset_source, first_human_msg)
         
         # Parse tools
@@ -301,7 +331,7 @@ def convert_apigen_sample(sample: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         chat_sample = {
             "conversation_id": conversation_id,
             "dataset_source": dataset_source,
-            "original_metadata": {},
+            "original_metadata": {"original_id": idx},  # Use consistent structure with index
             "system_prompt": {
                 "content": system_content,
                 "metadata": {}
@@ -323,8 +353,11 @@ def convert_apigen_sample(sample: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         return chat_sample
         
     except Exception as e:
-        print(f"Error converting sample: {e}")
-        return None
+        import traceback
+        print(f"Error converting sample {idx}: {e}")
+        print(f"Traceback: {traceback.format_exc()}")
+        # Crash after first error for debugging
+        raise
 
 
 def process_dataset(dataset: Dataset, chunk_size: int = 1000) -> Dataset:
@@ -346,7 +379,7 @@ def process_dataset(dataset: Dataset, chunk_size: int = 1000) -> Dataset:
             for idx in range(chunk_start, chunk_end):
                 try:
                     sample = dataset[idx]
-                    converted_sample = convert_apigen_sample(sample)
+                    converted_sample = convert_apigen_sample(sample, idx)
                     if converted_sample:
                         chunk_rows.append(converted_sample)
                     else:
@@ -354,6 +387,8 @@ def process_dataset(dataset: Dataset, chunk_size: int = 1000) -> Dataset:
                 except Exception as e:
                     print(f"Error processing sample {idx}: {e}")
                     failed_count += 1
+                    # Crash after first error for debugging
+                    raise
                 
                 # Update progress bar
                 pbar.update(1)
