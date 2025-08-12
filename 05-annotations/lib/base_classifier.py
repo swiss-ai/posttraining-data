@@ -277,6 +277,7 @@ Examples:
         chunk_files = sorted(output_path.glob("chunk_*.json"))
         completed_chunks = []
         total_samples = 0
+        corrupted_files = []
         
         for chunk_file in chunk_files:
             try:
@@ -284,16 +285,56 @@ Examples:
                 chunk_name = chunk_file.stem  # e.g., "chunk_000003"
                 if chunk_name.startswith("chunk_"):
                     chunk_idx = int(chunk_name.split("_")[1])
-                    completed_chunks.append(chunk_idx)
                     
-                    # Count samples in this chunk
+                    # Verify file is not empty
+                    if chunk_file.stat().st_size == 0:
+                        print(f"⚠️ Warning: Chunk file {chunk_file.name} is empty, will reprocess")
+                        corrupted_files.append(chunk_file)
+                        continue
+                    
+                    # Validate JSON structure and count samples
                     with open(chunk_file, 'r') as f:
                         chunk_data = json.load(f)
+                        
+                        # Validate expected structure
+                        if not isinstance(chunk_data, dict):
+                            print(f"⚠️ Warning: Chunk file {chunk_file.name} has invalid structure, will reprocess")
+                            corrupted_files.append(chunk_file)
+                            continue
+                        
+                        if "samples" not in chunk_data or not isinstance(chunk_data["samples"], list):
+                            print(f"⚠️ Warning: Chunk file {chunk_file.name} missing valid samples, will reprocess")
+                            corrupted_files.append(chunk_file)
+                            continue
+                        
                         sample_count = chunk_data.get("sample_count", len(chunk_data.get("samples", [])))
+                        if sample_count == 0:
+                            print(f"⚠️ Warning: Chunk file {chunk_file.name} has no samples, will reprocess")
+                            corrupted_files.append(chunk_file)
+                            continue
+                        
+                        # File is valid, add to completed chunks
+                        completed_chunks.append(chunk_idx)
                         total_samples += sample_count
                         
+            except json.JSONDecodeError as e:
+                print(f"⚠️ Warning: Chunk file {chunk_file.name} contains invalid JSON: {e}")
+                print(f"  This chunk will be reprocessed")
+                corrupted_files.append(chunk_file)
             except Exception as e:
-                print(f"Warning: Failed to analyze chunk file {chunk_file}: {e}")
+                print(f"⚠️ Warning: Failed to analyze chunk file {chunk_file.name}: {e}")
+                print(f"  This chunk will be reprocessed")
+                corrupted_files.append(chunk_file)
+        
+        # Optionally remove corrupted files to avoid confusion
+        if corrupted_files:
+            print(f"\n⚠️ Found {len(corrupted_files)} corrupted chunk file(s)")
+            for corrupted_file in corrupted_files:
+                try:
+                    corrupted_file.unlink()
+                    print(f"  Removed corrupted file: {corrupted_file.name}")
+                except Exception as e:
+                    print(f"  Failed to remove corrupted file {corrupted_file.name}: {e}")
         
         return sorted(completed_chunks), total_samples
 
@@ -461,6 +502,24 @@ Examples:
                 print("No classification tasks found in this chunk")
                 # Save chunk even if no classification tasks (to preserve all samples)
                 self.save_incremental_results(output_path, chunk, chunk_idx, {})
+                
+                # Verify the chunk file was saved properly before marking as complete
+                chunk_file = output_path / f"chunk_{chunk_idx:06d}.json"
+                try:
+                    if chunk_file.exists() and chunk_file.stat().st_size > 0:
+                        with open(chunk_file, 'r') as f:
+                            chunk_data = json.load(f)
+                            if (isinstance(chunk_data, dict) and "samples" in chunk_data):
+                                completed_chunks.append(chunk_idx)
+                                self.save_progress(output_path, completed_chunks, model, total_chunks)
+                                print(f"✓ Chunk {chunk_idx + 1}/{total_chunks} (no tasks) saved and verified")
+                            else:
+                                print(f"⚠️ Warning: Chunk {chunk_idx + 1} file has invalid structure")
+                    else:
+                        print(f"⚠️ Warning: Chunk {chunk_idx + 1} file not saved properly")
+                except Exception as e:
+                    print(f"⚠️ Warning: Failed to verify chunk {chunk_idx + 1}: {e}")
+                
                 continue
             
             print(f"Found {len(chunk_tasks)} items to classify")
@@ -497,9 +556,30 @@ Examples:
             # Always save chunk results immediately
             self.save_incremental_results(output_path, updated_samples, chunk_idx, {})
             
-            # Save progress after successful chunk
-            completed_chunks.append(chunk_idx)
-            self.save_progress(output_path, completed_chunks, model, total_chunks)
+            # Verify the chunk file was actually written successfully before marking as complete
+            chunk_file = output_path / f"chunk_{chunk_idx:06d}.json"
+            try:
+                if chunk_file.exists() and chunk_file.stat().st_size > 0:
+                    # Verify the file contains valid JSON with expected structure
+                    with open(chunk_file, 'r') as f:
+                        chunk_data = json.load(f)
+                        if (isinstance(chunk_data, dict) and 
+                            "samples" in chunk_data and 
+                            isinstance(chunk_data["samples"], list) and
+                            len(chunk_data["samples"]) > 0):
+                            # File is valid, mark chunk as complete
+                            completed_chunks.append(chunk_idx)
+                            self.save_progress(output_path, completed_chunks, model, total_chunks)
+                            print(f"✓ Chunk {chunk_idx + 1}/{total_chunks} saved and verified successfully")
+                        else:
+                            print(f"⚠️ Warning: Chunk {chunk_idx + 1} file has invalid structure, not marking as complete")
+                            print(f"  Will need to reprocess this chunk on next run")
+                else:
+                    print(f"⚠️ Warning: Chunk {chunk_idx + 1} file not saved properly or is empty, not marking as complete")
+                    print(f"  Will need to reprocess this chunk on next run")
+            except (json.JSONDecodeError, Exception) as e:
+                print(f"⚠️ Warning: Failed to verify chunk {chunk_idx + 1} file: {e}")
+                print(f"  Chunk not marked as complete, will need to reprocess on next run")
         
         # Final dataset creation - always load from incremental files
         print(f"\nCombining incremental results...")
