@@ -583,14 +583,28 @@ Examples:
         
         # Final dataset creation - always load from incremental files
         print(f"\nCombining incremental results...")
-        all_samples = self.load_incremental_results(output_path, cleanup_files=True)
+        all_samples = self.load_incremental_results(output_path, cleanup_files=False)  # Don't cleanup yet!
         
         print(f"\nCreating output dataset with {len(all_samples):,} samples...")
-        output_dataset = Dataset.from_list(all_samples)
-        
-        # Save dataset
-        output_path.mkdir(parents=True, exist_ok=True)
-        output_dataset.save_to_disk(str(output_path))
+        try:
+            output_dataset = Dataset.from_list(all_samples)
+            
+            # Save dataset
+            output_path.mkdir(parents=True, exist_ok=True)
+            output_dataset.save_to_disk(str(output_path))
+            
+            # Only clean up chunks AFTER successful save
+            print("Cleaning up intermediate chunk files...")
+            chunk_files = sorted(output_path.glob("chunk_*.json"))
+            for chunk_file in chunk_files:
+                try:
+                    chunk_file.unlink()
+                except Exception:
+                    pass
+        except Exception as e:
+            print(f"\n❌ ERROR: Failed to create final dataset: {e}")
+            print(f"Chunk files preserved in {output_path} for debugging")
+            raise
         
         # Update metadata
         processing_stats = {

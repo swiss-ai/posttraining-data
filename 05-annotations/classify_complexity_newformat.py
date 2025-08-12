@@ -81,6 +81,29 @@ class ComplexityClassifier(BaseClassifier):
                     complexity_structure = json.loads(result.reasoning)
                     complexity_data = complexity_structure
                     
+                    # Validate and fix structure if needed
+                    for dimension in ["complexity", "completeness", "quality"]:
+                        if dimension in complexity_data and isinstance(complexity_data[dimension], dict):
+                            dim_data = complexity_data[dimension]
+                            
+                            # Check if score and reasoning are swapped
+                            if "score" in dim_data and isinstance(dim_data["score"], str) and len(dim_data["score"]) > 10:
+                                # Score field contains reasoning text - try to swap
+                                if "reasoning" in dim_data and isinstance(dim_data["reasoning"], (int, float)):
+                                    # They're swapped
+                                    dim_data["score"], dim_data["reasoning"] = dim_data["reasoning"], dim_data["score"]
+                                else:
+                                    # Score field has reasoning but reasoning field is also text or missing
+                                    # Try to extract a number from the score field
+                                    import re
+                                    score_match = re.search(r'\b([1-5])\b', str(dim_data.get("score", "")))
+                                    if score_match:
+                                        dim_data["reasoning"] = dim_data.get("score", "")
+                                        dim_data["score"] = int(score_match.group(1))
+                                    else:
+                                        # Can't extract score, mark as error
+                                        dim_data["score"] = "error"
+                    
                     # Get scores for computation BEFORE converting to strings
                     complexity_score = complexity_data.get("complexity", {}).get("score")
                     completeness_score = complexity_data.get("completeness", {}).get("score") 
@@ -116,16 +139,80 @@ class ComplexityClassifier(BaseClassifier):
                         if "score" in complexity_data["quality"]:
                             complexity_data["quality"]["score"] = str(complexity_data["quality"]["score"])
                         
-                except json.JSONDecodeError:
-                    complexity_data = {
-                        "error": "Failed to parse complexity JSON response",
-                        "raw_response": result.reasoning,
-                        "complexity": {"reasoning": "JSON parsing failed", "score": "error"},
-                        "completeness": {"reasoning": "JSON parsing failed", "score": "error"},
-                        "quality": {"reasoning": "JSON parsing failed", "score": "error"},
-                        "complexity_x_quality": "error",
-                        "complexity_x_quality_x_completeness": "error"
-                    }
+                except json.JSONDecodeError as e:
+                    # Try to extract JSON from response if it's embedded in text
+                    import re
+                    json_match = re.search(r'\{.*\}', result.reasoning, re.DOTALL)
+                    if json_match:
+                        try:
+                            # Try to parse the extracted JSON
+                            complexity_structure = json.loads(json_match.group())
+                            complexity_data = complexity_structure
+                            
+                            # Apply the same validation as above
+                            for dimension in ["complexity", "completeness", "quality"]:
+                                if dimension in complexity_data and isinstance(complexity_data[dimension], dict):
+                                    dim_data = complexity_data[dimension]
+                                    if "score" in dim_data and isinstance(dim_data["score"], str) and len(dim_data["score"]) > 10:
+                                        if "reasoning" in dim_data and isinstance(dim_data["reasoning"], (int, float)):
+                                            dim_data["score"], dim_data["reasoning"] = dim_data["reasoning"], dim_data["score"]
+                                        else:
+                                            score_match = re.search(r'\b([1-5])\b', str(dim_data.get("score", "")))
+                                            if score_match:
+                                                dim_data["reasoning"] = dim_data.get("score", "")
+                                                dim_data["score"] = int(score_match.group(1))
+                                            else:
+                                                dim_data["score"] = "error"
+                            
+                            # Get scores for computation
+                            complexity_score = complexity_data.get("complexity", {}).get("score")
+                            completeness_score = complexity_data.get("completeness", {}).get("score") 
+                            quality_score = complexity_data.get("quality", {}).get("score")
+                            
+                            # Compute combined scores
+                            try:
+                                complexity_int = int(complexity_score) if complexity_score is not None else None
+                                completeness_int = int(completeness_score) if completeness_score is not None else None
+                                quality_int = int(quality_score) if quality_score is not None else None
+                                
+                                if complexity_int is not None and completeness_int is not None and quality_int is not None:
+                                    complexity_data["complexity_x_quality"] = str(complexity_int * quality_int)
+                                    complexity_data["complexity_x_quality_x_completeness"] = str(complexity_int * quality_int * completeness_int)
+                                else:
+                                    complexity_data["complexity_x_quality"] = "error"
+                                    complexity_data["complexity_x_quality_x_completeness"] = "error"
+                            except (ValueError, TypeError):
+                                complexity_data["complexity_x_quality"] = "error"
+                                complexity_data["complexity_x_quality_x_completeness"] = "error"
+                            
+                            # Convert scores to strings
+                            for dimension in ["complexity", "completeness", "quality"]:
+                                if dimension in complexity_data and isinstance(complexity_data[dimension], dict):
+                                    if "score" in complexity_data[dimension]:
+                                        complexity_data[dimension]["score"] = str(complexity_data[dimension]["score"])
+                                        
+                        except json.JSONDecodeError:
+                            # Still failed to parse even extracted JSON
+                            complexity_data = {
+                                "error": f"Failed to parse complexity JSON response: {e}",
+                                "raw_response": result.reasoning[:500],  # Truncate long responses
+                                "complexity": {"reasoning": "JSON parsing failed", "score": "error"},
+                                "completeness": {"reasoning": "JSON parsing failed", "score": "error"},
+                                "quality": {"reasoning": "JSON parsing failed", "score": "error"},
+                                "complexity_x_quality": "error",
+                                "complexity_x_quality_x_completeness": "error"
+                            }
+                    else:
+                        # No JSON found at all
+                        complexity_data = {
+                            "error": "No valid JSON found in response",
+                            "raw_response": result.reasoning[:500],  # Truncate long responses
+                            "complexity": {"reasoning": "No JSON found", "score": "error"},
+                            "completeness": {"reasoning": "No JSON found", "score": "error"},
+                            "quality": {"reasoning": "No JSON found", "score": "error"},
+                            "complexity_x_quality": "error",
+                            "complexity_x_quality_x_completeness": "error"
+                        }
             else:
                 # Classification failed - provide error structure matching expected format
                 error_msg = result.error if result.error else "Complexity assessment failed"

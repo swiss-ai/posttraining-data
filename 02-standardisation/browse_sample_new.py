@@ -221,7 +221,24 @@ def pretty_print_sample(sample: dict, sample_idx: int = 0, total_samples: int = 
                     
                     # Print metadata if available
                     if part.get('metadata'):
-                        print(f"{branch_line} {msg_line} │  {part_line} Metadata: {len(part['metadata'])} fields")
+                        print(f"{branch_line} {msg_line} │  {part_line}")
+                        print(f"{branch_line} {msg_line} │  {part_line} ├─ Metadata ({len(part['metadata'])} fields):")
+                        def print_part_nested_dict(d, indent=""):
+                            items = list(d.items())
+                            for i, (key, value) in enumerate(items):
+                                is_last_item = i == len(items) - 1
+                                if isinstance(value, dict):
+                                    print(f"{branch_line} {msg_line} │  {part_line} │  {indent}├─ {key}:")
+                                    print_part_nested_dict(value, indent + "│  ")
+                                else:
+                                    connector = "└─" if is_last_item else "├─"
+                                    if isinstance(value, str) and len(value) > 100:
+                                        # Truncate long strings
+                                        print(f"{branch_line} {msg_line} │  {part_line} │  {indent}{connector} {key}: {value[:100]}...")
+                                    else:
+                                        print(f"{branch_line} {msg_line} │  {part_line} │  {indent}{connector} {key}: {value}")
+                        print_part_nested_dict(part['metadata'])
+                        print(f"{branch_line} {msg_line} │  {part_line} └─")
                 else:
                     # Fallback for unexpected format
                     print(f"{branch_line} {msg_line} │  {part_connector} {part}")
