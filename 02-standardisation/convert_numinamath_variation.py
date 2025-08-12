@@ -285,6 +285,17 @@ def parse_sample(row: Dict[str, Any]) -> Dict[str, Any]:
         # Add the answer as response
         parts.append(make_part("response", assistant_text))
         
+        # Add verifiable-responses if we have a verifiable answer
+        if verifiable_answer:
+            parts.append({
+                "type": "verifiable-responses",
+                "answers": [verifiable_answer],
+                "content": "",
+                "metadata": {},
+                "name": "",
+                "args": ""
+            })
+        
         messages.append({
             "role": "assistant",
             "parts": parts
