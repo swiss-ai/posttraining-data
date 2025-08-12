@@ -185,8 +185,42 @@ def get_random_answer_format(answer: str) -> str:
     format_template = random.choice(ANSWER_FORMATS)
     label = random.choice(LABELS)
     
-    # Make label lowercase if it's not at the start of a sentence
-    if not format_template.startswith("The ") and not format_template.startswith("I ") and not format_template.startswith("By ") and not format_template.startswith("After ") and not format_template.startswith("Plainly ") and not format_template.startswith("In ") and not format_template.startswith("Strictly "):
+    # Check if the label appears at the beginning of the sentence or in the middle
+    # Look for patterns like "The {label}", "I conclude the {label}", etc.
+    sentence_start_patterns = [
+        "The {label}",
+        "I conclude the {label}",
+        "By inspection, the {label}",
+        "After analysis, the {label}",
+        "Plainly put, the {label}",
+        "In summary, the {label}",
+        "Strictly speaking, the {label}",
+        "The computed {label}",
+        "The derived {label}",
+        "The final {label}",
+        "The resulting {label}",
+        "The {label} is:",
+        "{label} ⇒",
+        "{label} →",
+        "{label} —",
+        "{label} =",
+        "{label}:"
+    ]
+    
+    # Check if this format template matches any sentence-start pattern
+    # For patterns that start with {label}, we need to check differently
+    is_sentence_start = False
+    
+    # Check for patterns that start with {label}
+    label_start_patterns = ["{label} ⇒", "{label} →", "{label} —", "{label} =", "{label}:"]
+    if any(pattern in format_template for pattern in label_start_patterns):
+        is_sentence_start = True
+    else:
+        # Check for other sentence-start patterns
+        is_sentence_start = any(pattern.format(label="PLACEHOLDER") in format_template for pattern in sentence_start_patterns)
+    
+    # If it's not a sentence start pattern, make label lowercase
+    if not is_sentence_start:
         label = label.lower()
     
     return format_template.format(label=label, answer=answer)
@@ -238,13 +272,22 @@ def parse_sample(row: Dict[str, Any]) -> Dict[str, Any]:
         reasoning = solution
         verifiable_answer = answer
     
-    # Create messages - assistant message with only the response
+    # Create messages - assistant message with reasoning and response
     messages = []
     
     if assistant_text:
+        parts = []
+        
+        # Add reasoning as THOUGHT if it exists
+        if reasoning:
+            parts.append(make_part("thought", reasoning))
+        
+        # Add the answer as response
+        parts.append(make_part("response", assistant_text))
+        
         messages.append({
             "role": "assistant",
-            "parts": [make_part("response", assistant_text)]
+            "parts": parts
         })
     
     return {
@@ -259,7 +302,6 @@ def parse_sample(row: Dict[str, Any]) -> Dict[str, Any]:
                 "answer": answer,
                 "source": row.get("source", ""),
                 "synthetic": row.get("synthetic", False),
-                "reasoning": reasoning,
                 "verifiable_answer": verifiable_answer
             }
         },
@@ -282,7 +324,6 @@ def convert_row(row: Dict[str, Any], idx: int) -> Dict[str, Any]:
             "synthetic": row.get("synthetic", False),
             "problem_is_valid": row.get("problem_is_valid", ""),
             "solution_is_valid": row.get("solution_is_valid", ""),
-            "reasoning": p["initial"]["metadata"]["reasoning"],
             "verifiable_answer": p["initial"]["metadata"]["verifiable_answer"]
         },
         "system_prompt": {"content": p["system"], "metadata": {}},

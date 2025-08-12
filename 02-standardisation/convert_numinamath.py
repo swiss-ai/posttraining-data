@@ -179,13 +179,22 @@ def parse_sample(row: Dict[str, Any]) -> Dict[str, Any]:
         reasoning = solution
         verifiable_answer = answer
     
-    # Create messages - assistant message with only the response
+    # Create messages - assistant message with reasoning and response
     messages = []
     
     if assistant_text:
+        parts = []
+        
+        # Add reasoning as THOUGHT if it exists
+        if reasoning:
+            parts.append(make_part("thought", reasoning))
+        
+        # Add the answer as response
+        parts.append(make_part("response", assistant_text))
+        
         messages.append({
             "role": "assistant",
-            "parts": [make_part("response", assistant_text)]
+            "parts": parts
         })
     
     return {
@@ -200,7 +209,6 @@ def parse_sample(row: Dict[str, Any]) -> Dict[str, Any]:
                 "answer": answer,
                 "source": row.get("source", ""),
                 "synthetic": row.get("synthetic", False),
-                "reasoning": reasoning,
                 "verifiable_answer": verifiable_answer
             }
         },
@@ -223,7 +231,6 @@ def convert_row(row: Dict[str, Any], idx: int) -> Dict[str, Any]:
             "synthetic": row.get("synthetic", False),
             "problem_is_valid": row.get("problem_is_valid", ""),
             "solution_is_valid": row.get("solution_is_valid", ""),
-            "reasoning": p["initial"]["metadata"]["reasoning"],
             "verifiable_answer": p["initial"]["metadata"]["verifiable_answer"]
         },
         "system_prompt": {"content": p["system"], "metadata": {}},
