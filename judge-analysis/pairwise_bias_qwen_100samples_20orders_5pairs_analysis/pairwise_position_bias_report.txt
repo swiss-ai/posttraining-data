@@ -1,0 +1,121 @@
+PAIRWISE POSITION BIAS ANALYSIS REPORT
+==================================================
+
+TEST METADATA
+---------------
+Judge model: Qwen/Qwen3-32B
+Total test cases: 20000
+Successful test cases: 20000
+Failed test cases: 0
+Reasoning modes tested: no_reasoning
+Unique samples tested: 100
+Orderings per sample: 20
+Unique pairs tested: 10000
+Pairs per ordering: 5
+
+OVERALL WINNER PREFERENCES
+------------------------------
+Total comparisons analyzed: 20000
+Expected uniform percentage: 50.0%
+
+Winner preferences:
+  Winner first_mentioned: 11527 comparisons (57.64%)
+  Winner second_mentioned: 8473 comparisons (42.36%)
+
+Uniformity test (Chi-square):
+  Chi-square statistic: 466.3458
+  P-value: 0.0
+  Is uniform distribution: No
+
+BIAS INDICATORS
+---------------
+Overall winner bias:
+  First-mentioned wins: 57.64%
+  Second-mentioned wins: 42.36%
+  Significantly biased: Yes
+  Bias direction: first_mentioned
+
+Question order bias:
+  Original order chooses first-mentioned: 57.70%
+  Reversed order chooses first-mentioned: 57.57%
+  Order effect magnitude: 0.13%
+  Significant order effect: No
+
+QUESTION ORDER EFFECTS
+----------------------
+
+original_order:
+  Total comparisons: 10000
+  Winner preferences:
+    Winner first_mentioned: 5770 (57.70%)
+    Winner second_mentioned: 4230 (42.30%)
+
+reversed_order:
+  Total comparisons: 10000
+  Winner preferences:
+    Winner first_mentioned: 5757 (57.57%)
+    Winner second_mentioned: 4243 (42.43%)
+
+POSITION DISTANCE EFFECTS
+-------------------------
+
+Distance 1:
+  Total comparisons: 4084
+  Winner preferences:
+    Winner first_mentioned: 2410 (59.01%)
+    Winner second_mentioned: 1674 (40.99%)
+
+Distance 2:
+  Total comparisons: 3642
+  Winner preferences:
+    Winner first_mentioned: 2115 (58.07%)
+    Winner second_mentioned: 1527 (41.93%)
+
+Distance 3:
+  Total comparisons: 3066
+  Winner preferences:
+    Winner first_mentioned: 1823 (59.46%)
+    Winner second_mentioned: 1243 (40.54%)
+
+Distance 4:
+  Total comparisons: 2568
+  Winner preferences:
+    Winner first_mentioned: 1451 (56.50%)
+    Winner second_mentioned: 1117 (43.50%)
+
+Distance 5:
+  Total comparisons: 2108
+  Winner preferences:
+    Winner first_mentioned: 1124 (53.32%)
+    Winner second_mentioned: 984 (46.68%)
+
+Distance 6:
+  Total comparisons: 1782
+  Winner preferences:
+    Winner first_mentioned: 1022 (57.35%)
+    Winner second_mentioned: 760 (42.65%)
+
+Distance 7:
+  Total comparisons: 1332
+  Winner preferences:
+    Winner first_mentioned: 767 (57.58%)
+    Winner second_mentioned: 565 (42.42%)
+
+Distance 8:
+  Total comparisons: 926
+  Winner preferences:
+    Winner first_mentioned: 530 (57.24%)
+    Winner second_mentioned: 396 (42.76%)
+
+Distance 9:
+  Total comparisons: 492
+  Winner preferences:
+    Winner first_mentioned: 285 (57.93%)
+    Winner second_mentioned: 207 (42.07%)
+
+CONSISTENCY ANALYSIS
+--------------------
+Mean consistency rate: 0.943
+Median consistency rate: 0.945
+Range: 0.815 - 0.995
+Standard deviation: 0.029

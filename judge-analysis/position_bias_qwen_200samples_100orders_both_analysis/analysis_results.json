@@ -1,0 +1,125 @@
+{
+  "test_metadata": {
+    "judge_model": "Qwen/Qwen3-32B",
+    "total_test_cases": 40000,
+    "successful_test_cases": 40000,
+    "failed_test_cases": 0,
+    "reasoning_modes_tested": [
+      "no_reasoning",
+      "with_reasoning"
+    ],
+    "sample_ids_count": 200,
+    "orderings_per_sample": 100
+  },
+  "overall_position_preferences": {
+    "counts": {
+      "1": 7201,
+      "2": 5908,
+      "3": 5643,
+      "4": 4377,
+      "5": 3438,
+      "6": 2930,
+      "7": 2875,
+      "8": 2996,
+      "9": 2435,
+      "10": 2197
+    },
+    "percentages": {
+      "1": 18.0,
+      "2": 14.77,
+      "3": 14.11,
+      "4": 10.94,
+      "5": 8.6,
+      "6": 7.32,
+      "7": 7.19,
+      "8": 7.49,
+      "9": 6.09,
+      "10": 5.49
+    },
+    "total_choices": 40000
+  },
+  "expected_uniform_percentage": 10.0,
+  "uniformity_test": {
+    "chi2_statistic": 6540.7155,
+    "p_value": 0.0,
+    "is_uniform": false
+  },
+  "by_reasoning_mode": {
+    "with_reasoning": {
+      "counts": {
+        "1": 3580,
+        "2": 2878,
+        "3": 2816,
+        "4": 2312,
+        "5": 1721,
+        "6": 1449,
+        "7": 1418,
+        "8": 1497,
+        "9": 1197,
+        "10": 1132
+      },
+      "percentages": {
+        "1": 17.9,
+        "2": 14.39,
+        "3": 14.08,
+        "4": 11.56,
+        "5": 8.6,
+        "6": 7.24,
+        "7": 7.09,
+        "8": 7.48,
+        "9": 5.98,
+        "10": 5.66
+      },
+      "total_choices": 20000
+    },
+    "no_reasoning": {
+      "counts": {
+        "1": 3621,
+        "2": 3030,
+        "3": 2827,
+        "4": 2065,
+        "5": 1717,
+        "6": 1481,
+        "7": 1457,
+        "8": 1499,
+        "9": 1238,
+        "10": 1065
+      },
+      "percentages": {
+        "1": 18.1,
+        "2": 15.15,
+        "3": 14.14,
+        "4": 10.32,
+        "5": 8.58,
+        "6": 7.4,
+        "7": 7.28,
+        "8": 7.5,
+        "9": 6.19,
+        "10": 5.32
+      },
+      "total_choices": 20000
+    }
+  },
+  "consistency_stats": {
+    "mean_consistency": 0.202,
+    "median_consistency": 0.19,
+    "min_consistency": 0.13,
+    "max_consistency": 0.41,
+    "std_consistency": 0.049
+  },
+  "bias_indicators": {
+    "primacy_bias": {
+      "first_position_percentage": 18.0,
+      "is_significantly_high": true
+    },
+    "recency_bias": {
+      "last_position_percentage": 5.49,
+      "is_significantly_high": false
+    },
+    "middle_bias": {
+      "middle_positions_percentage": 76.51,
+      "expected_middle_percentage": 80.0,
+      "is_significantly_high": false
+    }
+  }
+}

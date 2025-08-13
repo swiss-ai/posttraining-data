@@ -1,0 +1,87 @@
+POSITION BIAS ANALYSIS REPORT
+==================================================
+
+TEST METADATA
+---------------
+Judge model: Qwen/Qwen3-32B
+Total test cases: 40000
+Successful test cases: 40000
+Failed test cases: 0
+Reasoning modes tested: no_reasoning, with_reasoning
+Unique samples tested: 200
+Orderings per sample: 100
+
+OVERALL POSITION PREFERENCES
+------------------------------
+Total choices analyzed: 40000
+Expected uniform percentage: 10.00%
+
+Position preferences:
+  Position 1: 7201 choices (18.00%)
+  Position 2: 5908 choices (14.77%)
+  Position 3: 5643 choices (14.11%)
+  Position 4: 4377 choices (10.94%)
+  Position 5: 3438 choices (8.60%)
+  Position 6: 2930 choices (7.32%)
+  Position 7: 2875 choices (7.19%)
+  Position 8: 2996 choices (7.49%)
+  Position 9: 2435 choices (6.09%)
+  Position 10: 2197 choices (5.49%)
+
+Uniformity test (Chi-square):
+  Chi-square statistic: 6540.7155
+  P-value: 0.0
+  Is uniform distribution: No
+
+BIAS INDICATORS
+---------------
+Primacy bias (first position preference):
+  First position percentage: 18.00%
+  Significantly high: Yes
+
+Recency bias (last position preference):
+  Last position percentage: 5.49%
+  Significantly high: No
+
+Middle bias (middle positions preference):
+  Middle positions percentage: 76.51%
+  Expected middle percentage: 80.00%
+  Significantly high: No
+
+CONSISTENCY ANALYSIS
+--------------------
+Mean consistency rate: 0.202
+Median consistency rate: 0.190
+Range: 0.130 - 0.410
+Standard deviation: 0.049
+
+BY REASONING MODE
+-----------------
+
+With Reasoning:
+  Total choices: 20000
+  Position preferences:
+    Position 1: 3580 (17.90%)
+    Position 2: 2878 (14.39%)
+    Position 3: 2816 (14.08%)
+    Position 4: 2312 (11.56%)
+    Position 5: 1721 (8.60%)
+    Position 6: 1449 (7.24%)
+    Position 7: 1418 (7.09%)
+    Position 8: 1497 (7.48%)
+    Position 9: 1197 (5.98%)
+    Position 10: 1132 (5.66%)
+
+No Reasoning:
+  Total choices: 20000
+  Position preferences:
+    Position 1: 3621 (18.10%)
+    Position 2: 3030 (15.15%)
+    Position 3: 2827 (14.14%)
+    Position 4: 2065 (10.32%)
+    Position 5: 1717 (8.58%)
+    Position 6: 1481 (7.40%)
+    Position 7: 1457 (7.28%)
+    Position 8: 1499 (7.50%)
+    Position 9: 1238 (6.19%)
+    Position 10: 1065 (5.32%)

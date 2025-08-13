@@ -1,0 +1,413 @@
+{
+  "test_metadata": {
+    "judge_model": "Qwen/Qwen3-32B",
+    "total_test_cases": 20000,
+    "successful_test_cases": 20000,
+    "failed_test_cases": 0,
+    "reasoning_modes_tested": [
+      "no_reasoning"
+    ],
+    "sample_ids_count": 100,
+    "orderings_per_sample": 20,
+    "unique_pairs_tested": 10000,
+    "pairs_per_ordering": 5
+  },
+  "overall_winner_preferences": {
+    "counts": {
+      "first_mentioned": 11527,
+      "second_mentioned": 8473
+    },
+    "percentages": {
+      "first_mentioned": 57.64,
+      "second_mentioned": 42.36
+    },
+    "total_comparisons": 20000
+  },
+  "expected_uniform_percentage": 50.0,
+  "uniformity_test": {
+    "chi2_statistic": 466.3458,
+    "p_value": 0.0,
+    "is_uniform": false
+  },
+  "question_order_effects": {
+    "original_order": {
+      "counts": {
+        "first_mentioned": 5770,
+        "second_mentioned": 4230
+      },
+      "percentages": {
+        "first_mentioned": 57.7,
+        "second_mentioned": 42.3
+      },
+      "total_comparisons": 10000
+    },
+    "reversed_order": {
+      "counts": {
+        "first_mentioned": 5757,
+        "second_mentioned": 4243
+      },
+      "percentages": {
+        "first_mentioned": 57.57,
+        "second_mentioned": 42.43
+      },
+      "total_comparisons": 10000
+    }
+  },
+  "position_distance_effects": {
+    "1": {
+      "counts": {
+        "first_mentioned": 2410,
+        "second_mentioned": 1674
+      },
+      "percentages": {
+        "first_mentioned": 59.01,
+        "second_mentioned": 40.99
+      },
+      "total_comparisons": 4084
+    },
+    "2": {
+      "counts": {
+        "first_mentioned": 2115,
+        "second_mentioned": 1527
+      },
+      "percentages": {
+        "first_mentioned": 58.07,
+        "second_mentioned": 41.93
+      },
+      "total_comparisons": 3642
+    },
+    "3": {
+      "counts": {
+        "first_mentioned": 1823,
+        "second_mentioned": 1243
+      },
+      "percentages": {
+        "first_mentioned": 59.46,
+        "second_mentioned": 40.54
+      },
+      "total_comparisons": 3066
+    },
+    "4": {
+      "counts": {
+        "first_mentioned": 1451,
+        "second_mentioned": 1117
+      },
+      "percentages": {
+        "first_mentioned": 56.5,
+        "second_mentioned": 43.5
+      },
+      "total_comparisons": 2568
+    },
+    "5": {
+      "counts": {
+        "first_mentioned": 1124,
+        "second_mentioned": 984
+      },
+      "percentages": {
+        "first_mentioned": 53.32,
+        "second_mentioned": 46.68
+      },
+      "total_comparisons": 2108
+    },
+    "6": {
+      "counts": {
+        "first_mentioned": 1022,
+        "second_mentioned": 760
+      },
+      "percentages": {
+        "first_mentioned": 57.35,
+        "second_mentioned": 42.65
+      },
+      "total_comparisons": 1782
+    },
+    "7": {
+      "counts": {
+        "first_mentioned": 767,
+        "second_mentioned": 565
+      },
+      "percentages": {
+        "first_mentioned": 57.58,
+        "second_mentioned": 42.42
+      },
+      "total_comparisons": 1332
+    },
+    "8": {
+      "counts": {
+        "first_mentioned": 530,
+        "second_mentioned": 396
+      },
+      "percentages": {
+        "first_mentioned": 57.24,
+        "second_mentioned": 42.76
+      },
+      "total_comparisons": 926
+    },
+    "9": {
+      "counts": {
+        "first_mentioned": 285,
+        "second_mentioned": 207
+      },
+      "percentages": {
+        "first_mentioned": 57.93,
+        "second_mentioned": 42.07
+      },
+      "total_comparisons": 492
+    }
+  },
+  "absolute_position_effects": {
+    "first_mentioned_position": {
+      "1": {
+        "counts": {
+          "second_mentioned": 2056,
+          "first_mentioned": 2036
+        },
+        "percentages": {
+          "second_mentioned": 50.24,
+          "first_mentioned": 49.76
+        },
+        "total_comparisons": 4092,
+        "first_mentioned_win_rate": 49.75562072336266
+      },
+      "2": {
+        "counts": {
+          "first_mentioned": 2084,
+          "second_mentioned": 1478
+        },
+        "percentages": {
+          "first_mentioned": 58.51,
+          "second_mentioned": 41.49
+        },
+        "total_comparisons": 3562,
+        "first_mentioned_win_rate": 58.50645704660303
+      },
+      "3": {
+        "counts": {
+          "first_mentioned": 1816,
+          "second_mentioned": 1256
+        },
+        "percentages": {
+          "first_mentioned": 59.11,
+          "second_mentioned": 40.89
+        },
+        "total_comparisons": 3072,
+        "first_mentioned_win_rate": 59.114583333333336
+      },
+      "4": {
+        "counts": {
+          "first_mentioned": 1498,
+          "second_mentioned": 1076
+        },
+        "percentages": {
+          "first_mentioned": 58.2,
+          "second_mentioned": 41.8
+        },
+        "total_comparisons": 2574,
+        "first_mentioned_win_rate": 58.1973581973582
+      },
+      "5": {
+        "counts": {
+          "first_mentioned": 1280,
+          "second_mentioned": 860
+        },
+        "percentages": {
+          "first_mentioned": 59.81,
+          "second_mentioned": 40.19
+        },
+        "total_comparisons": 2140,
+        "first_mentioned_win_rate": 59.813084112149525
+      },
+      "6": {
+        "counts": {
+          "first_mentioned": 1059,
+          "second_mentioned": 721
+        },
+        "percentages": {
+          "first_mentioned": 59.49,
+          "second_mentioned": 40.51
+        },
+        "total_comparisons": 1780,
+        "first_mentioned_win_rate": 59.49438202247192
+      },
+      "7": {
+        "counts": {
+          "first_mentioned": 857,
+          "second_mentioned": 509
+        },
+        "percentages": {
+          "first_mentioned": 62.74,
+          "second_mentioned": 37.26
+        },
+        "total_comparisons": 1366,
+        "first_mentioned_win_rate": 62.73792093704246
+      },
+      "8": {
+        "counts": {
+          "first_mentioned": 575,
+          "second_mentioned": 353
+        },
+        "percentages": {
+          "first_mentioned": 61.96,
+          "second_mentioned": 38.04
+        },
+        "total_comparisons": 928,
+        "first_mentioned_win_rate": 61.96120689655172
+      },
+      "9": {
+        "counts": {
+          "first_mentioned": 322,
+          "second_mentioned": 164
+        },
+        "percentages": {
+          "first_mentioned": 66.26,
+          "second_mentioned": 33.74
+        },
+        "total_comparisons": 486,
+        "first_mentioned_win_rate": 66.2551440329218
+      }
+    },
+    "second_mentioned_position": {
+      "2": {
+        "counts": {
+          "second_mentioned": 277,
+          "first_mentioned": 155
+        },
+        "percentages": {
+          "second_mentioned": 64.12,
+          "first_mentioned": 35.88
+        },
+        "total_comparisons": 432,
+        "second_mentioned_win_rate": 64.12037037037037
+      },
+      "3": {
+        "counts": {
+          "first_mentioned": 518,
+          "second_mentioned": 410
+        },
+        "percentages": {
+          "first_mentioned": 55.82,
+          "second_mentioned": 44.18
+        },
+        "total_comparisons": 928,
+        "second_mentioned_win_rate": 44.18103448275862
+      },
+      "4": {
+        "counts": {
+          "first_mentioned": 781,
+          "second_mentioned": 581
+        },
+        "percentages": {
+          "first_mentioned": 57.34,
+          "second_mentioned": 42.66
+        },
+        "total_comparisons": 1362,
+        "second_mentioned_win_rate": 42.65785609397944
+      },
+      "5": {
+        "counts": {
+          "first_mentioned": 1011,
+          "second_mentioned": 743
+        },
+        "percentages": {
+          "first_mentioned": 57.64,
+          "second_mentioned": 42.36
+        },
+        "total_comparisons": 1754,
+        "second_mentioned_win_rate": 42.36031927023946
+      },
+      "6": {
+        "counts": {
+          "first_mentioned": 1212,
+          "second_mentioned": 968
+        },
+        "percentages": {
+          "first_mentioned": 55.6,
+          "second_mentioned": 44.4
+        },
+        "total_comparisons": 2180,
+        "second_mentioned_win_rate": 44.403669724770644
+      },
+      "7": {
+        "counts": {
+          "first_mentioned": 1498,
+          "second_mentioned": 1246
+        },
+        "percentages": {
+          "first_mentioned": 54.59,
+          "second_mentioned": 45.41
+        },
+        "total_comparisons": 2744,
+        "second_mentioned_win_rate": 45.40816326530612
+      },
+      "8": {
+        "counts": {
+          "first_mentioned": 1749,
+          "second_mentioned": 1223
+        },
+        "percentages": {
+          "first_mentioned": 58.85,
+          "second_mentioned": 41.15
+        },
+        "total_comparisons": 2972,
+        "second_mentioned_win_rate": 41.1507402422611
+      },
+      "9": {
+        "counts": {
+          "first_mentioned": 2089,
+          "second_mentioned": 1423
+        },
+        "percentages": {
+          "first_mentioned": 59.48,
+          "second_mentioned": 40.52
+        },
+        "total_comparisons": 3512,
+        "second_mentioned_win_rate": 40.518223234624145
+      },
+      "10": {
+        "counts": {
+          "first_mentioned": 2514,
+          "second_mentioned": 1602
+        },
+        "percentages": {
+          "first_mentioned": 61.08,
+          "second_mentioned": 38.92
+        },
+        "total_comparisons": 4116,
+        "second_mentioned_win_rate": 38.921282798833815
+      }
+    }
+  },
+  "by_reasoning_mode": {
+    "no_reasoning": {
+      "counts": {
+        "first_mentioned": 11527,
+        "second_mentioned": 8473
+      },
+      "percentages": {
+        "first_mentioned": 57.64,
+        "second_mentioned": 42.36
+      },
+      "total_comparisons": 20000
+    }
+  },
+  "consistency_stats": {
+    "mean_consistency": 0.943,
+    "median_consistency": 0.945,
+    "min_consistency": 0.815,
+    "max_consistency": 0.995,
+    "std_consistency": 0.029
+  },
+  "bias_indicators": {
+    "winner_bias": {
+      "first_mentioned_percentage": 57.64,
+      "second_mentioned_percentage": 42.36,
+      "is_significantly_biased": true,
+      "bias_direction": "first_mentioned"
+    },
+    "question_order_bias": {
+      "original_order_chooses_first": 57.7,
+      "reversed_order_chooses_first": 57.57,
+      "order_effect_magnitude": 0.13000000000000256,
+      "has_significant_order_effect": false
+    }
+  }
+}
