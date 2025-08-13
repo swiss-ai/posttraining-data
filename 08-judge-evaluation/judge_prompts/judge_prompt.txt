@@ -1,0 +1,43 @@
+## Instructions
+
+1. **Read all responses carefully** and understand what the user is asking for.
+
+2. **Analyze each comparison pair** using the evaluation criteria from the charter above.
+
+3. **For each comparison**, determine which response better serves the user according to the quality principles outlined.
+
+4. **Provide your reasoning** explaining your overall analysis and the key factors that influenced your decisions.
+
+5. **Make your choices** by specifying which lettered response (A, B, C, D, etc.) you prefer for each comparison.
+
+## Preferrences
+{charter}
+
+## User's Question
+{initial_prompt}
+
+## AI Assistant Responses
+{completions}
+
+## Comparisons to Make
+{comparisons}
+
+## Required Response Format
+
+You must respond with a JSON object containing:
+- "reasoning": Your detailed analysis explaining your evaluation approach and key decision factors
+- "preferences": A list of preference objects, one for each comparison
+
+Example format:
+```json
+{{
+  "reasoning": "I evaluated these responses based on accuracy, completeness, and practical utility. Response A provides more comprehensive technical details while Response B offers clearer step-by-step guidance. For the specific context of this user's question...",
+  "preferences": [
+    {{"option1": "A", "option2": "C", "winner": "C"}},
+    {{"option1": "B", "option2": "D", "winner": "B"}},
+    {{"option1": "A", "option2": "B", "winner": "A"}}
+  ]
+}}
+```
+
+**Important**: You must choose exactly one winner (A, B, C, D, etc.) for each comparison. No ties, no "both are equal" - make a definitive choice based on which response better serves the user's needs.
