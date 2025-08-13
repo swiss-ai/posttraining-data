@@ -331,7 +331,7 @@ def parse_args():
     p = argparse.ArgumentParser(description="Convert dataset to messages[*].parts schema (assistant/user/system)")
     p.add_argument("input_path", help="Path to dataset saved via datasets.save_to_disk")
     p.add_argument("--output", "-o", required=True,
-                   help="Output dir (if ends with '/', appends '<input>-thinkPromoted')")
+                   help="Output dir (if ends with '/', appends '<input>-ThinkFormatted')")
     p.add_argument("--batch-size", type=int, default=10000)
     p.add_argument("--num-proc", type=int, default=8)
     p.add_argument("--limit", type=int, default=None, help="Process first N rows of each split")
@@ -343,7 +343,7 @@ def main():
     if not in_path.exists():
         sys.exit(f"Input path not found: {in_path}")
 
-    out_path = (Path(args.output) / f"{in_path.name}-thinkPromoted"
+    out_path = (Path(args.output) / f"{in_path.name}-ThinkFormatted"
                 if args.output.endswith("/") else Path(args.output))
     if out_path.exists():
         if input(f"{out_path} exists. Overwrite? [y/N]: ").lower() != "y":
