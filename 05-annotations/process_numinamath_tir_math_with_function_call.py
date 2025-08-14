@@ -68,17 +68,34 @@ def _ensure_metadata(d: Dict[str, Any]) -> Dict[str, Any]:
 def _strip(s: Any) -> str:
     return s.strip() if isinstance(s, str) else ""
 
+def contains_bash_code_blocks(text: str) -> bool:
+    """Check if text contains bash code blocks that should be filtered out."""
+    return "```bash" in text
+
+def should_filter_sample(sample: Dict[str, Any]) -> bool:
+    """Check if a sample should be filtered out due to bash code blocks."""
+    conversation_branches = sample.get("conversation_branches", [])
+    
+    for branch in conversation_branches:
+        messages = branch.get("messages", [])
+        for msg in messages:
+            content = msg.get("content", "")
+            if isinstance(content, str) and contains_bash_code_blocks(content):
+                return True
+    return False
+
 def _create_unified_part(part_type: str, 
                          content: str = "", 
                          name: str = "", 
                          args: Any = None,
                          metadata: Optional[Dict] = None) -> Dict[str, Any]:
     """Create a part with unified schema for Arrow compatibility."""
-    # Convert args to proper format
+    # Convert args to proper format with encoding preservation
     if args is None:
         args_str = ""
     elif isinstance(args, dict):
-        args_str = json.dumps(args) if args else ""
+        # Use ensure_ascii=False to preserve Unicode characters
+        args_str = json.dumps(args, ensure_ascii=False) if args else ""
     else:
         args_str = str(args) if args else ""
     
@@ -131,8 +148,8 @@ def pick_split(ds):
 def assistant_parts_from_string(text: Optional[str], debug: bool = False) -> List[Dict[str, Any]]:
     """
     Parse assistant free-text for ```python ...``` and ```output ...``` fences.
-    Emit parts in order. Only these two languages are treated as tools.
-    Unknown fences are kept as visible response (fenced block included).
+    Emit parts in order. Only python fences that are followed by output fences are treated as tools.
+    Unknown fences (plaintext, markdown, etc.) are kept as visible response (fenced block included).
     """
     s = text or ""
     parts: List[Dict[str, Any]] = []
@@ -142,13 +159,14 @@ def assistant_parts_from_string(text: Optional[str], debug: bool = False) -> Lis
         print(f"DEBUG: Processing text of length {len(s)}")
         print(f"DEBUG: Text preview: {repr(s[:200])}")
 
-    for m in FENCE.finditer(s):
+    # Find all fence matches
+    fence_matches = list(FENCE.finditer(s))
+    
+    for i, m in enumerate(fence_matches):
         start = m.start(0)
         end = m.end(0)
         lang = (m.group(1) or "").lower()
-        body = _strip(m.group(2))
-        
-
+        body = m.group(2)  # Don't strip - preserve original content
 
         # preamble text before fence
         pre = _strip(s[pos:start])
@@ -156,19 +174,34 @@ def assistant_parts_from_string(text: Optional[str], debug: bool = False) -> Lis
             parts.append(_create_unified_part("response", content=pre))
 
         if lang == "python":
-            # Create function call with actual code as argument
-            parts.append(_create_unified_part(
-                "function-call",
-                name="execute_python",
-                args={"code": body}
-            ))
+            # Check if this python block is followed by an output block
+            has_output_after = False
+            if i + 1 < len(fence_matches):
+                next_match = fence_matches[i + 1]
+                next_lang = (next_match.group(1) or "").lower()
+                if next_lang == "output":
+                    has_output_after = True
+            
+            if has_output_after:
+                # Create function call with full code block including markers
+                full_code_block = s[start:end]
+                parts.append(_create_unified_part(
+                    "function-call",
+                    name="execute_python",
+                    args={"code": full_code_block}
+                ))
+            else:
+                # Keep as visible response since no output follows
+                fenced = s[start:end]
+                parts.append(_create_unified_part("response", content=fenced.strip()))
+                
         elif lang == "output":
             parts.append(_create_unified_part(
                 "function-output",
                 content=body
             ))
         else:
-            # keep unknown fenced block as visible response
+            # keep unknown fenced block as visible response (plaintext, markdown, etc.)
             fenced = s[start:end]
             parts.append(_create_unified_part("response", content=fenced.strip()))
 
@@ -352,6 +385,15 @@ def process_batch(batch: Dict[str, List]) -> Dict[str, List]:
         in_branches = (out.get("conversation_branches") or [None]*n)[i] or []
         norm_branches = [normalize_branch(br) for br in in_branches]
 
+        # Filter out samples containing bash code blocks
+        sample_data = {k: v[i] for k, v in out.items() if isinstance(v, list) and i < len(v)}
+        if should_filter_sample(sample_data):
+            # Mark this sample for filtering by setting empty content
+            out["system_prompt"][i] = {"content": "", "metadata": {}}
+            out["initial_prompt"][i] = {"role": "user", "content": "", "metadata": {}}
+            out["conversation_branches"][i] = []
+            continue
+
         # System prompt
         sp = (out.get("system_prompt") or [None]*n)[i]
         spc = sp.get("content") if isinstance(sp, dict) else None
@@ -368,6 +410,35 @@ def process_batch(batch: Dict[str, List]) -> Dict[str, List]:
 
     # Add available_functions as a list with the same value for each row
     out["available_functions"] = [AVAILABLE_FUNCTIONS] * n
+
+    # Filter out samples that were marked for removal (empty content)
+    valid_indices = []
+    for i in range(n):
+        # Check if this sample has any meaningful content
+        has_content = False
+        if out["system_prompt"][i].get("content", "").strip():
+            has_content = True
+        if out["initial_prompt"][i].get("content", "").strip():
+            has_content = True
+        for branch in out["conversation_branches"][i]:
+            for msg in branch.get("messages", []):
+                for part in msg.get("parts", []):
+                    if part.get("content", "").strip():
+                        has_content = True
+                        break
+                if has_content:
+                    break
+            if has_content:
+                break
+        
+        if has_content:
+            valid_indices.append(i)
+    
+    # Filter all fields to keep only valid samples
+    if len(valid_indices) < n:
+        for key in out:
+            if isinstance(out[key], list):
+                out[key] = [out[key][i] for i in valid_indices]
 
     return out
 
