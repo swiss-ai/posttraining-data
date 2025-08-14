@@ -202,12 +202,14 @@ class LLMClient:
                 return result
                 
             except Exception as e:
+                error_msg = str(e)
+                
                 if attempt == self.max_retries:
                     result = {
                         'success': False,
                         'content': None,
                         'tokens': {'prompt': 0, 'completion': 0, 'total': 0},
-                        'error': str(e),
+                        'error': error_msg,
                         'retries': attempt
                     }
                     
@@ -217,6 +219,9 @@ class LLMClient:
                     
                     return result
                 else:
+                    # Print retry warning
+                    print(f"⚠️  API request failed (attempt {attempt + 1}/{self.max_retries + 1}): {error_msg}")
+                    print(f"   Retrying in {0.1 * (attempt + 1):.1f}s...")
                     await asyncio.sleep(0.1 * (attempt + 1))  # Exponential backoff
         
         # Should never reach here
