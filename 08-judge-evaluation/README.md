@@ -1,400 +1,352 @@
 # Judge Evaluation Framework
 
-This folder contains tools for evaluating judge model behavior and bias patterns, particularly focusing on position bias in response ranking and pairwise comparisons.
+This framework provides tools for evaluating LLM judge models on synthetic preference datasets. It includes a complete evaluation pipeline with dataset loading, metrics calculation, retry mechanisms, and comprehensive reporting.
 
-## Overview
+## Quick Start
 
-Judge models are LLMs used to evaluate and rank responses from other AI systems. However, these judges can exhibit systematic biases that affect their reliability. This framework provides comprehensive tools to identify and analyze such biases.
-
-## Position Bias Types
-
-**Position bias** occurs when a judge's preference is influenced by where a response appears in a list, rather than its actual quality:
-
-- **Primacy bias**: Preference for responses at the beginning of a list
-- **Recency bias**: Preference for responses at the end of a list  
-- **Middle bias**: Preference for responses in middle positions
-- **Distance effects**: How the relative distance between compared items affects preferences
-
-## Tools
-
-### 1. Synthetic Completions Generation
-
-**`generate_synthetic_completions.py`** - Generates degraded completions for preference learning datasets
-
-**Features:**
-- Iterative degradation using comprehensive quality dimensions
-- Exact degradation logic from `iterative_degradation.py`
-- Batch processing with adaptive concurrency
-- Token usage tracking for each generation
-- Randomized conversation branch ordering
-- Full dataset schema compliance
-
-**Usage:**
+### Basic Usage
 ```bash
-# Generate synthetic preference dataset
-venv/bin/python generate_synthetic_completions.py data/olmo-2-preference-quality-500 \
-    --samples 100 \
-    --iterations 5 \
-    --output data/preference_synthetic_completions
+# Test with 3 samples (development)
+venv/bin/python 08-judge-evaluation/judge_llm_ranking.py --samples 3
 
-# Quick test with small sample
-venv/bin/python generate_synthetic_completions.py data/input \
-    --samples 10 \
-    --iterations 3 \
-    --concurrent 20
+# Full evaluation on all samples
+venv/bin/python 08-judge-evaluation/judge_llm_ranking.py --samples -1
 
-# Large-scale generation with auto-output naming
-venv/bin/python generate_synthetic_completions.py data/high_quality_dataset \
-    --samples 1000 \
-    --iterations 7 \
-    --concurrent 100 \
-    --disable-adaptive
+# Use custom judge instructions
+venv/bin/python 08-judge-evaluation/judge_llm_ranking.py --samples 10 \
+    --instructions judge_instructions/charter.txt
 ```
 
-**Output Dataset Structure:**
-- Each sample contains original + N degraded completions as conversation branches
-- Branches are randomized to prevent position bias during training
-- Full metadata tracking:
-  - `degraded`: true/false flag
-  - `iteration`: 0 (original) to N (degraded)
-  - `degradation_rank`: Ground truth preference rank (0=best, N=worst)
-  - `degradation_reasoning`: Explanation of quality degradation
-  - Token usage: `prompt_tokens`, `completion_tokens`, `total_tokens`
-- Auto-generated output path: `{input_name}_synthetic_completions`
-
-**Degradation Dimensions:**
-The script systematically degrades completions across these quality dimensions:
-- Factual accuracy (wrong facts, incorrect numbers/dates)
-- Logical coherence (contradictory arguments, illogical flow)
-- Completeness (missing key parts, unfinished responses)
-- Organization/structure (poor flow, confusing order)
-- Task focus (irrelevant information, off-topic content)
-- Language quality (typos, grammatical errors, unclear phrasing)
-- Certainty levels (overconfident about uncertain things)
-- Format compliance (ignoring specific format instructions)
-- Reasoning quality (faulty logic, wrong assumptions)
-- Answer correctness (wrong final answers, no conclusions)
-
-### 2. Overall Position Bias Evaluation
-
-**`eval_position_bias.py`** - Tests position bias when judge selects "best" from multiple options
-
-**Features:**
-- Multiple random orderings of the same completions
-- Configurable reasoning modes (with/without reasoning)
-- Advanced adaptive concurrency with ramp-up
-- Statistical analysis of position preferences
-
-**Usage:**
+### Advanced Options
 ```bash
-# Basic evaluation (auto-generated filename)
-venv/bin/python eval_position_bias.py data/02-standardised/tulu-3-sft-mixture \
-    --max-samples 100 \
-    --orderings 20
-
-# With reasoning mode (auto-generated filename)
-venv/bin/python eval_position_bias.py data/input \
-    --reasoning-mode with_reasoning \
-    --max-samples 50 \
-    --orderings 10
-
-# Custom output filename
-venv/bin/python eval_position_bias.py data/input \
-    --output results/custom_bias_test.jsonl \
-    --max-samples 100
+# Alphabetic labels instead of numeric
+venv/bin/python 08-judge-evaluation/judge_llm_ranking.py --samples 100 \
+    --label-type alphabetic --concurrent 20 --max-retries 3
 ```
 
-### 2. Pairwise Position Bias Evaluation
+## Architecture
 
-**`eval_pairwise_position_bias.py`** - Tests position bias in pairwise comparisons
+The framework uses a modular architecture with reusable components:
 
-**Features:**
-- More realistic evaluation mirroring actual judge workflows
-- Tests specific pairs from larger lists
-- Analyzes both absolute positions and relative distance effects
-- Question order effects ("A vs B" vs "B vs A")
-- Configurable pairs per ordering
+### Core Library (`lib/judge_evaluation.py`)
+- **`SyntheticDatasetLoader`** - Dataset loading and preparation
+- **`InstructionsLoader`** - Judge instructions management  
+- **`EvaluationAnalyzer`** - Metrics calculation and error analysis
+- **`ReportGenerator`** - Comprehensive markdown report generation
+- **`BaseJudgeEvaluator`** - Common evaluation framework with retry logic
+- **`JudgeEvaluationUtils`** - File naming and utility functions
 
-**Usage:**
+### Judge-Specific Scripts
+- **`judge_llm_ranking.py`** - Ranking evaluation (current implementation)
+- **`judge_llm_ranking_standalone.py`** - Backup of original monolithic version
+
+## Implementing New Judge Methods
+
+Creating a new judge evaluation script is straightforward using the provided framework. Follow this step-by-step guide:
+
+### Step 1: Create the Script File
+
+Create a new file following the naming convention: `judge_<method_name>.py`
+
 ```bash
-# Pairwise evaluation (auto-generated filename)
-venv/bin/python eval_pairwise_position_bias.py data/input \
-    --max-samples 100 \
-    --orderings 10 \
-    --pairs-per-ordering 5
-
-# Skip reverse question order for faster evaluation (auto-generated filename)
-venv/bin/python eval_pairwise_position_bias.py data/input \
-    --no-both-orders \
-    --pairs-per-ordering 3
-
-# Custom output filename
-venv/bin/python eval_pairwise_position_bias.py data/input \
-    --output results/custom_pairwise.jsonl \
-    --max-samples 100
+touch 08-judge-evaluation/judge_pairwise.py
 ```
 
-### 3. Analysis Scripts
+### Step 2: Basic Script Template
 
-**`analyze_position_bias.py`** - Comprehensive analysis for overall position bias
+```python
+#!/usr/bin/env python3
+"""
+Judge Pairwise Comparison Evaluation
 
-**Features:**
-- Position preference statistics and visualizations
-- Chi-square tests for uniformity
-- Bias indicators (primacy, recency, middle bias)
-- Consistency analysis across samples
-- Reasoning mode comparisons
+Evaluates a judge model's ability to compare pairs of completions.
+"""
 
-**`analyze_pairwise_position_bias.py`** - Analysis for pairwise comparisons
+import sys
+import os
+import re
+import random
+import argparse
+import asyncio
+from typing import Dict, Any, List, Optional, Tuple
 
-**Features:**
-- Winner preference analysis (A vs B bias)
-- Question order effect analysis
-- Position distance effect analysis  
-- Absolute position effect analysis
-- Consistency analysis for pairs
+# Add lib directory to path
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+from lib.judge_evaluation import (
+    SyntheticDatasetLoader, EvaluationAnalyzer,
+    ReportGenerator, BaseJudgeEvaluator, JudgeEvaluationUtils
+)
 
-**Usage:**
-```bash
-# Analyze overall position bias (auto-generated output directory)
-venv/bin/python analyze_position_bias.py results/position_bias_claude_100samples_20orders.jsonl
+# Configuration
+DATASET_PATH = "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated_newformat/olmo-2-preference-quality-short-1100-synthetic"
+DEFAULT_MODEL = "Qwen/Qwen3-32B"
+DEFAULT_MAX_RETRIES = 2
 
-# Analyze pairwise position bias (auto-generated output directory)
-venv/bin/python analyze_pairwise_position_bias.py results/pairwise_bias_qwen_50samples_10orders_5pairs.jsonl
+class JudgePairwiseEvaluator(BaseJudgeEvaluator):
+    """Evaluates judge model's pairwise comparison ability."""
+    
+    def __init__(self, model: str = DEFAULT_MODEL, 
+                 instructions_path: str = "judge_instructions/default.txt", 
+                 max_retries: int = DEFAULT_MAX_RETRIES):
+        super().__init__(model, instructions_path, max_retries)
+        # Add any method-specific initialization here
+    
+    def create_prompt(self, sample: Dict, pair_data: Dict) -> str:
+        """Create pairwise comparison prompt."""
+        # YOUR PROMPT LOGIC HERE
+        # Use self.judge_instructions for loaded instructions
+        # Return formatted prompt string
+        pass
+    
+    def parse_response(self, response: str) -> Tuple[Optional[str], Optional[str]]:
+        """Parse response from model. Returns (result, error_detail)."""
+        # YOUR PARSING LOGIC HERE
+        # Return (parsed_result, None) on success
+        # Return (None, error_description) on failure
+        pass
+    
+    async def _evaluate_sample_once(self, sample: Dict) -> Dict:
+        """Evaluate a single sample (single attempt)."""
+        # YOUR EVALUATION LOGIC HERE
+        # This is where you implement the specific judging method
+        
+        # 1. Prepare the specific evaluation format (pairs, scoring, etc.)
+        # 2. Create prompt using self.create_prompt()
+        # 3. Make API call using self.client
+        # 4. Parse response using self.parse_response()
+        # 5. Calculate metrics specific to your method
+        # 6. Return standardized result dictionary
+        
+        try:
+            # Your implementation here
+            # Must return a dict with keys:
+            # - sample_id, success, error, error_detail (if failed)
+            # - Plus your method-specific results (if successful)
+            pass
+        except Exception as e:
+            return {
+                "sample_id": sample['id'],
+                "success": False,
+                "error": "API Error",
+                "error_detail": str(e),
+                "raw_response": None,
+                "tokens": {"prompt": 0, "completion": 0, "total": 0}
+            }
 
-# Custom output directory
-venv/bin/python analyze_position_bias.py results/bias_test.jsonl \
-    --output analysis/custom_analysis/
+async def main():
+    parser = argparse.ArgumentParser(description="Evaluate judge pairwise comparison ability")
+    parser.add_argument("--samples", type=int, default=3, 
+                       help="Number of samples to evaluate (-1 for all)")
+    parser.add_argument("--model", type=str, default=DEFAULT_MODEL,
+                       help="Model to use for evaluation")
+    parser.add_argument("--concurrent", type=int, default=50,
+                       help="Maximum concurrent API requests")
+    parser.add_argument("--instructions", type=str, default="judge_instructions/default.txt",
+                       help="Path to judge instructions file")
+    parser.add_argument("--max-retries", type=int, default=DEFAULT_MAX_RETRIES,
+                       help="Maximum number of retries for failed samples")
+    # Add method-specific arguments here
+    
+    args = parser.parse_args()
+    
+    # Initialize components
+    loader = SyntheticDatasetLoader(DATASET_PATH)
+    analyzer = EvaluationAnalyzer()  # You may need to extend this for method-specific metrics
+    reporter = ReportGenerator()     # You may need to extend this for method-specific reports
+    utils = JudgeEvaluationUtils()
+    
+    evaluator = JudgePairwiseEvaluator(
+        model=args.model, 
+        instructions_path=args.instructions, 
+        max_retries=args.max_retries
+    )
+    
+    # Load dataset and evaluate
+    print(f"Loading dataset...")
+    samples = loader.load_dataset(args.samples)
+    print(f"Loaded {len(samples)} samples")
+    
+    results = await evaluator.evaluate_all(samples, max_concurrent=args.concurrent)
+    metrics = analyzer.calculate_overall_metrics(results)
+    
+    # Print final results
+    print("\n=== FINAL RESULTS ===")
+    print(f"Success Rate: {metrics['success_rate']:.1%} ({metrics['successful']}/{metrics['total_samples']})")
+    print(f"Failed: {metrics['failed_rate']:.1%} ({metrics['failed']}/{metrics['total_samples']})")
+    
+    # Generate output files
+    base_name = f"judge_pairwise_{args.model.split('/')[-1]}_{utils.generate_output_filename(args.model, 'pairwise', args.instructions, len(samples))}"
+    output_dir = utils.create_output_directory()
+    
+    # Save results and generate report
+    # ... (same pattern as ranking script)
+
+if __name__ == "__main__":
+    import json
+    asyncio.run(main())
 ```
 
-## Auto-Generated File and Directory Names
+### Step 3: Implement Core Methods
 
-Both evaluation and analysis scripts automatically generate meaningful filenames and directories if not specified:
+#### 3.1 Implement `create_prompt()`
+This method should:
+- Use `self.judge_instructions` for loaded instructions
+- Format your specific evaluation task (pairwise, scoring, etc.)
+- Include clear formatting for model responses
+- Return a complete prompt string
 
-### Evaluation Output Files
-**Position Bias:**
-- Format: `position_bias_{model}_{samples}samples_{orderings}orders[_{reasoning_mode}].jsonl`
-- Examples:
-  - `position_bias_qwen_100samples_20orders.jsonl`
-  - `position_bias_claude_50samples_10orders_both.jsonl`
+#### 3.2 Implement `parse_response()`
+This method should:
+- Parse the model's response format
+- Validate the response structure
+- Return `(parsed_result, None)` on success
+- Return `(None, error_description)` on failure
 
-**Pairwise Position Bias:**
-- Format: `pairwise_bias_{model}_{samples}samples_{orderings}orders_{pairs}pairs[_{reasoning_mode}][_single_order].jsonl`
-- Examples:
-  - `pairwise_bias_qwen_100samples_10orders_5pairs.jsonl`
-  - `pairwise_bias_claude_50samples_20orders_3pairs_both_single_order.jsonl`
+#### 3.3 Implement `_evaluate_sample_once()`
+This method should:
+- Prepare sample-specific data (pairs, presentation order, etc.)
+- Call `create_prompt()` to generate the prompt
+- Make API call using `self.client.chat.completions.create()`
+- Parse response using `parse_response()`
+- Calculate method-specific metrics
+- Return standardized result dictionary
 
-### Analysis Output Directories
-- Auto-generated from input filename by adding `_analysis` suffix
-- Examples:
-  - `position_bias_qwen_100samples_20orders.jsonl` → `position_bias_qwen_100samples_20orders_analysis/`
-  - `pairwise_bias_claude_50samples_10orders_5pairs.jsonl` → `pairwise_bias_claude_50samples_10orders_5pairs_analysis/`
+### Step 4: Extend Analysis (Optional)
 
-All files are created in the `judge-analysis/` directory by default.
+If your method needs custom metrics, extend the analyzer:
 
-## Configuration
+```python
+class PairwiseEvaluationAnalyzer(EvaluationAnalyzer):
+    def calculate_pairwise_metrics(self, results: List[Dict]) -> Dict:
+        """Calculate pairwise-specific metrics."""
+        # Your custom metric calculations
+        pass
+```
 
-### Common Parameters
+### Step 5: Extend Reporting (Optional)
 
-- `--max-samples N`: Limit evaluation to N samples
-- `--orderings N`: Number of random orderings per sample (default: 10)
-- `--concurrent N`: Maximum concurrent API requests (default: 50)
-- `--disable-adaptive`: Disable adaptive concurrency management
-- `--model MODEL`: Judge model to use (default: claude-3-5-sonnet-20241022)
-- `--reasoning-mode MODE`: `with_reasoning`, `no_reasoning`, or `both`
+If your method needs custom reports, extend the reporter:
 
-### Pairwise-Specific Parameters
+```python
+class PairwiseReportGenerator(ReportGenerator):
+    def _add_pairwise_analysis(self, report: List[str], results: List[Dict], metrics: Dict):
+        """Add pairwise-specific analysis to report."""
+        # Your custom report sections
+        pass
+```
 
-- `--pairs-per-ordering N`: Number of random pairs to test per ordering (default: 5)
-- `--no-both-orders`: Only test "A vs B", skip "B vs A" for faster evaluation
+## Common Patterns
 
-### Environment Variables
-
-Set one of these API keys:
-- `SWISSAI_API_KEY`: Swiss AI API key
-- `SWISS_AI_API_KEY`: Alternative Swiss AI API key name
-
-## Output Formats
-
-### Position Bias Results (JSONL)
-```json
+### Dataset Structure
+All samples have this structure:
+```python
 {
-  "sample_id": "unique_id",
-  "ordering_num": 1,
-  "reasoning_mode": "no_reasoning",
-  "position_mapping": {"comp_0": 1, "comp_1": 2},
-  "judge_choice": "comp_1",
-  "chosen_position": 2,
-  "success": true,
-  "judge_model": "claude-3-5-sonnet-20241022"
+    'id': '0001',
+    'conversation_id': 'original_id',
+    'question': 'The user question',
+    'completions': {
+        0: {'content': '...', 'iteration': 0, 'degradation_rank': 0},  # Best quality
+        1: {'content': '...', 'iteration': 1, 'degradation_rank': 1},  # Slightly degraded
+        # ...
+        8: {'content': '...', 'iteration': 8, 'degradation_rank': 8}   # Most degraded
+    }
 }
 ```
 
-### Pairwise Results (JSONL)
-```json
+### Standard Result Format
+All evaluation methods should return results with these keys:
+```python
 {
-  "sample_id": "unique_id",
-  "pair_num": 1,
-  "completion_a_position": 2,
-  "completion_b_position": 5,
-  "question_order": "A_vs_B",
-  "winner": "B",
-  "position_distance": 3,
-  "success": true,
-  "judge_model": "claude-3-5-sonnet-20241022"
+    "sample_id": str,
+    "success": bool,
+    "error": Optional[str],           # If failed
+    "error_detail": Optional[str],    # If failed
+    "raw_response": Optional[str],
+    "tokens": {"prompt": int, "completion": int, "total": int},
+    # Plus method-specific results...
 }
 ```
 
-## Analysis Outputs
+### Error Handling
+- Use the retry mechanism (inherited from `BaseJudgeEvaluator`)
+- Provide detailed error messages in `error_detail`
+- Categorize errors consistently
+- Always return a valid result dictionary
 
-Both analysis scripts generate:
-- **JSON summary** (`analysis_results.json`): Complete statistical analysis
-- **Text report** (`*_bias_report.txt`): Human-readable summary
-- **Visualizations** (PNG files): Charts showing bias patterns
+### Progress Tracking
+- Progress bars are handled automatically by `BaseJudgeEvaluator`
+- Focus on implementing the single-sample evaluation logic
 
-### Key Visualizations
+## Examples of Judge Methods
 
-**Position Bias:**
-- `position_preferences_overall.png`: Overall position preference chart
-- `position_preferences_by_reasoning.png`: Preferences by reasoning mode
-- `consistency_distribution.png`: Judge consistency across samples
+### 1. Ranking (Implemented)
+- **Input**: 9 completions to rank
+- **Output**: Complete ranking from 1-9
+- **Metrics**: Spearman correlation, Kendall's tau, position accuracy
 
-**Pairwise Bias:**
-- `pairwise_winner_preferences.png`: A vs B preference rates
-- `question_order_effects.png`: Effects of question order
-- `position_distance_effects.png`: How distance affects preferences
-- `completion_a_position_effects.png`: Absolute position effects
+### 2. Pairwise Comparison (Template above)
+- **Input**: Multiple pairs of completions
+- **Output**: Winner for each pair (A or B)
+- **Metrics**: Pairwise accuracy, transitivity consistency
 
-## Understanding Pairwise Position Bias Visualizations
+### 3. Scoring
+- **Input**: Individual completions
+- **Output**: Quality score (1-9 scale)
+- **Metrics**: Score correlation with ground truth, score distribution
 
-The pairwise analysis generates three key figures that reveal different types of bias:
+### 4. Single Token Prediction
+- **Input**: Prompt asking for best completion
+- **Output**: Single token (1-9)
+- **Metrics**: Selection accuracy, top-k accuracy
 
-### 📊 Figure 1: Overall Pairwise Winner Preferences
-**What it shows:** Across all comparisons, how often does the judge choose option "A" vs option "B"?
+## Judge Instructions
 
-**What to look for:**
-- **No bias:** Both A and B around 50%
-- **Label bias:** Strong preference for A (or B) regardless of content
-- **Example:** A wins 70%, B wins 30% → Judge systematically favors the "A" option
+Create modular instruction files in `judge_instructions/`:
 
-### 🔄 Figure 2: Winner Preferences by Question Order  
-**What it shows:** For the same completions, does changing the order they're mentioned in the comparison question affect the outcome?
+- **`default.txt`** - General helpful/honest/harmless principles
+- **`charter.txt`** - Constitutional AI charter-based evaluation
+- **`concise.txt`** - Brevity-focused evaluation
+- **Custom instructions** - Domain-specific evaluation criteria
 
-**The test:** 
-- **"Original order":** "Compare completion X and completion Y" 
-- **"Reversed order":** "Compare completion Y and completion X"
+## Best Practices
 
-**What to look for:**
-- **No mention order effect:** Both groups show similar patterns
-- **Mention order effect:** Different win rates between original and reversed question orders
-- **Example:** Original order shows first-mentioned wins 70%, reversed order shows first-mentioned wins 60%
+1. **Reuse the library** - Don't reimplement common functionality
+2. **Consistent naming** - Follow `judge_<method>_<model>_<config>_<samples>samples` pattern  
+3. **Clear error messages** - Help debug parsing and API issues
+4. **Document metrics** - Explain what your custom metrics mean
+5. **Test thoroughly** - Use small sample sizes during development
+6. **Handle edge cases** - Empty responses, malformed JSON, etc.
 
-**Key insight:** This tests whether mentioning a completion first in the question ("Compare X and Y") gives it an advantage over mentioning it second ("Compare Y and X").
+## Testing Your Implementation
 
-### 📏 Figure 3: Winner Preferences by Position Distance
-**What it shows:** Does the gap between compared items in the original list affect which one wins?
-
-**Distance examples:**
-- Distance 1: Comparing adjacent items (positions 3 vs 4)
-- Distance 3: Comparing items with 2 positions between (positions 3 vs 6) 
-- Distance 7: Comparing items far apart (positions 2 vs 9)
-
-**What to look for:**
-- **No distance effect:** Similar win rates across all distances
-- **Adjacent bias:** Different behavior for nearby vs distant items
-- **Extreme distance bias:** Very different patterns for large gaps
-- **Example:** Distance 1-2 show 50/50 split, Distance 6+ show 80% A preference
-
-**Key insight:** Tests whether judges are influenced by the spatial relationship between items, independent of their labels or absolute positions.
-
-## Judge Prompts
-
-The `judge_prompts/` directory contains evaluation prompts:
-
-- `position_bias_with_reasoning.txt`: Multi-choice with detailed reasoning
-- `position_bias_no_reasoning.txt`: Multi-choice with simple winner selection
-- `pairwise_position_bias_with_reasoning.txt`: Pairwise with detailed reasoning
-- `pairwise_position_bias_no_reasoning.txt`: Pairwise with simple winner selection
-
-## Advanced Features
-
-### Adaptive Concurrency
-
-Both evaluation scripts include advanced adaptive concurrency management:
-
-- **Ramp-up strategy**: Gradual increase to target concurrency
-- **Little's Law optimization**: Automatic optimal concurrency calculation
-- **Immediate failure response**: Quick reduction on API errors
-- **Stability zones**: Prevent thrashing during final tasks
-- **Real-time metrics**: requests/min, success rate, error rate tracking
-
-### Statistical Analysis
-
-- **Chi-square tests**: Test for uniform distribution
-- **Bias indicators**: Quantify primacy, recency, and middle bias
-- **Consistency metrics**: Judge reliability across orderings
-- **Effect size calculations**: Magnitude of bias effects
-
-## Example Workflows
-
-### Quick Position Bias Check
 ```bash
-# Evaluate 50 samples with 10 orderings each
-venv/bin/python eval_position_bias.py data/input \
-    --output results/quick_check.jsonl \
-    --max-samples 50 --orderings 10
+# Start with 1 sample for basic functionality
+venv/bin/python 08-judge-evaluation/judge_yourmethod.py --samples 1
 
-# Analyze results
-venv/bin/python analyze_position_bias.py results/quick_check.jsonl
+# Test error handling with various configurations
+venv/bin/python 08-judge-evaluation/judge_yourmethod.py --samples 3 --max-retries 0
+
+# Scale up gradually
+venv/bin/python 08-judge-evaluation/judge_yourmethod.py --samples 10
+venv/bin/python 08-judge-evaluation/judge_yourmethod.py --samples 100
 ```
 
-### Comprehensive Pairwise Analysis
-```bash
-# Full pairwise evaluation
-venv/bin/python eval_pairwise_position_bias.py data/input \
-    --output results/pairwise_full.jsonl \
-    --max-samples 200 \
-    --orderings 20 \
-    --pairs-per-ordering 5 \
-    --reasoning-mode both
+## Output Files
 
-# Generate detailed analysis
-venv/bin/python analyze_pairwise_position_bias.py results/pairwise_full.jsonl \
-    --output analysis/pairwise_comprehensive/
-```
+All judge scripts generate:
+- **`judge_<method>_<config>.jsonl`** - Raw results for further analysis
+- **`judge_<method>_<config>.md`** - Comprehensive evaluation report
 
-### Large-Scale Production Evaluation
-```bash
-# High-volume evaluation with adaptive concurrency
-venv/bin/python eval_position_bias.py data/large_dataset \
-    --output results/production_bias.jsonl \
-    --max-samples 1000 \
-    --orderings 50 \
-    --concurrent 100 \
-    --reasoning-mode no_reasoning
-```
+Reports include:
+- Success rates and error analysis  
+- Method-specific metrics and distributions
+- Token usage statistics
+- Sample-by-sample breakdown
+- Statistical visualizations
 
-## Troubleshooting
+## Getting Help
 
-### Common Issues
-
-1. **API timeouts**: Reduce `--concurrent` parameter
-2. **Memory issues**: Reduce `--max-samples` or process in batches
-3. **No successful results**: Check API key and endpoint configuration
-4. **Plotting errors**: Install matplotlib and seaborn: `pip install matplotlib seaborn scipy`
-
-### Performance Optimization
-
-- Use `--no-both-orders` for faster pairwise evaluation
-- Set `--reasoning-mode no_reasoning` for simpler/faster evaluation
-- Enable adaptive concurrency for optimal throughput
-- Process large datasets in chunks if memory constrained
-
-## Future Extensions
-
-This framework can be extended to evaluate:
-- Content bias (topic, style, length preferences)
-- Demographic bias in judge preferences  
-- Cross-model judge consistency
-- Temporal bias (evaluation order effects)
-- Multi-turn conversation judging bias
+- Check `judge_llm_ranking.py` for a complete working example
+- Review `lib/judge_evaluation.py` for available utilities
+- Use `judge_llm_ranking_standalone.py` to see the original monolithic version
+- Test incrementally with small sample sizes during development

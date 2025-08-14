@@ -11,3 +11,4 @@ slurm_logs/
 test/
 tests/
 judge-analysis/*.jsonl
+judge-analysis/*.json
