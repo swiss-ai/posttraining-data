@@ -35,12 +35,10 @@ def conv_id(seed: str) -> str:
 def make_part(ptype: str,
               content: str = "",
               name: str = "",
-              args: Optional[Dict[str, Any]] = None,
-              metadata: Optional[Dict[str, Any]] = None) -> Dict[str, str]:
+              args: Optional[Dict[str, Any]] = None) -> Dict[str, str]:
     return {
         "type": ptype,
         "content": content,
-        "metadata": metadata or {},
         "name": name,
         "args": json.dumps(args, ensure_ascii=False) if args else ""
     }
@@ -130,7 +128,15 @@ def clean_solution_text(text: str) -> str:
         if first_line.endswith('.') and len(first_line) < 20:
             lines = lines[1:]
     
-    return '\n'.join(lines).strip()
+    # Remove markdown headers at the end
+    cleaned_lines = []
+    for line in lines:
+        # Skip lines that are just markdown headers (## Title)
+        if re.match(r'^#+\s+[A-Za-z]+\s*$', line.strip()):
+            continue
+        cleaned_lines.append(line)
+    
+    return '\n'.join(cleaned_lines).strip()
 
 def create_system_prompt(problem_type: str, question_type: str) -> str:
     """Create a system prompt based on the problem type and question type."""
