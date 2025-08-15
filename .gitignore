@@ -12,3 +12,4 @@ test/
 tests/
 judge-analysis/*.jsonl
 judge-analysis/*.json
+08-judge-evaluation/judge-analysis/
