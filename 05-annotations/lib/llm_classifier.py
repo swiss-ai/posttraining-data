@@ -147,7 +147,8 @@ class LLMClassifier:
         # Initialize OpenAI client for Swiss AI
         self.client = openai.AsyncOpenAI(
             api_key=api_key,
-            base_url="https://api.swissai.cscs.ch/v1",
+            # base_url="https://api.swissai.cscs.ch/v1",
+            base_url="http://148.187.108.173:8092/v1/service/llm/v1/",
             timeout=45.0
         )
         
@@ -184,7 +185,8 @@ class LLMClassifier:
             
             # Use sync requests in async context (this is a one-time setup call)
             response = requests.get(
-                "https://api.swissai.cscs.ch/v1/models",
+                "http://148.187.108.173:8092/v1/models",
+                #"https://api.swissai.cscs.ch/v1/models",
                 headers=headers,
                 timeout=10.0
             )
