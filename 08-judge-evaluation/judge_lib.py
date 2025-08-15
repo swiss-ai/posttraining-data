@@ -162,7 +162,7 @@ class LLMClient:
             pass
     
     async def make_request(self, messages: List[Dict], temperature: float = 0.0, 
-                          max_tokens: int = 10000) -> Dict:
+                          max_tokens: int = 10000, openai_kwargs: Optional[Dict] = {}) -> Dict:
         """
         Make an LLM request with retry logic.
         
@@ -171,19 +171,20 @@ class LLMClient:
         """
         self.request_counter += 1
         request_num = self.request_counter
-        
         for attempt in range(self.max_retries + 1):
             try:
                 response = await self.client.chat.completions.create(
                     model=self.model,
                     messages=messages,
                     temperature=temperature,
-                    max_tokens=max_tokens
+                    max_tokens=max_tokens,
+                    **openai_kwargs,
                 )
-                
+
                 result = {
                     'success': True,
                     'content': response.choices[0].message.content,
+                    'logprobs': response.choices[0].logprobs.content,
                     'tokens': {
                         'prompt': response.usage.prompt_tokens,
                         'completion': response.usage.completion_tokens,
@@ -202,12 +203,15 @@ class LLMClient:
                 return result
                 
             except Exception as e:
+                error_msg = str(e)
+                
                 if attempt == self.max_retries:
                     result = {
                         'success': False,
                         'content': None,
+                        'logprobs': None,
                         'tokens': {'prompt': 0, 'completion': 0, 'total': 0},
-                        'error': str(e),
+                        'error': error_msg,
                         'retries': attempt
                     }
                     
@@ -217,6 +221,9 @@ class LLMClient:
                     
                     return result
                 else:
+                    # Print retry warning
+                    print(f"⚠️  API request failed (attempt {attempt + 1}/{self.max_retries + 1}): {error_msg}")
+                    print(f"   Retrying in {0.1 * (attempt + 1):.1f}s...")
                     await asyncio.sleep(0.1 * (attempt + 1))  # Exponential backoff
         
         # Should never reach here
@@ -368,6 +375,10 @@ class EvaluationAnalyzer:
                     error_types['invalid_labels'] += 1
                 elif "API" in r.get('error', ''):
                     error_types['api_error'] += 1
+                elif "Correlation undefined" in detail:
+                    error_types["correlation_undefined"] += 1
+                elif "No valid score" in detail:
+                    error_types['no_score_output'] += 1
                 else:
                     error_types['other'] += 1
                 
@@ -574,11 +585,15 @@ class JudgeEvaluationUtils:
         
         # Build config string from relevant parameters
         config_parts = []
+        if 'modal' in config:
+            config_parts.append('modal' if config['modal'] else 'mean')
         if 'label_type' in config:
             config_parts.append(config['label_type'])
         if 'instructions' in config:
             instructions_name = Path(config['instructions']).stem
             config_parts.append(instructions_name)
+        if 'thinking' in config:
+            config_parts.append('thinking' if config['thinking'] else 'no_thinking')
         
         config_str = "_".join(config_parts) if config_parts else "default"
         return f"judge_{method}_{model_short}_{config_str}_{num_samples}samples"
