@@ -117,7 +117,7 @@ class LLMClient:
         
         self.client = openai.AsyncOpenAI(
             api_key=self.api_key,
-            base_url="https://api.swissai.cscs.ch/v1"
+            base_url="http://148.187.108.173:8092/v1"
         )
         
         # Initialize debug file if provided
