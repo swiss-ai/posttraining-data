@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
 """
-Judge LLM Ranking Evaluation
+Judge LLM Scoring Evaluation
 
-Evaluates a judge model's ability to rank 9 completions from best to worst.
-Uses iterations 0-8 from synthetic preference dataset, mapping to ranks 1-9.
+Evaluates a judge model's ability to score completions using probability-weighted scoring.
+Scores each completion individually on a 1-9 scale (1=best, 9=worst) and can either:
+- Use the modal response (single predicted score)
+- Calculate weighted mean using probability distribution across valid scores
 
 Usage:
-    python judge_llm_scoring.py --samples 3  # Dev mode
+    python judge_llm_scoring.py --samples 3  # Dev mode with probability weighting
     python judge_llm_scoring.py --samples -1  # Full evaluation
+    python judge_llm_scoring.py --samples 10 --use-modal-response  # Use single score
 """
 
 import re
@@ -67,7 +70,7 @@ class JudgeScoringEvaluator:
             prompt_parts = [
                 self.judge_instructions,
                 "",
-                f"Based on these quality indicators, label the following completion on a scale from {l} to {h}, where {l} is worst and {h} is best.",
+                f"Based on these quality indicators, label the following completion on a scale from {l} to {h}, where {l} is best and {h} is worst.",
                 "Do not use any reasoning and respond with only the quality label."
                 "",
                 "======",
@@ -211,8 +214,9 @@ class JudgeScoringEvaluator:
         
         # Top-k accuracy: count how many of the top 3 actual best completions got ranks 1-3
         # Ground truth ranks: lower is better (1=best, 9=worst)
+        # Scores: lower is better (1=best, 9=worst) - same scale now
         # Find which completions should be top 3
-        completion_ranking = sorted(range(9), key=lambda i: -completion_scores[i])
+        completion_ranking = sorted(range(9), key=lambda i: completion_scores[i])
         best_3_indices = sorted(range(9), key=lambda i: ground_truth[i])[:3]
         top3_correct = sum(1 for i in best_3_indices if completion_ranking[i] <= 3)
 
@@ -221,8 +225,8 @@ class JudgeScoringEvaluator:
             "ground_truth": ground_truth,
             "predicted": completion_ranking,
             "scores": completion_scores,
-            "spearman": -spearman_corr,
-            "kendall": -kendall_corr,
+            "spearman": spearman_corr,
+            "kendall": kendall_corr,
             "top3_correct": top3_correct,
             "error": None
         })
