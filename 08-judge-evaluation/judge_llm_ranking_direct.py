@@ -60,7 +60,7 @@ class JudgeDirectScoringEvaluator:
         prompt_parts = [
             self.judge_instructions,
             "",
-            "Score the following completion on a scale of 1-9, where 1 is the best and 9 is the worst.",
+            "Score the following completion on a scale of 1-9, where 9 is the best and 1 is the worst.",
             "",
             f"Question: {sample['question']}",
             "",
@@ -70,7 +70,7 @@ class JudgeDirectScoringEvaluator:
             "",
             "Instructions:",
             "Provide a single digit score from 1-9 where:",
-            "- 1 = Excellent (best possible response)",
+            "- 9 = Excellent (best possible response)",
             "- 2 = Very Good",
             "- 3 = Good", 
             "- 4 = Above Average",
@@ -78,7 +78,7 @@ class JudgeDirectScoringEvaluator:
             "- 6 = Below Average",
             "- 7 = Poor",
             "- 8 = Very Poor",
-            "- 9 = Terrible (worst possible response)",
+            "- 1 = Terrible (worst possible response)",
             "",
             "IMPORTANT: Respond with ONLY a single digit from 1-9.",
             "Example: 5"
@@ -219,9 +219,9 @@ class JudgeDirectScoringEvaluator:
                     "scoring_results": scoring_results
                 }
         
-        # Create ranking from scores (lower scores = better ranks)
-        # Sort by score (ascending) and assign ranks
-        scores.sort(key=lambda x: x[1])  # Sort by score
+        # Create ranking from scores (higher scores = better ranks)
+        # Sort by score (descending) and assign ranks
+        scores.sort(key=lambda x: x[1], reverse=True)  # Sort by score
         
         # Create ranking: completion_idx -> rank
         completion_ranking = [0] * 9
@@ -235,9 +235,9 @@ class JudgeDirectScoringEvaluator:
         spearman_corr, _ = spearmanr(ground_truth, completion_ranking)
         kendall_corr, _ = kendalltau(ground_truth, completion_ranking)
         
-        # Top-k accuracy: count how many of the top 3 actual best completions got ranks 1-3
-        best_3_indices = sorted(range(9), key=lambda i: ground_truth[i])[:3]
-        top3_correct = sum(1 for i in best_3_indices if completion_ranking[i] <= 3)
+        # Top-k accuracy: count how many of the top 3 actual best completions got ranks 7-9
+        best_3_indices = sorted(range(9), key=lambda i: ground_truth[i], reverse=True)[:3]
+        top3_correct = sum(1 for i in best_3_indices if completion_ranking[i] >= 7)
         
         return {
             "sample_id": sample['id'],

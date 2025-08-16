@@ -3,7 +3,7 @@
 Judge LLM Ranking Evaluation
 
 Evaluates a judge model's ability to rank 9 completions from best to worst.
-Uses iterations 0-8 from synthetic preference dataset, mapping to ranks 1-9.
+Uses iterations 0-8 from synthetic preference dataset, mapping to ranks 9-1.
 
 Usage:
     python judge_llm_ranking.py --samples 3  # Dev mode
@@ -56,7 +56,7 @@ class JudgeRankingEvaluator:
         # Label mappings
         if label_type == "alphabetic":
             self.labels = ["A", "B", "C", "D", "E", "F", "G", "H", "I"]
-            self.label_to_num = {label: i+1 for i, label in enumerate(self.labels)}
+            self.label_to_num = {label: 10-i for i, label in enumerate(self.labels)}
         else:
             self.labels = ["1", "2", "3", "4", "5", "6", "7", "8", "9"]
             self.label_to_num = {label: int(label) for label in self.labels}
@@ -94,7 +94,7 @@ class JudgeRankingEvaluator:
                 "RANKING: [x, x, x, x, x, x, x, x, x]",
                 "",
                 "Ranking requirements:",
-                "- Each x must be a single digit from 1-9 (1=best, 9=worst)",
+                "- Each x must be a single digit from 1-9 (9=best, 1=worst)",
                 "- Must use exactly 9 numbers, no more, no less",
                 "- Each number 1-9 must appear exactly once (no duplicates, no missing values)",
                 "- The position in the list corresponds to the completion (1st position = Completion 1, 2nd position = Completion 2, etc.)"
@@ -110,7 +110,7 @@ class JudgeRankingEvaluator:
                 "RANKING: [x, x, x, x, x, x, x, x, x]",
                 "",
                 "Ranking requirements:",
-                "- Each x must be a single letter from A-I (A=best, I=worst)",
+                "- Each x must be a single letter from A-I (A=best, I=worst),"
                 "- Must use exactly 9 letters, no more, no less",
                 "- Each letter A-I must appear exactly once (no duplicates, no missing values)",
                 "- The position in the list corresponds to the completion (1st position = Completion A, 2nd position = Completion B, etc.)"
@@ -245,11 +245,11 @@ class JudgeRankingEvaluator:
         spearman_corr, _ = spearmanr(ground_truth, completion_ranking)
         kendall_corr, _ = kendalltau(ground_truth, completion_ranking)
         
-        # Top-k accuracy: count how many of the top 3 actual best completions got ranks 1-3
-        # Ground truth ranks: lower is better (1=best, 9=worst)
+        # Top-k accuracy: count how many of the top 3 actual best completions got ranks 7-9
+        # Ground truth ranks: higher is better (9=best, 1=worst)
         # Find which completions should be top 3
-        best_3_indices = sorted(range(9), key=lambda i: ground_truth[i])[:3]
-        top3_correct = sum(1 for i in best_3_indices if completion_ranking[i] <= 3)
+        best_3_indices = sorted(range(9), key=lambda i: ground_truth[i], reverse=True)[:3]
+        top3_correct = sum(1 for i in best_3_indices if completion_ranking[i] >= 7)
         
         result.update({
             "success": True,

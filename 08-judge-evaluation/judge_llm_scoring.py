@@ -3,7 +3,7 @@
 Judge LLM Scoring Evaluation
 
 Evaluates a judge model's ability to score completions using probability-weighted scoring.
-Scores each completion individually on a 1-9 scale (1=best, 9=worst) and can either:
+Scores each completion individually on a 1-9 scale (9=best, 1=worst) and can either:
 - Use the modal response (single predicted score)
 - Calculate weighted mean using probability distribution across valid scores
 
@@ -70,7 +70,7 @@ class JudgeScoringEvaluator:
             prompt_parts = [
                 self.judge_instructions,
                 "",
-                f"Based on these quality indicators, label the following completion on a scale from {l} to {h}, where {l} is best and {h} is worst.",
+                f"Based on these quality indicators, label the following completion on a scale from {l} to {h}, where {h} is best and {l} is worst.",
                 "Do not use any reasoning and respond with only the quality label."
                 "",
                 "======",
@@ -212,12 +212,12 @@ class JudgeScoringEvaluator:
             spearman_corr, _ = spearmanr(ground_truth, completion_scores)
             kendall_corr, _ = kendalltau(ground_truth, completion_scores)
         
-        # Top-k accuracy: count how many of the top 3 actual best completions got ranks 1-3
-        # Ground truth ranks: lower is better (1=best, 9=worst)
-        # Scores: lower is better (1=best, 9=worst) - same scale now
+        # Top-k accuracy: count how many of the top 3 actual best completions got ranks 7-9
+        # Ground truth ranks: higher is better (9=best, 1=worst)
+        # Scores: higher is better (9=best, 1=worst) - same scale now
         # Find which completions should be top 3
-        completion_ranking = sorted(range(9), key=lambda i: completion_scores[i])
-        best_3_indices = sorted(range(9), key=lambda i: ground_truth[i])[:3]
+        completion_ranking = sorted(range(9), key=lambda i: completion_scores[i], reverse=True)
+        best_3_indices = sorted(range(9), key=lambda i: ground_truth[i], reverse=True)[:3]
         top3_correct = sum(1 for i in best_3_indices if completion_ranking[i] <= 3)
 
         result.update({

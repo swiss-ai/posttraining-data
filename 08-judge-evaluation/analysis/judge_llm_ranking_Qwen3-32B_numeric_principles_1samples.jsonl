@@ -1,0 +1,1 @@
+{"sample_id": "0000", "success": false, "tokens": {"prompt": 0, "completion": 0, "total": 0}, "presentation_order": [4, 3, 7, 0, 2, 8, 1, 6, 5], "retries": 2, "error": "API Error", "error_detail": "'NoneType' object has no attribute 'content'", "raw_response": null}

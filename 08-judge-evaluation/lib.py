@@ -62,8 +62,8 @@ class SyntheticDatasetLoader:
                             }
                             
                             completions.append(completion_data)
-                            # Convert 0-based degradation_rank to 1-based quality rank
-                            ground_truth.append(degradation_rank + 1)
+                            # Convert 0-based degradation_rank to 9-based quality rank (9=best, 1=worst)
+                            ground_truth.append(9 - degradation_rank)
             
             # Ensure we have all expected iterations with valid content
             expected_count = iterations_range[1] - iterations_range[0] + 1
@@ -76,7 +76,7 @@ class SyntheticDatasetLoader:
                         'conversation_id': sample['conversation_id'],
                         'question': sample['initial_prompt']['content'],
                         'completions': completions,  # List in natural branch order
-                        'ground_truth': ground_truth  # Quality ranks (1-9) matching completion order
+                        'ground_truth': ground_truth  # Quality ranks (9-1) matching completion order
                     })
         
         return samples
@@ -117,7 +117,7 @@ class LLMClient:
         
         self.client = openai.AsyncOpenAI(
             api_key=self.api_key,
-            base_url="http://148.187.108.173:8092/v1"
+            base_url="http://148.187.108.173:8092/v1/service/llm/v1/"
         )
         
         # Initialize debug file if provided
@@ -338,17 +338,29 @@ class EvaluationAnalyzer:
                         position_accuracies.append(correct / len(successful))
                     
                     metrics['position_accuracies'] = position_accuracies
-                    metrics['top1_accuracy'] = sum(1 for r in successful if r['predicted'][0] == 1) / len(successful)
-                    metrics['bottom1_accuracy'] = sum(1 for r in successful if r['predicted'][8] == 9) / len(successful)
+                    # Find best completion (highest ground_truth) and check if it got rank 9
+                    metrics['top1_accuracy'] = sum(1 for r in successful 
+                                                  if r['predicted'][r['ground_truth'].index(max(r['ground_truth']))] == 9) / len(successful)
+                    # Find worst completion (lowest ground_truth) and check if it got rank 1  
+                    metrics['bottom1_accuracy'] = sum(1 for r in successful 
+                                                    if r['predicted'][r['ground_truth'].index(min(r['ground_truth']))] == 1) / len(successful)
             
-            # Token usage
-            total_tokens = sum(r['tokens']['total'] for r in results)
-            metrics.update({
-                "total_tokens": total_tokens,
-                "avg_tokens_per_sample": total_tokens / len(results) if results else 0,
-                "avg_prompt_tokens": np.mean([r['tokens']['prompt'] for r in results]),
-                "avg_completion_tokens": np.mean([r['tokens']['completion'] for r in results])
-            })
+            # Token usage (only if we have results with token data)
+            if results and 'tokens' in results[0]:
+                total_tokens = sum(r['tokens']['total'] for r in results)
+                metrics.update({
+                    "total_tokens": total_tokens,
+                    "avg_tokens_per_sample": total_tokens / len(results) if results else 0,
+                    "avg_prompt_tokens": np.mean([r['tokens']['prompt'] for r in results]),
+                    "avg_completion_tokens": np.mean([r['tokens']['completion'] for r in results])
+                })
+            else:
+                metrics.update({
+                    "total_tokens": 0,
+                    "avg_tokens_per_sample": 0,
+                    "avg_prompt_tokens": 0,
+                    "avg_completion_tokens": 0
+                })
         
         # Error analysis
         if failed:
@@ -449,7 +461,7 @@ class ReportGenerator:
             
             if 'top1_accuracy' in metrics:
                 report.append("### Position Accuracy")
-                report.append("Top-1 measures correctly identifying the best response, Top-3 measures having all 3 best responses in the top 3 positions.")
+                report.append("Top-1 measures correctly identifying the best response (giving it rank 9), Top-3 measures having all 3 best responses in ranks 7-9.")
                 report.append(f"- Top-1 Accuracy: {metrics['top1_accuracy']:.1%}")
                 report.append(f"- Top-3 Accuracy: {metrics['mean_top3_accuracy']:.1%}")
                 report.append(f"- Bottom-1 Accuracy: {metrics['bottom1_accuracy']:.1%}")

@@ -281,7 +281,7 @@ All evaluation methods should return results with these keys:
 
 ### 1. Ranking (Implemented)
 - **Input**: 9 completions to rank
-- **Output**: Complete ranking from 1-9
+- **Output**: Complete ranking from 1-9 (9=best, 1=worst)
 - **Metrics**: Spearman correlation, Kendall's tau, position accuracy
 
 ### 2. Pairwise Comparison (Template above)
@@ -291,12 +291,12 @@ All evaluation methods should return results with these keys:
 
 ### 3. Scoring
 - **Input**: Individual completions
-- **Output**: Quality score (1-9 scale)
+- **Output**: Quality score (1-9 scale, 9=best, 1=worst)
 - **Metrics**: Score correlation with ground truth, score distribution
 
 ### 4. Single Token Prediction
 - **Input**: Prompt asking for best completion
-- **Output**: Single token (1-9)
+- **Output**: Single token (1-9, 9=best, 1=worst)
 - **Metrics**: Selection accuracy, top-k accuracy
 
 ## Evaluation Instructions and Prompts

@@ -13,7 +13,8 @@ import numpy as np
 # Initialize client
 client = openai.Client(
     api_key=os.getenv("SWISSAI_API_KEY"),
-    base_url="https://api.swissai.cscs.ch/v1"
+    #base_url="https://api.swissai.cscs.ch/v1"
+    base_url="http://148.187.108.173:8092/v1/service/llm/v1/"
 )
 
 # Make API call with logprobs enabled
