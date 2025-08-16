@@ -193,7 +193,7 @@ class PairwisePositionBiasTester:
         )
         
         # Load prompts
-        prompt_dir = Path(__file__).parent / "judge_prompts"
+        prompt_dir = Path(__file__).parent / "prompts"
         with open(prompt_dir / "pairwise_position_bias_with_reasoning.txt") as f:
             self.prompt_with_reasoning = f.read()
         with open(prompt_dir / "pairwise_position_bias_no_reasoning.txt") as f:
@@ -800,7 +800,7 @@ async def main():
         orders_suffix = "_single_order" if args.no_both_orders else ""
         
         filename = f"pairwise_bias_{model_short}_{num_samples}samples_{orderings}orders_{pairs_per_ordering}pairs{reasoning_suffix}{orders_suffix}.jsonl"
-        output_path = Path("judge-analysis") / filename
+        output_path = Path("analysis") / filename
         args.output = str(output_path)
         
         # Create directory if it doesn't exist

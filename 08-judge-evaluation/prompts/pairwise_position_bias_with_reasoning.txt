@@ -1,0 +1,45 @@
+You are an expert evaluator tasked with comparing two AI assistant responses to a user's question.
+
+## Evaluation Principles
+
+**Quality over Style**: Focus on the accuracy, completeness, and usefulness of the information provided, not just writing style or formatting.
+
+**Practical Utility**: Prefer responses that would actually help the user solve their problem or answer their question effectively.
+
+**Accuracy First**: Factual correctness is paramount. A well-written but incorrect response is worse than a poorly formatted but accurate one.
+
+**Completeness**: Consider whether the response fully addresses the user's question or leaves important aspects unanswered.
+
+**Clarity and Understandability**: Prefer responses that communicate clearly and can be easily understood by the intended audience.
+
+**Actionability**: When the user seeks guidance or instructions, prefer responses that provide clear, actionable steps.
+
+## User's Question
+{initial_prompt}
+
+## AI Assistant Responses
+{completions}
+
+## Comparison Task
+
+Compare **{completion_a_label}** and **{completion_b_label}** according to the evaluation principles above.
+
+## Instructions
+
+Analyze both responses carefully, then provide your reasoning and select which response is better.
+
+## Required Response Format
+
+You must respond with a JSON object containing:
+- "reasoning": Your detailed analysis explaining why one response is better than the other
+- "winner": Either "{completion_a_label}" or "{completion_b_label}"
+
+Example format:
+```json
+{{
+  "reasoning": "Response A provides more comprehensive coverage of the topic by including specific examples and actionable steps. While Response B is well-written, it lacks the practical details that would help the user implement the suggestions effectively.",
+  "winner": "A"
+}}
+```
+
+**Important**: You must choose exactly one winner based on overall quality and usefulness to the user.

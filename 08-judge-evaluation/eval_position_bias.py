@@ -177,7 +177,7 @@ class PositionBiasTester:
         )
         
         # Load prompts
-        prompt_dir = Path(__file__).parent / "judge_prompts"
+        prompt_dir = Path(__file__).parent / "prompts"
         with open(prompt_dir / "position_bias_with_reasoning.txt") as f:
             self.prompt_with_reasoning = f.read()
         with open(prompt_dir / "position_bias_no_reasoning.txt") as f:
@@ -666,7 +666,7 @@ async def main():
         reasoning_suffix = f"_{args.reasoning_mode}" if args.reasoning_mode != "no_reasoning" else ""
         
         filename = f"position_bias_{model_short}_{num_samples}samples_{orderings}orders{reasoning_suffix}.jsonl"
-        output_path = Path("judge-analysis") / filename
+        output_path = Path("analysis") / filename
         args.output = str(output_path)
         
         # Create directory if it doesn't exist

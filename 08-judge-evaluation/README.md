@@ -28,7 +28,7 @@ venv/bin/python 08-judge-evaluation/judge_llm_ranking.py --samples 100 \
 
 The framework uses a modular architecture with reusable components:
 
-### Core Library (`lib/judge_evaluation.py`)
+### Core Library (`lib.py`)
 - **`SyntheticDatasetLoader`** - Dataset loading and preparation
 - **`InstructionsLoader`** - Judge instructions management  
 - **`EvaluationAnalyzer`** - Metrics calculation and error analysis
@@ -72,7 +72,7 @@ from typing import Dict, Any, List, Optional, Tuple
 
 # Add lib directory to path
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-from lib.judge_evaluation import (
+from lib import (
     SyntheticDatasetLoader, EvaluationAnalyzer,
     ReportGenerator, BaseJudgeEvaluator, JudgeEvaluationUtils
 )
@@ -308,6 +308,8 @@ Create modular instruction files in `judge_instructions/`:
 - **`concise.txt`** - Brevity-focused evaluation
 - **Custom instructions** - Domain-specific evaluation criteria
 
+Additional prompts for bias testing are available in `prompts/`.
+
 ## Best Practices
 
 1. **Reuse the library** - Don't reimplement common functionality
@@ -333,7 +335,7 @@ venv/bin/python 08-judge-evaluation/judge_yourmethod.py --samples 100
 
 ## Output Files
 
-All judge scripts generate:
+All judge scripts generate output in the `analysis/` directory:
 - **`judge_<method>_<config>.jsonl`** - Raw results for further analysis
 - **`judge_<method>_<config>.md`** - Comprehensive evaluation report
 
@@ -347,6 +349,6 @@ Reports include:
 ## Getting Help
 
 - Check `judge_llm_ranking.py` for a complete working example
-- Review `lib/judge_evaluation.py` for available utilities
+- Review `lib.py` for available utilities
 - Use `judge_llm_ranking_standalone.py` to see the original monolithic version
 - Test incrementally with small sample sizes during development

@@ -22,7 +22,7 @@ from typing import Dict, Any, List, Optional, Tuple
 import numpy as np
 from scipy.stats import spearmanr, kendalltau
 
-from judge_lib import (
+from lib import (
     SyntheticDatasetLoader, InstructionsLoader, EvaluationAnalyzer,
     ReportGenerator, LLMClient, ConcurrentEvaluator, JudgeEvaluationUtils
 )

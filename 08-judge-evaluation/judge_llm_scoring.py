@@ -24,7 +24,7 @@ from typing import Dict, Any, List, Optional, Tuple
 
 from scipy.stats import spearmanr, kendalltau
 
-from judge_lib import (
+from lib import (
     SyntheticDatasetLoader, InstructionsLoader, EvaluationAnalyzer,
     ReportGenerator, LLMClient, ConcurrentEvaluator, JudgeEvaluationUtils
 )
