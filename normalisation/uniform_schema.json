@@ -1,0 +1,55 @@
+{
+  "aggregation_input_data_path": "str",
+  "available_functions": [],
+  "conversation_branches": [
+    {
+      "messages": [
+        {
+          "metadata": {},
+          "parts": [
+            {
+              "answers": [],
+              "args": "str",
+              "content": "str",
+              "metadata": {
+                "dialect": "str",
+                "dialect_name": "str",
+                "language": "str"
+              },
+              "name": "str",
+              "type": "str"
+            }
+          ],
+          "role": "str"
+        }
+      ]
+    }
+  ],
+  "conversation_id": "str",
+  "created_timestamp": "str",
+  "dataset_source": "str",
+  "initial_prompt": {
+    "content": "str",
+    "metadata": {
+      "answer": "str",
+      "dialect": "str",
+      "dialect_name": "str",
+      "problem_type": "str",
+      "question_type": "str",
+      "source": "str",
+      "source_lang": "str",
+      "synthetic": "bool",
+      "target_lang": "str",
+      "task_type": "str",
+      "verifiable_answer": "str"
+    },
+    "role": "str"
+  },
+  "original_metadata": {
+    "original_id": "int"
+  },
+  "system_prompt": {
+    "content": "str",
+    "metadata": {}
+  }
+}

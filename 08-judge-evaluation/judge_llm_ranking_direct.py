@@ -37,7 +37,7 @@ class JudgeDirectScoringEvaluator:
     """Evaluates judge model's ranking ability using direct scoring method."""
     
     def __init__(self, model: str = DEFAULT_MODEL, 
-                 instructions_path: str = "judge_instructions/default.txt", 
+                 instructions_path: str = "prompts/principles.txt", 
                  max_retries: int = DEFAULT_MAX_RETRIES, max_concurrent: int = 50,
                  debug_file_path: Optional[Path] = None):
         self.model = model
@@ -268,7 +268,7 @@ async def main():
                        help="Model to use for evaluation")
     parser.add_argument("--concurrent", type=int, default=50,
                        help="Maximum concurrent API requests")
-    parser.add_argument("--instructions", type=str, default="judge_instructions/default.txt",
+    parser.add_argument("--instructions", type=str, default="prompts/principles.txt",
                        help="Path to judge instructions file")
     parser.add_argument("--max-retries", type=int, default=DEFAULT_MAX_RETRIES,
                        help="Maximum number of retries for failed samples")

@@ -482,7 +482,7 @@ apertus-sft-mixture-7-nemotron:
 
 apertus-sft-mixture-7-custom:
   # custom datasets
-  - dataset_path: "/capstor/store/cscs/swissai/infra01/posttrain_data/02_standardised_newformat/NuminaMath-1.5-variation"
+  - dataset_path: "/capstor/store/cscs/swissai/infra01/posttrain_data/02_standardised_newformat/NuminaMath-1.5-variation"  # this doesn't belong here
     filters: []
   - dataset_path: "/users/schlag/store/posttrain_data/02_standardised_newformat/swiss-german-instruct-data-dialects-with-translation-instructions-v2"
     filters: []
@@ -504,6 +504,19 @@ apertus-sft-mixture-7-the-tome:
   - dataset_path: "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated_newformat/The-Tome-self-instruct-sharegpt"
     filters: []
   - dataset_path: "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated_newformat/The-Tome-WebInstructSub_axolotl"
+    filters: []
+
+
+apertus-sft-mixture-8-tool-use:
+  # Tool-extracted math dataset
+  - dataset_path: "/capstor/store/cscs/swissai/infra01/posttrain_data/05_annotated_newformat/tulu-3-sft-olmo-2-mixture-0225-ai2-adapt-dev_numinamath_tir_math_decontaminated-toolExtracted-boxedRemoved"
+    filters: []
+  # Function calling datasets
+  - dataset_path: "/capstor/store/cscs/swissai/infra01/posttrain_data/02_standardised_newformat/xlam-function-calling-60k"
+    filters: []
+  - dataset_path: "/capstor/store/cscs/swissai/infra01/posttrain_data/02_standardised_newformat/APIGen-MT-5k"
+    filters: []
+  - dataset_path: "/capstor/store/cscs/swissai/infra01/posttrain_data/02_standardised_newformat/glaive-function-calling-converted"
     filters: []
 
 apertus-sft-mixture-7:

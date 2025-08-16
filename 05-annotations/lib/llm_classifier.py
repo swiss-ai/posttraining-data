@@ -115,7 +115,7 @@ class RequestMetrics:
         if self.latencies:
             avg_latency = sum(self.latencies) / len(self.latencies)
             # Little's Law: optimal concurrency = throughput * latency
-            optimal_concurrent = max(1, int((metrics['requests_per_minute'] * avg_latency) / 60.0))
+            optimal_concurrent = max(1, int((metrics['requests_per_minute'] * avg_latency) / 60.0) * 1.1)
         else:
             avg_latency = 0.0
             optimal_concurrent = 50  # Default fallback
@@ -610,7 +610,7 @@ class LLMClassifier:
             return  # Stability zone active - preserve learned optimal concurrency
         
         old_concurrent = self.current_concurrent
-        self.current_concurrent = max(self.current_concurrent - 1, self.min_concurrent)
+        self.current_concurrent = max(self.current_concurrent - 0, self.min_concurrent)
         
         if self.current_concurrent < old_concurrent:
             print(f"🔻 Reducing concurrency: {old_concurrent} → {self.current_concurrent} (immediate failure response)")
@@ -639,7 +639,7 @@ class LLMClassifier:
         old_concurrent = self.current_concurrent
         
         # Periodic optimization based on error rate
-        if error_rate <= 0.01 and metrics.get('avg_latency_seconds', 0) < 20.0:  # Only increase on <1% error rate and low latency
+        if error_rate <= 0.01 and metrics.get('avg_latency_seconds', 0) < 40.0:  # Only increase on <1% error rate and low latency
             # Explore higher concurrency (+20)
             self.current_concurrent += 20
             print(f"🔺 Increasing concurrency: {old_concurrent} → {self.current_concurrent} ({error_rate*100:.1f}% error rate, avg {metrics.get('avg_latency_seconds', 0):.1f}s)")

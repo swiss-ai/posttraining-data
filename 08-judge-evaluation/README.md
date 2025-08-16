@@ -14,7 +14,7 @@ venv/bin/python 08-judge-evaluation/judge_llm_ranking.py --samples -1
 
 # Use custom judge instructions
 venv/bin/python 08-judge-evaluation/judge_llm_ranking.py --samples 10 \
-    --instructions judge_instructions/charter.txt
+    --instructions prompts/charter.txt
 ```
 
 ### Advanced Options
@@ -86,7 +86,7 @@ class JudgePairwiseEvaluator(BaseJudgeEvaluator):
     """Evaluates judge model's pairwise comparison ability."""
     
     def __init__(self, model: str = DEFAULT_MODEL, 
-                 instructions_path: str = "judge_instructions/default.txt", 
+                 instructions_path: str = "prompts/principles.txt", 
                  max_retries: int = DEFAULT_MAX_RETRIES):
         super().__init__(model, instructions_path, max_retries)
         # Add any method-specific initialization here
@@ -141,7 +141,7 @@ async def main():
                        help="Model to use for evaluation")
     parser.add_argument("--concurrent", type=int, default=50,
                        help="Maximum concurrent API requests")
-    parser.add_argument("--instructions", type=str, default="judge_instructions/default.txt",
+    parser.add_argument("--instructions", type=str, default="prompts/principles.txt",
                        help="Path to judge instructions file")
     parser.add_argument("--max-retries", type=int, default=DEFAULT_MAX_RETRIES,
                        help="Maximum number of retries for failed samples")
@@ -299,16 +299,18 @@ All evaluation methods should return results with these keys:
 - **Output**: Single token (1-9)
 - **Metrics**: Selection accuracy, top-k accuracy
 
-## Judge Instructions
+## Evaluation Instructions and Prompts
 
-Create modular instruction files in `judge_instructions/`:
+All evaluation instructions and prompt templates are in the `prompts/` directory:
 
-- **`default.txt`** - General helpful/honest/harmless principles
+**Evaluation Principles:**
+- **`principles.txt`** - General helpful/honest/harmless principles (default)
 - **`charter.txt`** - Constitutional AI charter-based evaluation
 - **`concise.txt`** - Brevity-focused evaluation
-- **Custom instructions** - Domain-specific evaluation criteria
+- **Custom files** - Domain-specific evaluation criteria
 
-Additional prompts for bias testing are available in `prompts/`.
+**Bias Testing Prompts:**
+- Position bias and pairwise comparison prompt templates
 
 ## Best Practices
 

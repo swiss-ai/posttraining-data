@@ -773,7 +773,7 @@ Examples:
         
         old_concurrent = self.llm_classifier.current_concurrent
         self.llm_classifier.current_concurrent = max(
-            self.llm_classifier.current_concurrent - 1, 
+            self.llm_classifier.current_concurrent - 0, 
             self.llm_classifier.min_concurrent
         )
         

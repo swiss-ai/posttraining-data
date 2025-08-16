@@ -1,0 +1,35 @@
+{
+  "sample_count": 68,
+  "percentage": 0.136,
+  "example_sample_indices": [
+    3035578,
+    3035669,
+    3035760,
+    3035851,
+    3035942
+  ],
+  "differences_from_primary": {
+    "missing_in_first": [],
+    "missing_in_second": [],
+    "type_mismatches": [
+      {
+        "field": "initial_prompt.metadata.dialect",
+        "type_in_first": "null",
+        "type_in_second": "string"
+      },
+      {
+        "field": "initial_prompt.metadata.source",
+        "type_in_first": "null",
+        "type_in_second": "string"
+      },
+      {
+        "field": "initial_prompt.metadata.dialect_name",
+        "type_in_first": "null",
+        "type_in_second": "string"
+      }
+    ],
+    "total_fields_first": 37,
+    "total_fields_second": 37,
+    "common_fields": 37
+  }
+}

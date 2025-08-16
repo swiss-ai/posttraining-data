@@ -39,7 +39,7 @@ class JudgeScoringEvaluator:
     """Evaluates judge model with direct scoring."""
     
     def __init__(self, model: str = DEFAULT_MODEL, enable_thinking: bool = False, scale_range: Tuple[int, int] = (1, 9), 
-                 instructions_path: str = "judge_instructions/default.txt", use_modal_response: bool = False,
+                 instructions_path: str = "prompts/principles.txt", use_modal_response: bool = False,
                  max_retries: int = DEFAULT_MAX_RETRIES, max_concurrent: int = 50,
                  debug_file_path: Optional[Path] = None):
         self.model = model
@@ -254,7 +254,7 @@ async def main():
                        help="Scale range for ranking (start end), e.g. 1 9")
     parser.add_argument("--concurrent", type=int, default=50,
                        help="Maximum concurrent API requests")
-    parser.add_argument("--instructions", type=str, default="judge_instructions/default.txt",
+    parser.add_argument("--instructions", type=str, default="prompts/principles.txt",
                        help="Path to judge instructions file")
     parser.add_argument("--max-retries", type=int, default=DEFAULT_MAX_RETRIES,
                        help="Maximum number of retries for failed samples")
