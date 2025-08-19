@@ -22,7 +22,7 @@ import math
 from pathlib import Path
 from typing import Dict, Any, List, Optional, Tuple
 
-from scipy.stats import spearmanr, kendalltau
+from scipy.stats import spearmanr, kendalltau, rankdata
 
 from lib import (
     SyntheticDatasetLoader, InstructionsLoader, EvaluationAnalyzer,
@@ -216,9 +216,11 @@ class JudgeScoringEvaluator:
         # Ground truth ranks: higher is better (9=best, 1=worst)
         # Scores: higher is better (9=best, 1=worst) - same scale now
         # Find which completions should be top 3
-        completion_ranking = sorted(range(9), key=lambda i: completion_scores[i], reverse=True)
-        best_3_indices = sorted(range(9), key=lambda i: ground_truth[i], reverse=True)[:3]
-        top3_correct = sum(1 for i in best_3_indices if completion_ranking[i] <= 3)
+        completion_ranking = rankdata(completion_scores).astype(int).tolist()
+        n_completions = len(completion_ranking)
+        best_3_indices = sorted(range(n_completions), key=lambda i: ground_truth[i], reverse=True)[:3]
+        top3_threshold = max(1, n_completions - 2)
+        top3_correct = sum(1 for i in best_3_indices if completion_ranking[i] >= top3_threshold)
 
         result.update({
             "success": True,
