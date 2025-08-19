@@ -189,7 +189,7 @@ class JudgePairwiseRankingEvaluator:
         debug_probs = []
         
         if self.enable_thinking:
-            max_tokens = 2048
+            max_tokens = 4096
             temperature = 0.6
         else:
             max_tokens = 16
