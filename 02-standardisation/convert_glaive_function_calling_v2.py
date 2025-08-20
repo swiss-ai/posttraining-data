@@ -16,7 +16,7 @@ ASSISTANT line        → role="assistant"     part.type="response"
 FUNCTION RESPONSE:{…} → role="tool-response" part.type="function-output"
 """
 
-import re, json, sys, argparse, hashlib
+import re, json, sys, argparse, hashlib, random
 from pathlib import Path
 from datetime import datetime, UTC
 from typing import List, Dict, Any, Optional
@@ -27,7 +27,7 @@ SRC = "glaive-function-calling-v2"
 
 # ───────────── regexes ───────────── #
 SYSTEM_RE    = re.compile(r"^SYSTEM:\s*(.*)",            re.I)
-USER_RE      = re.compile(r"^USER:\s*(.*)",              re.I)
+USER_RE      = re.compile(r"^USER:\s*(.*)",              re.I | re.DOTALL)
 ASSIST_RE    = re.compile(r"^ASSISTANT:\s*(.*?)(?:\s*<\|endoftext\|>)?$",         re.I)
 FUNC_RESP_RE = re.compile(r"^FUNCTION RESPONSE:\s*(.*)", re.I)
 FUNC_CALL_RE = re.compile(r"<functioncall>\s*(.*)", re.I)
@@ -130,11 +130,17 @@ def parse_sample(system: str, chat: str) -> Optional[Dict[str, Any]]:
             buf.append(system_lines[i]); i += 1
         funcs = parse_functions("\n".join(buf))
 
+    system_text = system_text.replace(" -", ".")
+
+    # Remove system text 80% of the time
+    if random.random() < 0.8:
+        system_text = ""
+
     # Split chat by USER turns
     user_turns = []
     current_turn = ""
-    
-    for line in chat.split("\n\n\n"):
+
+    for line in chat.split("\n\n"):
         line = line.strip()
         if USER_RE.match(line):
             if current_turn:
@@ -142,7 +148,7 @@ def parse_sample(system: str, chat: str) -> Optional[Dict[str, Any]]:
             current_turn = line
         else:
             if current_turn:
-                current_turn += "\n\n\n" + line
+                current_turn += "\n\n" + line
     
     if current_turn:
         user_turns.append(current_turn)
@@ -152,7 +158,7 @@ def parse_sample(system: str, chat: str) -> Optional[Dict[str, Any]]:
     first_user = None
     
     for turn in user_turns:
-        lines = turn.split("\n\n\n")
+        lines = turn.split("\n\n")
         
         # First line should be USER
         if not lines or not (user_match := USER_RE.match(lines[0].strip())):
