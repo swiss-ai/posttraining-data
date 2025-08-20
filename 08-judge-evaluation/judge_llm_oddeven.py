@@ -31,9 +31,9 @@ from lib import (
 )
 
 # Configuration
-DATASET_PATH = "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated_newformat/olmo-2-preference-quality-short-1100-synthetic"
+DATASET_PATH = "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated_newformat/olmo-2-preference-quality-short-1100-synthetic-llama"
 DEFAULT_MODEL = "Qwen/Qwen3-32B"
-DEFAULT_MAX_RETRIES = 2
+DEFAULT_MAX_RETRIES = 3
 
 
 class JudgeOddEvenSortEvaluator:
@@ -41,23 +41,23 @@ class JudgeOddEvenSortEvaluator:
     
     def __init__(self, model: str = DEFAULT_MODEL, enable_reasoning: bool = False,
                  max_passes: Optional[int] = None, label_type: str = "alphabetic",
-                 instructions_path: str = "prompts/principles.txt", 
+                 charter_path: str = "08-judge-evaluation/prompts/charter-generic.txt", 
                  max_retries: int = DEFAULT_MAX_RETRIES, max_concurrent: int = 50,
                  debug_file_path: Optional[Path] = None):
         self.model = model
         self.enable_reasoning = enable_reasoning
         self.max_passes = max_passes  # None = n_completions - 1
         self.label_type = label_type
-        self.instructions_path = instructions_path
+        self.charter_path = charter_path
         
         # Initialize composable components
         self.llm_client = LLMClient(model=model, max_retries=max_retries, debug_file_path=debug_file_path)
         self.concurrent_evaluator = ConcurrentEvaluator(max_concurrent=max_concurrent)
         
-        # Load judge instructions
-        script_dir = Path(__file__).parent
+        # Load judge charter
+        # charter_path is already relative to repo root, no need for script_dir
         self.judge_instructions = InstructionsLoader.load_instructions(
-            instructions_path, script_dir
+            charter_path
         )
         
         # Label mappings
@@ -672,8 +672,8 @@ async def main():
                        help="Label type for completions")
     parser.add_argument("--concurrent", type=int, default=50,
                        help="Maximum concurrent API requests")
-    parser.add_argument("--instructions", type=str, default="prompts/principles.txt",
-                       help="Path to judge instructions file")
+    parser.add_argument("--charter-path", type=str, default="08-judge-evaluation/prompts/charter-generic.txt",
+                       help="Path to judge charter file (from repo root)")
     parser.add_argument("--max-retries", type=int, default=DEFAULT_MAX_RETRIES,
                        help="Maximum number of retries for failed samples")
     parser.add_argument("--debug", action="store_true",
@@ -706,7 +706,7 @@ async def main():
             'model': args.model,
             'reasoning': args.enable_reasoning,
             'label_type': args.label_type,
-            'instructions': args.instructions
+            'charter': args.charter_path
         }
         base_name = utils.generate_output_filename("llm_oddeven", args.model, config, len(samples))
         debug_file_path = utils.create_debug_file_path(__file__, base_name)
@@ -717,7 +717,7 @@ async def main():
         enable_reasoning=args.enable_reasoning,
         max_passes=args.max_passes,
         label_type=args.label_type,
-        instructions_path=args.instructions,
+        charter_path=args.charter_path,
         max_retries=args.max_retries,
         max_concurrent=args.concurrent,
         debug_file_path=debug_file_path
@@ -760,7 +760,7 @@ async def main():
         'model': args.model,
         'reasoning': args.enable_reasoning,
         'label_type': args.label_type,
-        'instructions': args.instructions
+        'charter': args.charter_path
     }
     base_name = utils.generate_output_filename("llm_oddeven", args.model, config, len(samples))
     output_dir = utils.create_output_directory(__file__)
