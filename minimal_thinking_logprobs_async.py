@@ -14,11 +14,13 @@ import time
 from collections import Counter, defaultdict
 from typing import Dict, List, Optional
 
+# curl -s 148.187.108.172:8092/v1/dnt/table | python3 -m json.tool
+
 async def process_single_request(client: openai.AsyncOpenAI, messages: List[Dict], request_id: int) -> Dict:
     """Process a single async request and extract answer token data."""
     try:
         response = await client.chat.completions.create(
-            model="Qwen/Qwen3-32B",
+            model="meta-llama/Llama-3.3-70B-Instruct",  # "Qwen/Qwen3-32B",
             messages=messages,
             logprobs=True,
             top_logprobs=20,
@@ -130,7 +132,7 @@ async def main():
     client = openai.AsyncOpenAI(
         api_key=os.getenv("SWISSAI_API_KEY"),
         #base_url="https://api.swissai.cscs.ch/v1"
-        base_url="http://148.187.108.173:8092/v1/service/llm/v1/"
+        base_url="http://148.187.108.172:8092/v1/service/llm/v1/"
     )
     
     # Define the messages
