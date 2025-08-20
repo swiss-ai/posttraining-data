@@ -117,7 +117,7 @@ class LLMClient:
         
         self.client = openai.AsyncOpenAI(
             api_key=self.api_key,
-            base_url="http://148.187.108.173:8092/v1/service/llm/v1/"
+            base_url="http://148.187.108.172:8092/v1/service/llm/v1/"
         )
         
         # Initialize debug file if provided
@@ -181,17 +181,32 @@ class LLMClient:
                     **openai_kwargs,
                 )
 
-                result = {
-                    'success': True,
-                    'content': response.choices[0].message.content,
-                    'logprobs': response.choices[0].logprobs.content,
-                    'tokens': {
-                        'prompt': response.usage.prompt_tokens,
-                        'completion': response.usage.completion_tokens,
-                        'total': response.usage.total_tokens
-                    },
-                    'error': None
-                }
+                # Check if response content is valid
+                message_content = response.choices[0].message.content
+                if message_content is None:
+                    result = {
+                        'success': False,
+                        'content': None,
+                        'logprobs': None,
+                        'tokens': {
+                            'prompt': response.usage.prompt_tokens if response.usage else 0,
+                            'completion': response.usage.completion_tokens if response.usage else 0,
+                            'total': response.usage.total_tokens if response.usage else 0
+                        },
+                        'error': 'API returned None content'
+                    }
+                else:
+                    result = {
+                        'success': True,
+                        'content': message_content,
+                        'logprobs': response.choices[0].logprobs.content if response.choices[0].logprobs else None,
+                        'tokens': {
+                            'prompt': response.usage.prompt_tokens,
+                            'completion': response.usage.completion_tokens,
+                            'total': response.usage.total_tokens
+                        },
+                        'error': None
+                    }
                 
                 if attempt > 0:
                     result['retries'] = attempt
