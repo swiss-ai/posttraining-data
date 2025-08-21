@@ -20,7 +20,7 @@ async def process_single_request(client: openai.AsyncOpenAI, messages: List[Dict
     """Process a single async request and extract answer token data."""
     try:
         response = await client.chat.completions.create(
-            model="meta-llama/Llama-3.3-70B-Instruct",  # "Qwen/Qwen3-32B",
+            model="Qwen/Qwen3-32B",  # Qwen/Qwen3-32B,  meta-llama/Llama-3.3-70B-Instruct
             messages=messages,
             logprobs=True,
             top_logprobs=20,

@@ -55,9 +55,9 @@ class JudgeOddEvenSortEvaluator:
         self.concurrent_evaluator = ConcurrentEvaluator(max_concurrent=max_concurrent)
         
         # Load judge charter
-        # charter_path is already relative to repo root, no need for script_dir
+        # charter_path is relative to repo root
         self.judge_instructions = InstructionsLoader.load_instructions(
-            charter_path
+            charter_path, None
         )
         
         # Label mappings
