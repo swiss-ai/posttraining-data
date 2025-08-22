@@ -106,7 +106,7 @@ cat > "$JOB_SCRIPT" << EOF
 #SBATCH --nodes 1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=144
-#SBATCH --partition=large512
+#SBATCH --partition=normal
 
 # Set environment variables
 export TOKENIZERS_PARALLELISM=true
@@ -174,7 +174,7 @@ cat > "$MERGE_SCRIPT" << EOF
 #SBATCH --nodes 1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=72
-#SBATCH --partition=large512
+#SBATCH --partition=normal
 
 echo "=== MERGING PARALLEL DECONTAMINATION RESULTS ==="
 echo "Dataset: ${DATASET_NAME}"
