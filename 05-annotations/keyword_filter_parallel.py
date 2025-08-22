@@ -18,7 +18,7 @@ from datetime import datetime
 
 # Keyword list for filtering AI model references
 FILTER_KEYWORDS = [
-    "chatgpt", "chat gpt", "gpt3", "gpt4", "gpt5",
+    "chatgpt", "chat gpt", "Chat-gpt", "gpt3", "gpt4", "gpt5",
     "gpt-3", "gpt-4", "gpt-5", "openai", "open-ai", "open ai", 
     "openassistant", "open assistant", "open-assistant", "eurollm", "euroblock"
 ]
@@ -54,6 +54,9 @@ def annotate_content_with_keywords(content: str, keywords: list) -> dict:
 def transform_sample_with_keywords(sample, keywords):
     """Transform a sample to add keyword detection metadata consistently."""
     
+    # Track if any content in this sample has keywords
+    sample_has_keywords = False
+    
     def get_empty_keyword_result():
         return {
             "assistant_keywords_found": [],
@@ -65,6 +68,7 @@ def transform_sample_with_keywords(sample, keywords):
     
     def process_content(content, existing_metadata=None):
         """Process content and add keyword detection to metadata."""
+        nonlocal sample_has_keywords
         metadata = copy.deepcopy(existing_metadata) if existing_metadata else {}
         
         if content and isinstance(content, str):
@@ -75,6 +79,10 @@ def transform_sample_with_keywords(sample, keywords):
                 keyword_result = get_empty_keyword_result()
         else:
             keyword_result = get_empty_keyword_result()
+        
+        # Update sample-level flag if keywords found
+        if keyword_result["has_assistant_keywords"]:
+            sample_has_keywords = True
         
         metadata["keyword_detection"] = keyword_result
         return metadata
@@ -115,6 +123,9 @@ def transform_sample_with_keywords(sample, keywords):
                         content = message.get("content", "")
                         existing_metadata = message.get("metadata", {})
                         message["metadata"] = process_content(content, existing_metadata)
+    
+    # Add sample-level keyword detection flag
+    result["sample_has_assistant_keywords"] = sample_has_keywords
     
     return result
 
@@ -261,39 +272,35 @@ Default keywords: {', '.join(FILTER_KEYWORDS)}
     print(f"Saving annotated dataset to {args.output_path}...")
     new_dataset.save_to_disk(args.output_path)
     
-    # Calculate statistics
+    # Calculate statistics using the sample-level flag
     print("\nCalculating statistics...")
-    total_keywords_found = 0
     samples_with_keywords = 0
     
-    for sample in tqdm(new_dataset, desc="Counting keyword detections"):
-        sample_has_keywords = False
-        
+    for sample in tqdm(new_dataset, desc="Counting samples with keywords"):
+        if sample.get("sample_has_assistant_keywords", False):
+            samples_with_keywords += 1
+    
+    # Count total individual keyword detections for detailed reporting
+    total_keywords_found = 0
+    for sample in tqdm(new_dataset, desc="Counting individual detections"):
         # Check system prompt
         if (sample.get("system_prompt", {}).get("metadata", {}).get("keyword_detection", {}).get("has_assistant_keywords")):
             total_keywords_found += 1
-            sample_has_keywords = True
         
         # Check initial prompt
         if (sample.get("initial_prompt", {}).get("metadata", {}).get("keyword_detection", {}).get("has_assistant_keywords")):
             total_keywords_found += 1
-            sample_has_keywords = True
         
         # Check conversation branches
         for branch in sample.get("conversation_branches", []):
             for message in branch.get("messages", []):
                 if (message.get("metadata", {}).get("keyword_detection", {}).get("has_assistant_keywords")):
                     total_keywords_found += 1
-                    sample_has_keywords = True
                 
                 # Check parts
                 for part in message.get("parts", []):
                     if (part.get("metadata", {}).get("keyword_detection", {}).get("has_assistant_keywords")):
                         total_keywords_found += 1
-                        sample_has_keywords = True
-        
-        if sample_has_keywords:
-            samples_with_keywords += 1
     
     # Save metadata
     metadata = {
@@ -304,9 +311,10 @@ Default keywords: {', '.join(FILTER_KEYWORDS)}
         "output_path": str(args.output_path),
         "total_samples": len(all_transformed_samples),
         "samples_with_keywords": samples_with_keywords,
+        "sample_level_keyword_percentage": (samples_with_keywords/len(all_transformed_samples)*100) if all_transformed_samples else 0.0,
         "total_keyword_detections": total_keywords_found,
         "keywords_searched": keywords,
-        "format": "new_chat_format_with_parts"
+        "format": "new_chat_format_with_parts_and_sample_level_flag"
     }
     
     metadata_path = Path(args.output_path) / "dataset_metadata.json"

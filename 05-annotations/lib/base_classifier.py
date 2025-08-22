@@ -260,10 +260,12 @@ Examples:
         chunk_file = output_path / f"chunk_{chunk_idx:06d}.json"
         
         with open(chunk_file, 'w') as f:
+            # Convert datetime objects to strings before JSON serialization
+            serializable_samples = self._make_samples_serializable(samples)
             json.dump({
                 "chunk_index": chunk_idx,
-                "sample_count": len(samples),
-                "samples": samples,
+                "sample_count": len(serializable_samples),
+                "samples": serializable_samples,
                 "timestamp": datetime.now().isoformat()
             }, f, indent=2)
     
@@ -366,6 +368,37 @@ Examples:
                     pass
         
         return all_samples
+    
+    def _make_samples_serializable(self, samples: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        Convert datetime objects to strings to make samples JSON serializable.
+        
+        Args:
+            samples: List of sample dictionaries
+            
+        Returns:
+            List of samples with datetime objects converted to strings
+        """
+        import copy
+        
+        def convert_datetime_recursive(obj):
+            """Recursively convert datetime objects to ISO format strings."""
+            if isinstance(obj, datetime):
+                return obj.isoformat()
+            elif isinstance(obj, dict):
+                return {k: convert_datetime_recursive(v) for k, v in obj.items()}
+            elif isinstance(obj, list):
+                return [convert_datetime_recursive(item) for item in obj]
+            else:
+                return obj
+        
+        # Deep copy and convert all samples
+        serializable_samples = []
+        for sample in samples:
+            converted_sample = convert_datetime_recursive(sample)
+            serializable_samples.append(converted_sample)
+        
+        return serializable_samples
     
     def update_metadata(self, input_path: Path, output_path: Path, processing_stats: Dict[str, Any]):
         """Update dataset metadata with processing information."""
@@ -587,7 +620,9 @@ Examples:
         
         print(f"\nCreating output dataset with {len(all_samples):,} samples...")
         try:
-            output_dataset = Dataset.from_list(all_samples)
+            # Convert datetime objects to strings to avoid JSON serialization errors
+            serializable_samples = self._make_samples_serializable(all_samples)
+            output_dataset = Dataset.from_list(serializable_samples)
             
             # Save dataset
             output_path.mkdir(parents=True, exist_ok=True)

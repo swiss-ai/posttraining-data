@@ -148,7 +148,7 @@ class LLMClassifier:
         self.client = openai.AsyncOpenAI(
             api_key=api_key,
             # base_url="https://api.swissai.cscs.ch/v1",
-            base_url="http://148.187.108.173:8092/v1/service/llm/v1/",
+            base_url="http://148.187.108.172:8092/v1/service/llm/v1/",
             timeout=45.0
         )
         
@@ -185,7 +185,7 @@ class LLMClassifier:
             
             # Use sync requests in async context (this is a one-time setup call)
             response = requests.get(
-                "http://148.187.108.173:8092/v1/models",
+                "http://148.187.108.172:8092/v1/models",
                 #"https://api.swissai.cscs.ch/v1/models",
                 headers=headers,
                 timeout=10.0
@@ -341,7 +341,13 @@ class LLMClassifier:
                     response_format={"type": "json_object"}
                 )
                 
-                # Extract response
+                # Extract response with better error handling
+                if not hasattr(response, 'choices') or not response.choices:
+                    raise Exception(f"Invalid API response format: {type(response)} - {str(response)[:200]}")
+                
+                if not hasattr(response.choices[0], 'message') or not response.choices[0].message:
+                    raise Exception(f"Invalid response structure - no message: {response.choices[0]}")
+                    
                 response_content = response.choices[0].message.content
                 tokens_used = response.usage.total_tokens if response.usage else 0
                 self.total_tokens_used += tokens_used
