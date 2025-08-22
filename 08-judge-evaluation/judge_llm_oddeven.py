@@ -31,7 +31,7 @@ from lib import (
 )
 
 # Configuration
-DATASET_PATH = "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated_newformat/olmo-2-preference-quality-short-1100-synthetic-llama"
+DATASET_PATH = "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated_newformat/olmo-2-preference-quality-short-1100-synthetic"
 DEFAULT_MODEL = "Qwen/Qwen3-32B"
 DEFAULT_MAX_RETRIES = 3
 
@@ -760,9 +760,9 @@ async def main():
         'model': args.model,
         'reasoning': args.enable_reasoning,
         'label_type': args.label_type,
-        'charter': args.charter_path
+        'charter': args.charter_pathZ
     }
-    base_name = utils.generate_output_filename("llm_oddeven", args.model, config, len(samples))
+    base_name = utils.generate_output_filename("llm_oddeven_qwenData_", args.model, config, len(samples))
     output_dir = utils.create_output_directory(__file__)
     
     # Save results
