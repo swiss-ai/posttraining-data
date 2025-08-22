@@ -51,6 +51,16 @@ def transform_to_uniform_schema(sample, uniform_schema):
                     return 0
             elif schema_template == "bool":
                 return bool(value)
+            elif schema_template == "float":
+                if isinstance(value, (int, float)):
+                    return float(value)
+                elif isinstance(value, str):
+                    try:
+                        return float(value)
+                    except ValueError:
+                        return 0.0
+                else:
+                    return 0.0
             else:
                 return value
     
@@ -62,6 +72,8 @@ def transform_to_uniform_schema(sample, uniform_schema):
             return 0
         elif template_value == "bool":
             return False
+        elif template_value == "float":
+            return 0.0
         elif isinstance(template_value, list):
             return []
         elif isinstance(template_value, dict):

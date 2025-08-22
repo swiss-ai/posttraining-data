@@ -60,7 +60,7 @@ def replace_none_types(schema):
                 # Determine appropriate empty value based on key context
                 if 'metadata' in key.lower() or key in ['original_metadata']:
                     result[key] = {}
-                elif key in ['answers', 'available_functions', 'messages'] or 'list' in str(key).lower():
+                elif key in ['answers', 'available_functions'] or 'list' in str(key).lower():
                     result[key] = []
                 else:
                     result[key] = ""
