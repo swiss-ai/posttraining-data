@@ -181,6 +181,10 @@ class LLMClient:
                     **openai_kwargs,
                 )
 
+                # Check if response is a string (error message) instead of object
+                if isinstance(response, str):
+                    raise ValueError(f"API returned string instead of response object: {response}")
+                
                 # Check if response content is valid
                 message_content = response.choices[0].message.content
                 if message_content is None:
@@ -433,8 +437,8 @@ class ReportGenerator:
         # Add method-specific config
         if 'label_type' in config:
             report.append(f"Label Type: {config['label_type']}")
-        if 'instructions' in config:
-            report.append(f"Instructions: {config['instructions']}")
+        if 'charter' in config:
+            report.append(f"Charter: {config['charter']}")
             
         report.append(f"Samples Evaluated: {metrics['total_samples']}")
         report.append(f"Timestamp: {timestamp}\n")
@@ -616,9 +620,9 @@ class JudgeEvaluationUtils:
             config_parts.append('modal' if config['modal'] else 'mean')
         if 'label_type' in config:
             config_parts.append(config['label_type'])
-        if 'instructions' in config:
-            instructions_name = Path(config['instructions']).stem
-            config_parts.append(instructions_name)
+        if 'charter' in config:
+            charter_name = Path(config['charter']).stem
+            config_parts.append(charter_name)
         if 'thinking' in config:
             config_parts.append('thinking' if config['thinking'] else 'no_thinking')
         
