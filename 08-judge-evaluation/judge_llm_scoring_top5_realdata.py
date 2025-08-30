@@ -734,7 +734,27 @@ Don't think or explain. Answer with only one character."""
         print(f"Total LLM requests to make: {total_llm_requests}")
         print(f"Efficiency gain: ~{((21*20//2)*2 - total_llm_requests) / ((21*20//2)*2) * 100:.1f}% fewer requests vs full odd-even sort")
         
-        pbar = tqdm(total=total_llm_requests, desc="LLM Requests", unit="req")
+        # Custom tqdm to show req/min instead of req/s
+        class TqdmReqPerMin(tqdm):
+            def format_meter(self, n, total, elapsed, **kwargs):
+                # Calculate rate per minute
+                if elapsed and n:
+                    rate = n / elapsed * 60  # Convert to per minute
+                    kwargs['rate_fmt'] = f'{rate:.1f}req/min'
+                else:
+                    kwargs['rate_fmt'] = '?req/min'
+                
+                # Use custom bar format that uses our rate_fmt
+                kwargs['bar_format'] = '{desc}: {percentage:3.0f}%|{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]'
+                
+                return super().format_meter(n, total, elapsed, **kwargs)
+        
+        pbar = TqdmReqPerMin(
+            total=total_llm_requests, 
+            desc="LLM Requests",
+            unit="req",
+            smoothing=0.1
+        )
         
         async def evaluate_with_progress(sample):
             debug_mode = len(samples) == 1

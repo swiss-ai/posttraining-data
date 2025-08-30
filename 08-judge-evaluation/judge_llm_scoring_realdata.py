@@ -213,26 +213,24 @@ class JudgeScoringRealDataEvaluator:
         prompts = []
 
         for completion in sample["completions"]:
-            prompt_parts = [
-                self.judge_instructions,
-                "",
-                f"Based on these quality indicators, label the following completion on a scale from {l} to {h}, where {h} is best and {l} is worst.",
-                "Do not use any reasoning and respond with only the quality label."
-                "",
-                "======",
-                f"QUESTION: {sample['question']}",
-                ""
-            ]
-
-            # TODO: add few-shot examples
-        
             content = completion['content']
-            prompt_parts.append(f"======")
-            prompt_parts.append(f"COMPLETION: {content}")   
-            prompt_parts.append(f"======")
+            
+            prompt = f"""{self.judge_instructions}
+
+Based on the above principles, rate the following response to the question on a scale from {l} to {h}, where {h} is best and {l} is worst.
+
+QUESTION: {sample['question']}
+
+RESPONSE: {content}
+
+Rate this response from {l} to {h}.
+
+Don't think or explain. Answer with only the number."""
+
             if not self.enable_thinking:
-                prompt_parts.append("LABEL: ")
-            prompts.append("\n".join(prompt_parts))
+                prompt += "\n\nRATING: "
+                
+            prompts.append(prompt)
         return prompts
     
     def parse_score(self, logprobs: list) -> Tuple[Optional[float], Optional[str]]:
@@ -411,6 +409,8 @@ async def main():
                        help="Maximum concurrent API requests")
     parser.add_argument("--instructions", type=str, default="08-judge-evaluation/prompts/charter-generic.txt",
                        help="Path to judge instructions file (from repo root)")
+    parser.add_argument("--charter-path", type=str, default="08-judge-evaluation/prompts/charter-generic.txt",
+                       help="Path to judge charter file (from repo root, alias for --instructions)")
     parser.add_argument("--max-retries", type=int, default=DEFAULT_MAX_RETRIES,
                        help="Maximum number of retries for failed samples")
     parser.add_argument("--debug", action="store_true",
@@ -423,6 +423,12 @@ async def main():
     analyzer = EvaluationAnalyzer()
     reporter = ReportGenerator()
     utils = JudgeEvaluationUtils()
+    
+    # Prefer charter-path argument, fall back to instructions
+    # Both default to the same value, but charter-path takes precedence if explicitly set
+    instructions_path = args.charter_path
+    
+    print(f"Using judge instructions from: {instructions_path}")
     
     # Determine scoring method for metadata
     scoring_method = "modal_scoring" if args.use_modal_response else "weighted_mean_scoring"
@@ -457,7 +463,7 @@ async def main():
             'model': args.model,
             'modal': args.use_modal_response,
             'thinking': args.enable_thinking,
-            'instructions': args.instructions
+            'instructions': instructions_path
         }
         base_name = utils.generate_output_filename("llm_scoring_realdata", args.model, config, len(samples))
         debug_file_path = utils.create_debug_file_path(__file__, base_name)
@@ -467,7 +473,7 @@ async def main():
         model=args.model,
         enable_thinking=args.enable_thinking,
         scale_range=args.scale_range,
-        instructions_path=args.instructions,
+        instructions_path=instructions_path,
         use_modal_response=args.use_modal_response,
         max_retries=args.max_retries,
         max_concurrent=args.concurrent,
@@ -505,7 +511,7 @@ async def main():
         'model': args.model,
         'modal': args.use_modal_response,
         'thinking': args.enable_thinking,
-        'instructions': args.instructions,
+        'instructions': instructions_path,
         'source_dataset': args.source_dataset,
         'target_path': args.target_path,
         'scoring_method': scoring_method
