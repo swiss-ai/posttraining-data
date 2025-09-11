@@ -1,9 +1,0 @@
-2025-08-05 20:12:23 - Starting batch conversion
-2025-08-05 20:12:23 - Starting batch conversion of decontaminated datasets...
-2025-08-05 20:12:23 - Input:  /capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated
-2025-08-05 20:12:23 - Output: /capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated_newformat
-2025-08-05 20:12:23 - Validating environment...
-2025-08-05 20:12:23 - Environment validation complete.
-2025-08-05 20:12:23 - Getting dataset list...
-2025-08-05 20:12:23 - Found 134 items to check
-2025-08-05 20:12:23 - Found 134 datasets to process

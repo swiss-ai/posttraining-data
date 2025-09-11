@@ -1,45 +1,10 @@
 # Dataset Standardisation
 
-Converts datasets to the unified chat format for downstream processing. The project is transitioning to the new chat format with parts structure as the standard.
+Converts datasets to the unified schema for further processing.
 
-## Chat Format Schema
+## Data Schema
 
-### Legacy Format (Being Phased Out)
-
-The original chat format uses string content for messages:
-
-```json
-{
-  "conversation_id": "unique_identifier",
-  "dataset_source": "source_dataset_name",
-  "original_metadata": {},
-  "system_prompt": {
-    "content": "system message",
-    "metadata": {}
-  },
-  "initial_prompt": {
-    "role": "user",
-    "content": "user message",
-    "metadata": {}
-  },
-  "conversation_branches": [
-    {
-      "messages": [
-        {
-          "role": "assistant",
-          "content": "response",
-          "metadata": {}
-        }
-      ]
-    }
-  ],
-  "created_timestamp": "ISO datetime"
-}
-```
-
-### New Chat Format (Standard)
-
-The new standard format uses parts structure for all messages, enabling support for tool use, thinking, and verifiable responses: 
+The new format uses parts structure for all messages, enabling support for tool use, thinking, and verifiable responses.
 
 ```json
 {
@@ -173,85 +138,16 @@ The `available_functions` list follows the OpenAI API function calling specifica
 }
 ```
 
-**Note**: Some existing datasets may have `parameters.properties` as a JSON string instead of an object due to Arrow schema constraints. This should be parsed as JSON when used.
-
-## Available Converters
-
-### Standard Chat Format Converter (Legacy)
-`convert_to_chat_format.py` - Handles most conversational datasets including chat messages, ShareGPT, instruction-response, and preference formats. Outputs in legacy chat format.
-
-### New Chat Format Converter (Standard)
-`convert_to_chat_newformat.py` - Universal converter for the new chat format with parts structure that:
-- Auto-detects dataset format (chat messages, ShareGPT, Nemotron, instruction-response, preference pairs, inputs/labels)
-- Converts all message content to parts structure with schema harmonization
-- Validates conversation patterns (assistant-first, alternating roles)
-- Ensures Arrow schema compatibility across all datasets
-- Generates globally unique conversation IDs with sample ID support
-- Filters invalid samples with detailed validation warnings
-- Supports 6 input formats: messages, conversations, input+output (Nemotron), prompt+chosen+rejected, instruction+output, inputs+labels
-
-### XLAM Function Calling Converter  
-`convert_xlam_function_calling.py` - Specialized converter for xlam-function-calling-60k dataset that:
-- Converts XLAM's custom parameter format to OpenAI-compatible JSON Schema
-- Transforms single-turn function calling examples to the new chat format
-- Handles complex parameter types (`List[...]`, `Dict[...]`) properly
-- Preserves all tool definitions and function call arguments
-- Generates 60,000 examples of function calling training data
-
-### APIGen Function Calling Converter
-`convert_apigen_function_calling.py` - Specialized converter for APIGen-MT-5k dataset that:
-- Converts multi-turn conversations with embedded function calling workflows
-- Preserves conversation structure with proper user/assistant message alternation
-- Maps function_call/observation pairs to function-call/function-output parts
-- Handles think function calls as thought parts for reasoning steps
-- Processes 5,000 examples of multi-turn function calling conversations
-- Tools already in OpenAI-compatible format (no parameter conversion needed)
-
-### OLMO Prompts-Only Converter (New Format)
-`convert_olmo_prompts_only_newformat.py` - Extracts prompts from OLMO-2-0325-32b-preference-mix dataset:
-- Extracts only the user prompts from preference data (discards chosen/rejected responses)
-- Outputs in new chat format with empty conversation branches (prompts only)
-- Selectively preserves metadata (keeps `id` and `source`, excludes model names)
-- Generates 377,807 prompt-only examples for prompt diversity
-- Useful for prompt augmentation and diversity in training mixtures
-
 ## Usage
+
+Every conversion script takes an input source creates an new copy. 
 
 ### Conversion Commands
 ```bash
-# NEW FORMAT (Standard - use this for all new datasets)
-python 02-standardisation/convert_to_chat_newformat.py data/01-hf-data/tulu-3-sft-mixture data/02-standardised-newformat/
-python 02-standardisation/convert_to_chat_newformat.py data/01-hf-data/smoltalk data/02-standardised-newformat/
-python 02-standardisation/convert_to_chat_newformat.py data/01-hf-data/The-Tome data/02-standardised-newformat/
-python 02-standardisation/convert_to_chat_newformat.py data/01-hf-data/Llama-Nemotron-Post-Training-Dataset data/02-standardised-newformat/
-
-# Legacy format (being phased out)
-python 02-standardisation/convert_to_chat_format.py data/01-hf-data/tulu-3-sft-mixture data/02-standardised/
-python 02-standardisation/convert_to_chat_format.py data/01-hf-data/smoltalk data/02-standardised/
-python 02-standardisation/convert_to_chat_format.py data/01-hf-data/smoltalk2 data/02-standardised/
-python 02-standardisation/convert_to_chat_format.py data/01-hf-data/The-Tome data/02-standardised/
-python 02-standardisation/convert_to_chat_format.py data/01-hf-data/EuroBlocks-SFT-Synthetic-1124 data/02-standardised/
-python 02-standardisation/convert_to_chat_format.py data/01-hf-data/Llama-Nemotron-Post-Training-Dataset data/02-standardised/
-
-# Function calling datasets (new format with OpenAI-compatible functions)
-venv/bin/python 02-standardisation/convert_xlam_function_calling.py \
-  /users/schlag/store/posttrain_data/01_raw_hf_data/xlam-function-calling-60k \
-  --output data/02-standardised/
-
-# APIGen multi-turn function calling dataset
-venv/bin/python 02-standardisation/convert_apigen_function_calling.py \
-  /capstor/store/cscs/swissai/infra01/posttrain_data/01_raw_hf_data/APIGen-MT-5k \
-  --output data/02-standardised/apigen-mt-5k
-
-# Or specify exact output name
-venv/bin/python 02-standardisation/convert_xlam_function_calling.py \
-  /users/schlag/store/posttrain_data/01_raw_hf_data/xlam-function-calling-60k \
-  --output data/02-standardised/xlam-function-calling-60k
-
-# OLMO prompts-only extraction (new format)
-venv/bin/python 02-standardisation/convert_olmo_prompts_only_newformat.py \
-  /capstor/store/cscs/swissai/infra01/posttrain_data/01_raw_hf_data/olmo-2-0325-32b-preference-mix \
-  --output data/02-standardisation_newformat/
+python 02-standardisation/convert_to_chat.py data/01-hf-data/tulu-3-sft-mixture data/02-standardised-newformat/
+python 02-standardisation/convert_to_chat.py data/01-hf-data/smoltalk data/02-standardised-newformat/
+python 02-standardisation/convert_to_chat.py data/01-hf-data/The-Tome data/02-standardised-newformat/
+python 02-standardisation/convert_to_chat.py data/01-hf-data/Llama-Nemotron-Post-Training-Dataset data/02-standardised-newformat/
 ```
 
 ### Browse Converted Datasets
@@ -259,12 +155,6 @@ venv/bin/python 02-standardisation/convert_olmo_prompts_only_newformat.py \
 Use the interactive browser to inspect converted datasets:
 
 ```bash
-# Old format datasets (string content)
-python 02-standardisation/browse_sample.py data/02-standardised/tulu-3-sft-mixture
-
-# New format datasets (parts structure)
-python 02-standardisation/browse_sample_new.py data/converted/dataset
-
 # Start at specific sample
 python 02-standardisation/browse_sample.py data/02-standardised/smoltalk --start-idx 100
 

@@ -2,8 +2,8 @@
 """
 Convert WikiQA dataset from existing chat format to new format with parts structure.
 
-This converter handles WikiQA's specific structure and converts it to the standardized
-new chat format while preserving all original metadata.
+This converter handles WikiQA's specific structure and converts it to our 
+dataset schema while preserving all original metadata.
 """
 
 import sys

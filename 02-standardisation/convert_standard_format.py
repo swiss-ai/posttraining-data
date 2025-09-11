@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
 """
-Convert HuggingFace datasets to new standardized chat format with parts structure.
-
 This script converts datasets from various formats (chat messages, ShareGPT, 
-instruction-response, preference pairs) into the new unified chat format with
-parts structure for function calls, thinking, and verifiable responses.
+instruction-response, preference pairs) into the our dataset schema
+for function calls, thinking, and verifiable responses.
 """
 
 import sys
@@ -78,7 +76,7 @@ def validate_conversation_pattern(conversation_messages: List[Dict], conversatio
 
 
 def validate_standardized_sample(sample: Dict[str, Any]) -> bool:
-    """Validate a sample in the standardized new chat format."""
+    """Validate a sample is in our post train data schema."""
     if not sample or sample is None:
         return False
     
@@ -116,7 +114,7 @@ def generate_conversation_id(dataset_source: str, content: str, sample_id: Optio
 
 def convert_chat_messages(row: Dict[str, Any], dataset_source: str, row_index: Optional[int] = None) -> Dict[str, Any]:
     """
-    Convert standard chat format (messages array with role/content) to new format with parts.
+    Convert standard chat format (messages array with role/content) to our schema.
     Used for: smoltalk, tulu-3-sft-mixture, etc.
     """
     messages = row.get("messages", [])
@@ -704,7 +702,7 @@ def save_dataset_and_metadata(dataset, output_path: Path, dataset_name: str, inp
 def parse_arguments():
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(
-        description="Convert HuggingFace datasets to new chat format with parts structure",
+        description="Convert HuggingFace datasets to our dataset schema",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
