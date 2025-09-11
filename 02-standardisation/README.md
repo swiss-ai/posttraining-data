@@ -113,8 +113,6 @@ Each part in the parts array has a unified schema to ensure Arrow compatibility 
 - **function-output**: Uses `type`, `content`
 - **verifiable-responses**: Uses `type`, special format with answers array
 
-**Migration Tools**: Use `07-dataset-aggregation/convert_old_to_new_format.py` to convert legacy format datasets to the new standard. The aggregation script `dataset-aggregation-newformat.py` automatically harmonizes schemas when merging datasets.
-
 ### OpenAI Function Format
 
 The `available_functions` list follows the OpenAI API function calling specification:
@@ -144,10 +142,10 @@ Every conversion script takes an input source creates an new copy.
 
 ### Conversion Commands
 ```bash
-python 02-standardisation/convert_to_chat.py data/01-hf-data/tulu-3-sft-mixture data/02-standardised-newformat/
-python 02-standardisation/convert_to_chat.py data/01-hf-data/smoltalk data/02-standardised-newformat/
-python 02-standardisation/convert_to_chat.py data/01-hf-data/The-Tome data/02-standardised-newformat/
-python 02-standardisation/convert_to_chat.py data/01-hf-data/Llama-Nemotron-Post-Training-Dataset data/02-standardised-newformat/
+python 02-standardisation/convert_to_chat.py data/01-hf-data/tulu-3-sft-mixture data/02-standardised/
+python 02-standardisation/convert_to_chat.py data/01-hf-data/smoltalk data/02-standardised/
+python 02-standardisation/convert_to_chat.py data/01-hf-data/The-Tome data/02-standardised/
+python 02-standardisation/convert_to_chat.py data/01-hf-data/Llama-Nemotron-Post-Training-Dataset data/02-standardised/
 ```
 
 ### Browse Converted Datasets
