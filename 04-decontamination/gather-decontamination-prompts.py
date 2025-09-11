@@ -1,3 +1,19 @@
+#!/usr/bin/env python3
+"""
+gather-decontamination-prompts.py
+─────────────────────────────────
+Gather evaluation benchmark prompts for decontamination analysis.
+
+This script collects prompts and questions from various evaluation benchmarks
+(AGIEval, MMLU, etc.) to create a reference dataset for decontamination.
+The gathered prompts are used to identify overlapping content in training data.
+
+Key features:
+- Support for multiple benchmark datasets
+- Configurable prompt extraction from different field formats
+- Handles various dataset configurations and splits
+- Outputs unified prompt format for decontamination pipeline
+"""
 import argparse
 import json
 import os

@@ -3,6 +3,19 @@
 Cross-checks prompts in the given dataset with the prompts in the evaluation benchmarks.
 If significant overlap is detected, the prompt is removed from the training data
 
+## Available Scripts
+
+### Python Scripts
+- **`decontamination.py`** - Main decontamination script with n-gram overlap detection
+- **`decontamination-parallel.py`** - High-performance parallel decontamination for large datasets
+- **`gather-decontamination-prompts.py`** - Gather evaluation benchmark prompts for reference
+- **`list-benchmarks.py`** - List available benchmarks for parallel processing
+- **`merge-decontamination-reports.py`** - Merge contamination reports from parallel jobs
+
+### Shell Scripts
+- **`submit-decontamination.sh`** - SLURM submission wrapper for single-threaded decontamination
+- **`submit-parallel-decontamination.sh`** - SLURM submission wrapper for parallel decontamination
+
 ## Usage
 
 ### Python interactive session
@@ -12,7 +25,7 @@ Additionally, the `unattended_run_decontamination.sh` can be used with the `sbat
 
 1. Gathering the prompts from the benchmarks. This is already done and unless you included new benchmarks, you can omit this step.
 ```python
-    python gather_decontamination_prompts --output "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/decontamination_prompts"
+    python gather-decontamination-prompts.py --output "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/decontamination_prompts"
 ```
 2. Execute the decontamination
 ```python
@@ -38,15 +51,15 @@ and writes the decontaminated dataset to the `04_decontaminated` directory.
 
 ### Using the SLURM submission script
 
-For easier job submission, use the `submit_decontamination.sh` wrapper script:
+For easier job submission, use the `submit-decontamination.sh` wrapper script:
 
 ```bash
-./04-decontamination/submit_decontamination.sh <input_dataset_path> <output_dataset_path>
+./04-decontamination/submit-decontamination.sh <input_dataset_path> <output_dataset_path>
 ```
 
 Example:
 ```bash
-./04-decontamination/submit_decontamination.sh \
+./04-decontamination/submit-decontamination.sh \
   "/capstor/store/cscs/swissai/infra01/posttrain_data/03_license_filtered/EuroBlocks-SFT-Synthetic-1124" \
   "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/EuroBlocks-SFT-Synthetic-1124"
 ```
@@ -71,121 +84,121 @@ The decontamination process:
 
 ```bash
 # AceReason-1.1-SFT
-./04-decontamination/submit_decontamination.sh \
+./04-decontamination/submit-decontamination.sh \
   "/capstor/store/cscs/swissai/infra01/posttrain_data/03_license_filtered/AceReason-1.1-SFT" \
   "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/AceReason-1.1-SFT"
 
 # EuroBlocks-SFT-Synthetic-1124
-./04-decontamination/submit_decontamination.sh \
+./04-decontamination/submit-decontamination.sh \
   "/capstor/store/cscs/swissai/infra01/posttrain_data/03_license_filtered/EuroBlocks-SFT-Synthetic-1124" \
   "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/EuroBlocks-SFT-Synthetic-1124"
 
 # Llama-Nemotron-Post-Training-Dataset-science-chat-safety
-./04-decontamination/submit_decontamination.sh \
+./04-decontamination/submit-decontamination.sh \
   "/capstor/store/cscs/swissai/infra01/posttrain_data/03_license_filtered/Llama-Nemotron-Post-Training-Dataset-science-chat-safety" \
   "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/Llama-Nemotron-Post-Training-Dataset-science-chat-safety"
 
 # smoltalk
-./04-decontamination/submit_decontamination.sh \
+./04-decontamination/submit-decontamination.sh \
   "/capstor/store/cscs/swissai/infra01/posttrain_data/03_license_filtered/smoltalk" \
   "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/smoltalk"
 
 # smoltalk2 (individual splits after dataset splitting)
-./04-decontamination/submit_decontamination.sh \
+./04-decontamination/submit-decontamination.sh \
   "/capstor/store/cscs/swissai/infra01/posttrain_data/03_license_filtered/smoltalk2-aya_dataset_Qwen3_32B_think" \
   "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/smoltalk2-aya_dataset_Qwen3_32B_think"
 
-./04-decontamination/submit_decontamination.sh \
+./04-decontamination/submit-decontamination.sh \
   "/capstor/store/cscs/swissai/infra01/posttrain_data/03_license_filtered/smoltalk2-multi_turn_reasoning_if_think" \
   "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/smoltalk2-multi_turn_reasoning_if_think"
 
-./04-decontamination/submit_decontamination.sh \
+./04-decontamination/submit-decontamination.sh \
   "/capstor/store/cscs/swissai/infra01/posttrain_data/03_license_filtered/smoltalk2-OpenThoughts3_1.2M_no_think_no_think" \
   "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/smoltalk2-OpenThoughts3_1.2M_no_think_no_think"
 
-./04-decontamination/submit_decontamination.sh \
+./04-decontamination/submit-decontamination.sh \
   "/capstor/store/cscs/swissai/infra01/posttrain_data/03_license_filtered/smoltalk2-OpenThoughts3_1.2M_think" \
   "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/smoltalk2-OpenThoughts3_1.2M_think"
 
-./04-decontamination/submit_decontamination.sh \
+./04-decontamination/submit-decontamination.sh \
   "/capstor/store/cscs/swissai/infra01/posttrain_data/03_license_filtered/smoltalk2-s1k_1.1_think" \
   "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/smoltalk2-s1k_1.1_think"
 
-./04-decontamination/submit_decontamination.sh \
+./04-decontamination/submit-decontamination.sh \
   "/capstor/store/cscs/swissai/infra01/posttrain_data/03_license_filtered/smoltalk2-smoltalk_everyday_convs_reasoning_Qwen3_32B_think" \
   "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/smoltalk2-smoltalk_everyday_convs_reasoning_Qwen3_32B_think"
 
-./04-decontamination/submit_decontamination.sh \
+./04-decontamination/submit-decontamination.sh \
   "/capstor/store/cscs/swissai/infra01/posttrain_data/03_license_filtered/smoltalk2-smoltalk_multilingual_8languages_lang_5_no_think" \
   "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/smoltalk2-smoltalk_multilingual_8languages_lang_5_no_think"
 
-./04-decontamination/submit_decontamination.sh \
+./04-decontamination/submit-decontamination.sh \
   "/capstor/store/cscs/swissai/infra01/posttrain_data/03_license_filtered/smoltalk2-smoltalk_multilingual8_Qwen3_32B_think" \
   "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/smoltalk2-smoltalk_multilingual8_Qwen3_32B_think"
 
-./04-decontamination/submit_decontamination.sh \
+./04-decontamination/submit-decontamination.sh \
   "/capstor/store/cscs/swissai/infra01/posttrain_data/03_license_filtered/smoltalk2-smoltalk_smollm3_everyday_conversations_no_think" \
   "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/smoltalk2-smoltalk_smollm3_everyday_conversations_no_think"
 
-./04-decontamination/submit_decontamination.sh \
+./04-decontamination/submit-decontamination.sh \
   "/capstor/store/cscs/swissai/infra01/posttrain_data/03_license_filtered/smoltalk2-smoltalk_smollm3_smol_magpie_ultra_no_think" \
   "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/smoltalk2-smoltalk_smollm3_smol_magpie_ultra_no_think"
 
-./04-decontamination/submit_decontamination.sh \
+./04-decontamination/submit-decontamination.sh \
   "/capstor/store/cscs/swissai/infra01/posttrain_data/03_license_filtered/smoltalk2-smoltalk_smollm3_smol_rewrite_no_think" \
   "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/smoltalk2-smoltalk_smollm3_smol_rewrite_no_think"
 
-./04-decontamination/submit_decontamination.sh \
+./04-decontamination/submit-decontamination.sh \
   "/capstor/store/cscs/swissai/infra01/posttrain_data/03_license_filtered/smoltalk2-smoltalk_smollm3_smol_summarize_no_think" \
   "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/smoltalk2-smoltalk_smollm3_smol_summarize_no_think"
 
-./04-decontamination/submit_decontamination.sh \
+./04-decontamination/submit-decontamination.sh \
   "/capstor/store/cscs/swissai/infra01/posttrain_data/03_license_filtered/smoltalk2-smoltalk_smollm3_systemchats_30k_no_think" \
   "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/smoltalk2-smoltalk_smollm3_systemchats_30k_no_think"
 
-./04-decontamination/submit_decontamination.sh \
+./04-decontamination/submit-decontamination.sh \
   "/capstor/store/cscs/swissai/infra01/posttrain_data/03_license_filtered/smoltalk2-smoltalk_systemchats_Qwen3_32B_think" \
   "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/smoltalk2-smoltalk_systemchats_Qwen3_32B_think"
 
-./04-decontamination/submit_decontamination.sh \
+./04-decontamination/submit-decontamination.sh \
   "/capstor/store/cscs/swissai/infra01/posttrain_data/03_license_filtered/smoltalk2-table_gpt_no_think" \
   "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/smoltalk2-table_gpt_no_think"
 
-./04-decontamination/submit_decontamination.sh \
+./04-decontamination/submit-decontamination.sh \
   "/capstor/store/cscs/swissai/infra01/posttrain_data/03_license_filtered/smoltalk2-table_gpt_Qwen3_32B_think" \
   "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/smoltalk2-table_gpt_Qwen3_32B_think"
 
-./04-decontamination/submit_decontamination.sh \
+./04-decontamination/submit-decontamination.sh \
   "/capstor/store/cscs/swissai/infra01/posttrain_data/03_license_filtered/smoltalk2-tulu_3_sft_personas_instruction_following_no_think" \
   "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/smoltalk2-tulu_3_sft_personas_instruction_following_no_think"
 
 # The-Tome
-./04-decontamination/submit_decontamination.sh \
+./04-decontamination/submit-decontamination.sh \
   "/capstor/store/cscs/swissai/infra01/posttrain_data/03_license_filtered/The-Tome" \
   "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/The-Tome"
 
 # tulu-3-sft-mixture
-./04-decontamination/submit_decontamination.sh \
+./04-decontamination/submit-decontamination.sh \
   "/capstor/store/cscs/swissai/infra01/posttrain_data/03_license_filtered/tulu-3-sft-mixture" \
   "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/tulu-3-sft-mixture"
 
 # Commercial-Flan-Collection-Chain-Of-Thought
-./04-decontamination/submit_decontamination.sh \
+./04-decontamination/submit-decontamination.sh \
   "/capstor/store/cscs/swissai/infra01/posttrain_data/02_standardised/Commercial-Flan-Collection-Chain-Of-Thought" \
   "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/Commercial-Flan-Collection-Chain-Of-Thought"
 
 # Commercial-Flan-Collection-Flan-2021
-./04-decontamination/submit_decontamination.sh \
+./04-decontamination/submit-decontamination.sh \
   "/capstor/store/cscs/swissai/infra01/posttrain_data/02_standardised/Commercial-Flan-Collection-Flan-2021" \
   "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/Commercial-Flan-Collection-Flan-2021"
 
 # Commercial-Flan-Collection-SNI
-./04-decontamination/submit_decontamination.sh \
+./04-decontamination/submit-decontamination.sh \
   "/capstor/store/cscs/swissai/infra01/posttrain_data/02_standardised/Commercial-Flan-Collection-SNI" \
   "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/Commercial-Flan-Collection-SNI"
 
 # muri-it
-./04-decontamination/submit_decontamination.sh ~/store/posttrain_data/02_standardised/muri-it ~/store/posttrain_data/04_decontaminated/muri-it
+./04-decontamination/submit-decontamination.sh ~/store/posttrain_data/02_standardised/muri-it ~/store/posttrain_data/04_decontaminated/muri-it
 ```
 
 ## Parallel Processing (Recommended for Large Datasets)
@@ -195,7 +208,7 @@ For faster processing of the 400+ evaluation benchmarks, use the parallel decont
 ### Usage
 
 ```bash
-./04-decontamination/submit_parallel_decontamination.sh <input_dataset> <output_dataset> [chunk_size] [max_parallel_jobs]
+./04-decontamination/submit-parallel-decontamination.sh <input_dataset> <output_dataset> [chunk_size] [max_parallel_jobs]
 ```
 
 **Parameters:**
@@ -208,12 +221,12 @@ For faster processing of the 400+ evaluation benchmarks, use the parallel decont
 
 ```bash
 # Default: 20 benchmarks per job, max 20 parallel jobs (~20x speedup)
-./04-decontamination/submit_parallel_decontamination.sh \
+./04-decontamination/submit-parallel-decontamination.sh \
   "/capstor/store/cscs/swissai/infra01/posttrain_data/03_license_filtered/tulu-3-sft-mixture" \
   "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/tulu-3-sft-mixture"
 
 # Custom: 25 benchmarks per job, max 16 parallel jobs  
-./04-decontamination/submit_parallel_decontamination.sh \
+./04-decontamination/submit-parallel-decontamination.sh \
   "/capstor/store/cscs/swissai/infra01/posttrain_data/03_license_filtered/The-Tome" \
   "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/The-Tome" \
   25 16
@@ -254,13 +267,13 @@ tail -f slurm_logs/merge_<dataset>_<timestamp>.out
 
 ```bash
 # List available benchmarks
-python 04-decontamination/list_benchmarks.py --prompts-path /path/to/decontamination_prompts
+python 04-decontamination/list-benchmarks.py --prompts-path /path/to/decontamination_prompts
 
 # Count benchmarks and show job estimation
-python 04-decontamination/list_benchmarks.py --prompts-path /path/to/decontamination_prompts --chunk-size 20
+python 04-decontamination/list-benchmarks.py --prompts-path /path/to/decontamination_prompts --chunk-size 20
 
 # Manual merge (if needed)
-python 04-decontamination/merge_decontamination_reports.py \
+python 04-decontamination/merge-decontamination-reports.py \
   /path/to/input/dataset \
   /path/to/output/dataset \
   /path/to/parallel_reports

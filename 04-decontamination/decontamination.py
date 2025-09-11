@@ -1,3 +1,20 @@
+#!/usr/bin/env python3
+"""
+decontamination.py
+──────────────────
+Dataset decontamination tool for removing evaluation benchmark contamination.
+
+This script identifies and removes training samples that overlap with evaluation
+benchmarks to prevent data leakage. Uses n-gram overlap detection and exact
+matching to find contaminated samples across multiple benchmark datasets.
+
+Key features:
+- N-gram overlap detection with configurable thresholds
+- Support for multiple benchmark formats
+- Memory-efficient processing for large datasets
+- Detailed contamination reporting and statistics
+- Preserves dataset metadata and processing history
+"""
 import argparse
 import difflib
 from datasets import load_from_disk

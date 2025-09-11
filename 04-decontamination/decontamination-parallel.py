@@ -1,3 +1,20 @@
+#!/usr/bin/env python3
+"""
+decontamination-parallel.py
+───────────────────────────
+High-performance parallel decontamination for large datasets.
+
+This script provides parallelised decontamination processing for datasets that
+are too large for single-threaded processing. Uses multiprocessing to distribute
+contamination detection across multiple cores while maintaining memory efficiency.
+
+Key features:
+- Parallel processing with configurable worker count
+- Chunk-based processing for memory management
+- Progress tracking across parallel workers
+- Detailed contamination reporting and statistics
+- Optimised for datasets with millions of samples
+"""
 import argparse
 import difflib
 from datasets import load_from_disk
