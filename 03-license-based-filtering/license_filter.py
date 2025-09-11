@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """
-License-based dataset filtering for specific supported datasets.
+License-based dataset filtering for new format datasets.
 
-Removes samples from datasets based on known licensing issues or 
-problematic sources. Each dataset has custom filtering rules.
+Removes samples from new format datasets (with parts structure) based on 
+known licensing issues or problematic sources. Each dataset has custom 
+filtering rules. The filtering logic operates on top-level fields like 
+original_metadata which are identical between old and new formats.
 """
 
 import sys
@@ -614,7 +616,7 @@ def process_dataset(dataset_path: Path, output_path: Path, force_format: str = N
 def parse_arguments():
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(
-        description="Apply license-based filtering to specific datasets",
+        description="Apply license-based filtering to new format datasets",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Supported datasets:
@@ -628,9 +630,9 @@ Supported datasets:
   - EuroBlocks-SFT-Synthetic-1124
 
 Examples:
-  python license_filter.py data/02-standardised/tulu-3-sft-mixture
-  python license_filter.py data/02-standardised/smoltalk --output data/03-license-filtered/smoltalk
-  python license_filter.py data/02-standardised/Llama-Nemotron-Post-Training-Dataset --chunk-size 50000
+  python license_filter.py data/02-standardised-newformat/tulu-3-sft-mixture
+  python license_filter.py data/02-standardised-newformat/smoltalk --output data/03-license-filtered-newformat/smoltalk
+  python license_filter.py data/02-standardised-newformat/Llama-Nemotron-Post-Training-Dataset --chunk-size 50000
   python license_filter.py --list-filters
         """
     )
@@ -667,7 +669,7 @@ def main():
     if args.output:
         output_path = Path(args.output)
     else:
-        output_path = Path("data/03-license-filtered") / dataset_name
+        output_path = Path("data/03-license-filtered-newformat") / dataset_name
     
     print(f"Processing dataset: {dataset_name}")
     print(f"Input path: {dataset_path}")
