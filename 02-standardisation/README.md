@@ -142,10 +142,10 @@ Every conversion script takes an input source creates an new copy.
 
 ### Conversion Commands
 ```bash
-python 02-standardisation/convert_to_chat.py data/01-hf-data/tulu-3-sft-mixture data/02-standardised/
-python 02-standardisation/convert_to_chat.py data/01-hf-data/smoltalk data/02-standardised/
-python 02-standardisation/convert_to_chat.py data/01-hf-data/The-Tome data/02-standardised/
-python 02-standardisation/convert_to_chat.py data/01-hf-data/Llama-Nemotron-Post-Training-Dataset data/02-standardised/
+python 02-standardisation/convert-standard-format.py data/01-hf-data/tulu-3-sft-mixture data/02-standardised/
+python 02-standardisation/convert-standard-format.py data/01-hf-data/smoltalk data/02-standardised/
+python 02-standardisation/convert-standard-format.py data/01-hf-data/The-Tome data/02-standardised/
+python 02-standardisation/convert-standard-format.py data/01-hf-data/Llama-Nemotron-Post-Training-Dataset data/02-standardised/
 ```
 
 ### Browse Converted Datasets
@@ -154,11 +154,29 @@ Use the interactive browser to inspect converted datasets:
 
 ```bash
 # Start at specific sample
-python 02-standardisation/browse_sample.py data/02-standardised/smoltalk --start-idx 100
+python 02-standardisation/browse-sample.py data/02-standardised/smoltalk --start-idx 100
 
 # Show multiple samples at once
-python 02-standardisation/browse_sample.py data/02-standardised/The-Tome --num-samples 5
+python 02-standardisation/browse-sample.py data/02-standardised/The-Tome --num-samples 5
 
 # Raw JSON output
-python 02-standardisation/browse_sample.py data/02-standardised/tulu-3-sft-mixture --raw-json
+python 02-standardisation/browse-sample.py data/02-standardised/tulu-3-sft-mixture --raw-json
 ```
+
+### Additional Scripts
+
+**`convert-standard-format.py`** - Main conversion script for various formats (chat messages, ShareGPT, instruction-response, preference pairs)
+
+**`browse-sample.py`** - Interactive browser for inspecting converted datasets with parts structure
+
+**`inspect-dataset.py`** - Display dataset information including processing log and metadata
+
+**`split-dataset.py`** - Split DatasetDict into separate datasets for individual processing
+
+**Dataset-specific converters:**
+- `convert-charter-qa.py` - Swiss AI Charter Q&A data
+- `convert-africa-sft.py` - African language SFT data
+- `convert-glaive-function-calling.py` - Glaive function calling data
+- `convert-xlam-function-calling.py` - XLAM function calling data
+- `convert-numinamath.py` - NuminaMath mathematical reasoning data
+- And more specialised converters for specific datasets
