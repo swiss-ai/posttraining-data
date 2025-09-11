@@ -1,10 +1,15 @@
 #!/usr/bin/env python3
 """
-Memory-efficient field-based dataset filtering tool.
+Memory-efficient field-based dataset filtering tool for new format datasets.
 
-This script analyzes and filters chat format datasets based on field values.
-It can display field statistics and create filtered copies of datasets.
-Uses HuggingFace's native filtering for memory efficiency on large datasets.
+This script analyzes and filters new chat format datasets (with parts structure) 
+based on field values. It can display field statistics and create filtered copies 
+of datasets. Uses HuggingFace's native filtering for memory efficiency on large datasets.
+
+Supports filtering on parts-specific fields like:
+- conversation_branches[0].messages[0].parts[0].type
+- conversation_branches[0].messages[0].parts[0].name
+- available_functions[0].name
 """
 
 import sys
@@ -16,8 +21,6 @@ from typing import Dict, Any, List, Set, Union, Optional
 from collections import Counter, defaultdict
 from datasets import load_from_disk, Dataset, DatasetDict
 from tqdm import tqdm
-
-
 
 
 def get_nested_value(obj: Dict[str, Any], field_path: str) -> Any:
@@ -174,13 +177,10 @@ def display_field_stats(analysis: Dict[str, Any], field_path: str):
     
     for value, count in most_common:
         percentage = (count / analysis['total_samples_analyzed']) * 100
-        # Truncate long values
         display_value = str(value)
-        if len(display_value) > 50:
-            display_value = display_value[:47] + "..."
         # Add quotes around the value
         quoted_value = f'"{display_value}"'
-        print(f"  {quoted_value:<52} {count:>8,} ({percentage:5.1f}%)")
+        print(f"  {quoted_value} {count:>8,} ({percentage:5.1f}%)")
 
 
 def display_field_analysis(analysis: Dict[str, Any]):
@@ -214,13 +214,10 @@ def display_field_analysis(analysis: Dict[str, Any]):
         
         for value, count in most_common:
             percentage = (count / analysis['total_samples_analyzed']) * 100
-            # Truncate long values
             display_value = str(value)
-            if len(display_value) > 50:
-                display_value = display_value[:47] + "..."
             # Add quotes around the value
             quoted_value = f'"{display_value}"'
-            print(f"  {quoted_value:<52} {count:>8,} ({percentage:5.1f}%)")
+            print(f"  {quoted_value} {count:>8,} ({percentage:5.1f}%)")
 
 
 def filter_dataset(dataset, field_path: str, target_values: List[str], keep_matches: bool = True) -> Dataset:
@@ -430,7 +427,7 @@ def split_dataset_by_field(dataset, field_path: str, output_base_path: Path, dat
                     **original_metadata,
                     "processing_log": original_metadata.get("processing_log", []) + [{
                         "operation": "field_based_split",
-                        "script": "field_filter_memory_efficient.py",
+                        "script": "field_filter_newformat.py",
                         "timestamp": datetime.now().isoformat(),
                         "input_path": str(input_path),
                         "output_path": str(output_path),
@@ -471,7 +468,7 @@ def split_dataset_by_field(dataset, field_path: str, output_base_path: Path, dat
                     **original_metadata,
                     "processing_log": original_metadata.get("processing_log", []) + [{
                         "operation": "field_based_split",
-                        "script": "field_filter_memory_efficient.py",
+                        "script": "field_filter_newformat.py",
                         "timestamp": datetime.now().isoformat(),
                         "input_path": str(input_path),
                         "output_path": str(output_path),
@@ -568,25 +565,31 @@ def sanitize_filename(value: str, max_length: int = 50) -> str:
 def parse_arguments():
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(
-        description="Analyze and filter chat format datasets by field values (memory-efficient version)",
+        description="Analyze and filter new format chat datasets (with parts structure) by field values",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
   # Show dataset schema (all fields)
-  python field_filter_memory_efficient.py data/02-standardised/tulu-3-sft-mixture
+  python field_filter_newformat.py data/02-standardised/xlam-function-calling-60k
 
   # Analyze specific field
-  python field_filter_memory_efficient.py data/02-standardised/tulu-3-sft-mixture --field original_metadata.category
+  python field_filter_newformat.py data/02-standardised/xlam-function-calling-60k --field original_metadata.category
 
-  # Filter to keep only samples where original_metadata.category = "math"
-  python field_filter_memory_efficient.py data/02-standardised/tulu-3-sft-mixture \\
-    --field original_metadata.category \\
-    --keep-values math \\
-    --output data/03-filtered/tulu-math-only
+  # Filter to keep only samples with thought parts
+  python field_filter_newformat.py data/02-standardised/dataset \\
+    --field conversation_branches[0].messages[0].parts[0].type \\
+    --keep-values thought \\
+    --output data/03-filtered/dataset-thoughts-only
+  
+  # Filter by function name in parts
+  python field_filter_newformat.py data/02-standardised/dataset \\
+    --field conversation_branches[0].messages[0].parts[0].name \\
+    --keep-values get_weather_data \\
+    --output data/03-filtered/dataset-weather-only
     
-  # Split dataset by field values (memory-efficient)
-  python field_filter_memory_efficient.py data/02-standardised/tulu-3-sft-mixture \\
-    --field original_metadata.category \\
+  # Split dataset by available function names
+  python field_filter_newformat.py data/02-standardised/dataset \\
+    --field available_functions[0].name \\
     --split \\
     --output data/03-splits/
         """
@@ -771,7 +774,7 @@ def main():
             **original_metadata,
             "processing_log": original_metadata.get("processing_log", []) + [{
                 "operation": "field_based_filtering",
-                "script": "field_filter.py",
+                "script": "field_filter_newformat.py",
                 "timestamp": datetime.now().isoformat(),
                 "input_path": str(dataset_path),
                 "output_path": str(args.output),
@@ -811,7 +814,7 @@ def main():
             **original_metadata,
             "processing_log": original_metadata.get("processing_log", []) + [{
                 "operation": "field_based_filtering",
-                "script": "field_filter.py",
+                "script": "field_filter_newformat.py",
                 "timestamp": datetime.now().isoformat(),
                 "input_path": str(dataset_path),
                 "output_path": str(args.output),

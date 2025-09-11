@@ -1,8 +1,6 @@
 # 06-field-based-filtering: General Field Analysis and Filtering
 
-Analyzes, filters, and splits chat format datasets by field values. Use dot notation for nested fields (e.g., `original_metadata.category`).
-
-**Note**: License-based filtering has been moved to `03-license-based-filtering/` for better pipeline organization.
+Analyzes, filters, and splits datasets in our schema by field values. Use dot notation for nested fields (e.g., `original_metadata.category`).
 
 ## Tool
 
@@ -107,7 +105,3 @@ python 06-field-based-filtering/field_filter.py data/02-standardised/mydataset \
 # 3. Further process individual domain datasets as needed
 python some-other-tool.py data/06-domain-splits/mydataset-math/
 ```
-
-## Related Tools
-
-For license-based filtering with pre-configured rules for specific datasets, see `03-license-based-filtering/`.
