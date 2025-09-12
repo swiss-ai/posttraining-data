@@ -25,14 +25,14 @@ def check_datasets_version():
     """Check if datasets version is exactly 3.3.2"""
     required_version = "3.3.2"
     current_version = datasets.__version__
-    
+
     if current_version != required_version:
         print(f"WARNING: datasets version {current_version} detected.")
         print(f"Required version: {required_version}")
         print("This version may not be compatible with current docker images.")
         print("Please downgrade with: pip install datasets==3.3.2")
         sys.exit(1)
-    
+
     print(f"✓ datasets version {current_version} is compatible")
 
 
@@ -42,23 +42,23 @@ def download_dataset(dataset_name, download_folder, subset=None, split=None):
         # Extract dataset name without organization
         dataset_short_name = dataset_name.split('/')[-1] if '/' in dataset_name else dataset_name
         dataset_folder = os.path.join(download_folder, dataset_short_name)
-        
+
         print(f"Downloading {dataset_name} to {dataset_folder}")
-        
+
         # Create dataset folder if it doesn't exist
         Path(dataset_folder).mkdir(parents=True, exist_ok=True)
-        
+
         # Set cache directory to dataset folder
         cache_dir = os.path.join(dataset_folder, ".cache")
-        
+
         # Download dataset
         if subset:
             dataset = load_dataset(dataset_name, subset, split=split, cache_dir=cache_dir)
         else:
             dataset = load_dataset(dataset_name, split=split, cache_dir=cache_dir)
-        
+
         print(f"✓ Successfully downloaded {dataset_name}")
-        
+
         # Save metadata
         metadata = {
             "dataset_name": dataset_name,
@@ -67,7 +67,7 @@ def download_dataset(dataset_name, download_folder, subset=None, split=None):
             "download_date": datetime.now().isoformat(),
             "datasets_library_version": datasets.__version__
         }
-        
+
         # Extract dataset info
         info = None
         if hasattr(dataset, 'info'):
@@ -77,18 +77,18 @@ def download_dataset(dataset_name, download_folder, subset=None, split=None):
             first_split = list(dataset.keys())[0]
             if hasattr(dataset[first_split], 'info'):
                 info = dataset[first_split].info
-        
+
         if info:
             metadata["dataset_info"] = {
                 "version": str(info.version) if hasattr(info, 'version') else None,
                 "description": info.description,
                 "features": str(info.features),
-                "splits": {name: {"num_examples": split_info.num_examples, "num_bytes": split_info.num_bytes} 
-                          for name, split_info in info.splits.items()} if hasattr(info, 'splits') else None,
+                "splits": {name: {"num_examples": split_info.num_examples, "num_bytes": split_info.num_bytes}
+                           for name, split_info in info.splits.items()} if hasattr(info, 'splits') else None,
                 "download_size": info.download_size,
                 "dataset_size": info.dataset_size
             }
-            
+
             # Extract commit hash from download checksums if available
             if hasattr(info, 'download_checksums') and info.download_checksums:
                 for url in info.download_checksums.keys():
@@ -99,27 +99,27 @@ def download_dataset(dataset_name, download_folder, subset=None, split=None):
                             commit_hash = parts[1].split('/')[0]
                             metadata["commit_hash"] = commit_hash
                             break
-        
+
         # Save metadata to JSON file
         metadata_path = os.path.join(dataset_folder, "dataset_metadata.json")
         with open(metadata_path, 'w') as f:
             json.dump(metadata, f, indent=2)
         print(f"✓ Saved metadata to {metadata_path}")
-        
+
         # Save dataset using HuggingFace format
         print("Saving dataset...")
         dataset.save_to_disk(dataset_folder)
         print(f"✓ Saved HuggingFace dataset to {dataset_folder}")
-        
+
         # Print dataset info
         if hasattr(dataset, '__len__'):
             print(f"Number of examples: {len(dataset)}")
         elif isinstance(dataset, dict):
             for split_name, split_dataset in dataset.items():
                 print(f"Number of {split_name} examples: {len(split_dataset)}")
-        
+
         return dataset
-        
+
     except Exception as e:
         print(f"Error downloading {dataset_name}: {e}")
         sys.exit(1)
@@ -146,12 +146,12 @@ def main():
         "--split",
         help="Dataset split to download (e.g., 'train', 'test', 'validation')"
     )
-    
+
     args = parser.parse_args()
-    
+
     # Check datasets version compatibility
     check_datasets_version()
-    
+
     # Download the dataset
     download_dataset(
         args.dataset_name,

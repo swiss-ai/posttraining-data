@@ -10,7 +10,7 @@ Downloads datasets from HuggingFace Hub with compatibility checks and metadata t
 This script downloads HuggingFace datasets and stores them locally with metadata including version information, commit hash, and dataset details. It includes a compatibility check for the `datasets` library version (requires 3.3.2 for compatibility with current docker images).
 
 ### `generate-charter-qa.py`
-Generates prompt-completion examples demonstrating awareness of Swiss AI Charter principles. Creates diverse Q&A pairs covering all sections of the charter for training data.
+Generates prompt-completion examples demonstrating awareness of [Swiss AI Charter](https://github.com/swiss-ai/apertus-tech-report/blob/main/Apertus_Tech_Report.pdf) principles. Creates diverse Q&A pairs covering all sections of the charter for training data.
 
 ## Usage
 
