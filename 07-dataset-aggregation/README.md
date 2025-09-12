@@ -1,7 +1,7 @@
 # Dataset Aggregation
 This script is meant to aggregate subsets of various datasets into a single data mix that can be used for training.
 
-**Format Support**: The aggregation script works with both old format (string content) and new format (parts structure) datasets, as it operates on dataset-level fields rather than message content.
+**Format Support**: The aggregation script operates on dataset-level fields rather than message content.
 
 ## Format Conversion
 
