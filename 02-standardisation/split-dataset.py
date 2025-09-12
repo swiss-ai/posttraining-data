@@ -33,22 +33,22 @@ def load_existing_metadata(input_path: Path) -> Dict[str, Any]:
     return {}
 
 
-def save_dataset_with_metadata(dataset: DatasetDict, output_path: Path, 
-                              processing_entry: Dict[str, Any], 
-                              original_metadata: Dict[str, Any]):
+def save_dataset_with_metadata(dataset: DatasetDict, output_path: Path,
+                               processing_entry: Dict[str, Any],
+                               original_metadata: Dict[str, Any]):
     """Save dataset with updated metadata."""
     # Create output directory
     output_path.mkdir(parents=True, exist_ok=True)
-    
+
     # Save dataset
     dataset.save_to_disk(str(output_path))
-    
+
     # Update metadata
     metadata = {
         **original_metadata,
         "processing_log": original_metadata.get("processing_log", []) + [processing_entry]
     }
-    
+
     # Save metadata
     with open(output_path / "dataset_metadata.json", 'w') as f:
         json.dump(metadata, f, indent=2)
@@ -65,9 +65,9 @@ def is_standard_split_name(split_name: str) -> bool:
     return split_name.lower() in standard_names
 
 
-def split_by_splits(dataset: DatasetDict, dataset_name: str, 
-                   output_dir: Path, original_metadata: Dict[str, Any],
-                   input_path: Path) -> bool:
+def split_by_splits(dataset: DatasetDict, dataset_name: str,
+                    output_dir: Path, original_metadata: Dict[str, Any],
+                    input_path: Path) -> bool:
     """
     Split DatasetDict by existing splits into separate datasets.
     
@@ -83,14 +83,14 @@ def split_by_splits(dataset: DatasetDict, dataset_name: str,
     """
     splits = list(dataset.keys())
     print(f"Found DatasetDict with {len(splits)} splits: {splits}")
-    
+
     # Show what will be created
     print(f"\nWill create the following datasets:")
     for split in splits:
         output_path = output_dir / f"{dataset_name}-{split}"
         sample_count = len(dataset[split])
         print(f"  {output_path} ({sample_count:,} samples)")
-    
+
     # Check for standard split names and warn
     standard_splits = [s for s in splits if is_standard_split_name(s)]
     if standard_splits:
@@ -98,19 +98,19 @@ def split_by_splits(dataset: DatasetDict, dataset_name: str,
         print(f"These will be renamed to 'train' in the output datasets.")
         print(f"Waiting 3 seconds before continuing...")
         time.sleep(3)
-    
+
     # Process each split
     print(f"\nSplitting dataset into {len(splits)} separate datasets...")
     success_count = 0
-    
+
     for split_name in tqdm(splits, desc="Processing splits"):
         try:
             split_data = dataset[split_name]
             output_path = output_dir / f"{dataset_name}-{split_name}"
-            
+
             # Create DatasetDict with "train" split
             split_dataset = DatasetDict({"train": split_data})
-            
+
             # Create processing log entry
             processing_entry = {
                 "operation": "dataset_split_by_splits",
@@ -123,23 +123,23 @@ def split_by_splits(dataset: DatasetDict, dataset_name: str,
                 "target_split": "train",
                 "samples": len(split_data)
             }
-            
+
             # Save dataset with metadata
-            save_dataset_with_metadata(split_dataset, output_path, 
-                                      processing_entry, original_metadata)
-            
+            save_dataset_with_metadata(split_dataset, output_path,
+                                       processing_entry, original_metadata)
+
             print(f"  ✓ {split_name} → {output_path} ({len(split_data):,} samples)")
             success_count += 1
-            
+
         except Exception as e:
             print(f"  ✗ Error processing split '{split_name}': {e}")
-    
+
     return success_count == len(splits)
 
 
 def split_even_parts(dataset: Dataset, dataset_name: str, output_dir: Path,
-                    n_parts: int, original_metadata: Dict[str, Any],
-                    input_path: Path, split_name: str = "train") -> bool:
+                     n_parts: int, original_metadata: Dict[str, Any],
+                     input_path: Path, split_name: str = "train") -> bool:
     """
     Split dataset into N equal parts.
     
@@ -157,11 +157,11 @@ def split_even_parts(dataset: Dataset, dataset_name: str, output_dir: Path,
     """
     dataset_size = len(dataset)
     print(f"\nSplitting {split_name} split ({dataset_size:,} samples) into {n_parts} equal parts")
-    
+
     # Calculate part sizes
     base_part_size = dataset_size // n_parts
     remainder = dataset_size % n_parts
-    
+
     # Show what will be created
     print(f"\nWill create the following datasets:")
     for i in range(n_parts):
@@ -169,28 +169,28 @@ def split_even_parts(dataset: Dataset, dataset_name: str, output_dir: Path,
         output_name = f"{dataset_name}-split{suffix}"
         part_size = base_part_size + (1 if i < remainder else 0)
         print(f"  {output_dir / output_name} (~{part_size:,} samples)")
-    
+
     # Create parts
     start_idx = 0
     created_datasets = []
-    
+
     for i in tqdm(range(n_parts), desc="Creating parts"):
         try:
             # Calculate part size (distribute remainder across first parts)
             part_size = base_part_size + (1 if i < remainder else 0)
             end_idx = start_idx + part_size
-            
+
             # Create output name and path
             suffix = get_split_suffix(i)
             output_name = f"{dataset_name}-split{suffix}"
             output_path = output_dir / output_name
-            
+
             # Select samples for this part
             part_data = dataset.select(range(start_idx, end_idx))
-            
+
             # Create DatasetDict with "train" split
             part_dataset = DatasetDict({"train": part_data})
-            
+
             # Create processing log entry
             processing_entry = {
                 "operation": "dataset_even_split",
@@ -206,30 +206,30 @@ def split_even_parts(dataset: Dataset, dataset_name: str, output_dir: Path,
                 "start_index": start_idx,
                 "end_index": end_idx - 1
             }
-            
+
             # Save dataset with metadata
             save_dataset_with_metadata(part_dataset, output_path,
-                                      processing_entry, original_metadata)
-            
+                                       processing_entry, original_metadata)
+
             created_datasets.append((str(output_path), len(part_data)))
             start_idx = end_idx
-            
+
         except Exception as e:
             print(f"  ✗ Error creating part {i + 1}: {e}")
             return False
-    
+
     # Summary
     print(f"\nCreated {len(created_datasets)} dataset parts:")
     for path, count in created_datasets:
         print(f"  {path}: {count:,} samples")
-    
+
     return True
 
 
-def split_by_range(dataset: Dataset, dataset_name: str, start_idx: int, 
-                  end_idx: int, output_path: Optional[Path],
-                  original_metadata: Dict[str, Any], input_path: Path,
-                  split_name: str = "train") -> bool:
+def split_by_range(dataset: Dataset, dataset_name: str, start_idx: int,
+                   end_idx: int, output_path: Optional[Path],
+                   original_metadata: Dict[str, Any], input_path: Path,
+                   split_name: str = "train") -> bool:
     """
     Extract samples from start to end index.
     
@@ -247,7 +247,7 @@ def split_by_range(dataset: Dataset, dataset_name: str, start_idx: int,
         True if successful
     """
     dataset_size = len(dataset)
-    
+
     # Validate indices
     if start_idx < 0:
         print(f"Error: Start index {start_idx} cannot be negative")
@@ -258,23 +258,23 @@ def split_by_range(dataset: Dataset, dataset_name: str, start_idx: int,
     if start_idx >= end_idx:
         print(f"Error: Start index {start_idx} must be less than end index {end_idx}")
         return False
-    
+
     # Auto-generate output path if not specified
     if output_path is None:
         output_name = f"{dataset_name}-{start_idx}-{end_idx}"
         output_path = input_path.parent / output_name
         print(f"No output path specified, using: {output_path}")
-    
-    print(f"\nExtracting samples {start_idx:,} to {end_idx-1:,} from {split_name} split")
+
+    print(f"\nExtracting samples {start_idx:,} to {end_idx - 1:,} from {split_name} split")
     print(f"Total samples to extract: {end_idx - start_idx:,}")
-    
+
     try:
         # Select samples in range
         range_data = dataset.select(range(start_idx, end_idx))
-        
+
         # Create DatasetDict with "train" split
         range_dataset = DatasetDict({"train": range_data})
-        
+
         # Create processing log entry
         processing_entry = {
             "operation": "dataset_range_extraction",
@@ -288,14 +288,14 @@ def split_by_range(dataset: Dataset, dataset_name: str, start_idx: int,
             "end_index": end_idx - 1,
             "samples": len(range_data)
         }
-        
+
         # Save dataset with metadata
         save_dataset_with_metadata(range_dataset, output_path,
-                                  processing_entry, original_metadata)
-        
+                                   processing_entry, original_metadata)
+
         print(f"✓ Extracted {len(range_data):,} samples to {output_path}")
         return True
-        
+
     except Exception as e:
         print(f"✗ Error extracting range: {e}")
         return False
@@ -326,7 +326,7 @@ Examples:
 All outputs are DatasetDict with "train" split for pipeline compatibility.
         """
     )
-    
+
     parser.add_argument(
         "input_dataset",
         help="Path to input dataset directory"
@@ -366,14 +366,14 @@ All outputs are DatasetDict with "train" split for pipeline compatibility.
         "--split",
         help="Specific split to process (default: process all or use 'train')"
     )
-    
+
     return parser.parse_args()
 
 
 def main():
     """Main function."""
     args = parse_arguments()
-    
+
     # Validate arguments based on mode
     if args.mode == "splits":
         if not args.output_directory:
@@ -396,59 +396,59 @@ def main():
         if args.output_directory and args.output:
             print("Error: Cannot specify both output_directory and --output for range mode")
             sys.exit(1)
-    
+
     # Set up paths
     input_path = Path(args.input_dataset)
     if not input_path.exists():
         print(f"Error: Input dataset does not exist: {input_path}")
         sys.exit(1)
-    
+
     dataset_name = input_path.name
-    
+
     # Load dataset
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
     print(f"Dataset Splitting Tool")
     print(f"Mode: {args.mode}")
     print(f"Input: {input_path}")
     if args.output_directory:
         print(f"Output directory: {args.output_directory}")
-    print(f"{'='*60}")
-    
+    print(f"{'=' * 60}")
+
     print(f"\nLoading dataset from: {input_path}")
     try:
         dataset = load_from_disk(str(input_path))
     except Exception as e:
         print(f"Error loading dataset: {e}")
         sys.exit(1)
-    
+
     # Load original metadata
     original_metadata = load_existing_metadata(input_path)
-    
+
     # Handle DatasetDict vs single Dataset
     is_dataset_dict = hasattr(dataset, 'keys')
-    
+
     # Execute based on mode
     success = False
-    
+
     if args.mode == "splits":
         # Mode 1: Split by DatasetDict splits
         if not is_dataset_dict:
             print("Error: splits mode requires a DatasetDict input")
             sys.exit(1)
-        
+
         output_dir = Path(args.output_directory)
         success = split_by_splits(dataset, dataset_name, output_dir,
-                                original_metadata, input_path)
-    
+                                  original_metadata, input_path)
+
     elif args.mode == "even":
         # Mode 2: Even N-way split
         output_dir = Path(args.output_directory)
-        
+
         if is_dataset_dict:
             # Handle DatasetDict
             available_splits = list(dataset.keys())
             print(f"Found DatasetDict with splits: {available_splits}")
-            
+
             if args.split:
                 if args.split not in available_splits:
                     print(f"Error: Split '{args.split}' not found. Available: {available_splits}")
@@ -460,17 +460,17 @@ def main():
             else:
                 target_split = available_splits[0]
                 print(f"Using '{target_split}' split")
-            
+
             dataset_to_split = dataset[target_split]
         else:
             # Single Dataset
             target_split = "train"
             dataset_to_split = dataset
-        
+
         success = split_even_parts(dataset_to_split, dataset_name, output_dir,
-                                 args.parts, original_metadata, input_path,
-                                 target_split)
-    
+                                   args.parts, original_metadata, input_path,
+                                   target_split)
+
     elif args.mode == "range":
         # Mode 3: Range extraction
         if args.output:
@@ -479,12 +479,12 @@ def main():
             output_path = Path(args.output_directory) / f"{dataset_name}-{args.start}-{args.end}"
         else:
             output_path = None  # Will be auto-generated
-        
+
         if is_dataset_dict:
             # Handle DatasetDict
             available_splits = list(dataset.keys())
             print(f"Found DatasetDict with splits: {available_splits}")
-            
+
             if args.split:
                 if args.split not in available_splits:
                     print(f"Error: Split '{args.split}' not found. Available: {available_splits}")
@@ -496,25 +496,25 @@ def main():
             else:
                 target_split = available_splits[0]
                 print(f"Using '{target_split}' split")
-            
+
             dataset_to_extract = dataset[target_split]
         else:
             # Single Dataset
             target_split = "train"
             dataset_to_extract = dataset
-        
+
         success = split_by_range(dataset_to_extract, dataset_name,
-                               args.start, args.end, output_path,
-                               original_metadata, input_path, target_split)
-    
+                                 args.start, args.end, output_path,
+                                 original_metadata, input_path, target_split)
+
     # Final summary
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     if success:
         print(f"✓ Dataset splitting completed successfully")
     else:
         print(f"✗ Dataset splitting failed")
-    print(f"{'='*60}")
-    
+    print(f"{'=' * 60}")
+
     sys.exit(0 if success else 1)
 
 

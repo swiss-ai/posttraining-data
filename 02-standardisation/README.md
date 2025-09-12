@@ -49,7 +49,7 @@ The new format uses parts structure for all messages, enabling support for tool 
           "parts": [
             {
               "type": "thought",
-              "content": "The user wants to know the weather. I have a tool ... Let me ... ",
+              "content": "The user wants to know the weather. I have a tool ... Let me ... "
             },
             {
               "type": "function-call",
@@ -70,9 +70,9 @@ The new format uses parts structure for all messages, enabling support for tool 
             },
             {
               "type": "verifiable-responses",
-              "answers": ["sunny"],
+              "answers": ["sunny"]
             }
-          ],
+          ]
         },
         {
           "role": "user",
@@ -82,7 +82,7 @@ The new format uses parts structure for all messages, enabling support for tool 
               "content": "thanks! Is this warmer than last year? ",
               "metadata": {}
             }
-          ],
+          ]
         }
       ]
     }
