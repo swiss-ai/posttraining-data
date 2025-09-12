@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-Language annotation script for chat format datasets.
+Language annotation script for new chat format datasets (with parts structure).
 
-This script adds FastText-based language detection to each message in conversations,
+This script adds FastText-based language detection to response parts in conversations,
 storing the primary language, confidence score, and top-3 language predictions
-in each message's metadata.
+in each response part's metadata. Works with the new chat format using parts structure.
 """
 
 import sys
@@ -163,73 +163,165 @@ def classify_language_fasttext(model, text: str, top_k: int = 3) -> Dict[str, An
             }
 
 
-def annotate_message(message: Dict[str, Any], fasttext_model, top_k: int = 3) -> Dict[str, Any]:
+
+
+def annotate_message_parts(message: Dict[str, Any], fasttext_model, top_k: int = 3) -> Dict[str, Any]:
     """
-    Add language annotation to a single message.
+    Add language annotation to response parts in a message (new format with parts structure).
+    
+    CRITICAL: Never modifies input data in-place to prevent Arrow corruption.
     
     Args:
-        message: Message dictionary
+        message: Message dictionary with parts structure
         fasttext_model: Loaded FastText model
         top_k: Number of top language predictions
         
     Returns:
-        Updated message with language metadata
+        Updated message with language annotations in response parts
     """
-    # Get message content
-    content = message.get("content", "")
+    import copy
     
-    # Classify language
-    language_result = classify_language_fasttext(fasttext_model, content, top_k)
+    # Create deep copy to avoid in-place modification (prevents Arrow corruption)
+    message_copy = copy.deepcopy(message)
     
-    # Add to message metadata
-    if "metadata" not in message:
-        message["metadata"] = {}
+    # Process parts if they exist
+    if "parts" in message_copy and isinstance(message_copy["parts"], list):
+        for i, part in enumerate(message_copy["parts"]):
+            # Only annotate response-type parts that have non-empty content
+            if (isinstance(part, dict) and 
+                part.get("type") == "response"):
+                
+                content = part.get("content", "").strip()
+                
+                # Skip if content is empty after stripping whitespace
+                if not content:
+                    continue
+                
+                # Classify language
+                language_result = classify_language_fasttext(fasttext_model, content, top_k)
+                
+                # Add to part metadata (safe because we're modifying the copy)
+                if "metadata" not in message_copy["parts"][i]:
+                    message_copy["parts"][i]["metadata"] = {}
+                
+                # Ensure consistent schema for top_languages
+                top_languages = language_result["top_languages"]
+                if not top_languages:
+                    top_languages = [{"language": "unknown", "confidence": 0.0}]
+                
+                message_copy["parts"][i]["metadata"]["language_classification"] = {
+                    "primary_language": language_result["primary_language"],
+                    "primary_confidence": language_result["primary_confidence"],
+                    "top_languages": top_languages,
+                    "timestamp": datetime.now().isoformat(),
+                    "model": "fasttext-lid.176",
+                    "top_k": top_k
+                }
     
-    # Ensure consistent schema for top_languages - always have at least one entry
-    top_languages = language_result["top_languages"]
-    if not top_languages:
-        top_languages = [{"language": "unknown", "confidence": 0.0}]
-    
-    message["metadata"]["language_classification"] = {
-        "primary_language": language_result["primary_language"],
-        "primary_confidence": language_result["primary_confidence"],
-        "top_languages": top_languages,
-        "timestamp": datetime.now().isoformat(),
-        "model": "fasttext-lid.176",
-        "top_k": top_k
-    }
-    
-    return message
+    return message_copy
 
 
 def annotate_sample(sample: Dict[str, Any], fasttext_model, top_k: int = 3) -> Dict[str, Any]:
     """
-    Add language annotations to all messages in a sample.
+    Add language annotations to all messages in a sample (new format).
     
     Args:
-        sample: Chat format sample
+        sample: Chat format sample (may have parts structure in messages)
         fasttext_model: Loaded FastText model
         top_k: Number of top language predictions
         
     Returns:
-        Updated sample with language annotations
+        Updated sample with language annotations where content exists
     """
-    # Annotate system prompt if present
-    if "system_prompt" in sample and sample["system_prompt"]:
-        sample["system_prompt"] = annotate_message(sample["system_prompt"], fasttext_model, top_k)
+    # Create a deep copy to avoid in-place modification (critical for Arrow compatibility)
+    import copy
+    sample_copy = copy.deepcopy(sample)
     
-    # Annotate initial prompt
-    if "initial_prompt" in sample and sample["initial_prompt"]:
-        sample["initial_prompt"] = annotate_message(sample["initial_prompt"], fasttext_model, top_k)
+    # Annotate system prompt if it has content (direct content field)
+    if "system_prompt" in sample_copy and sample_copy["system_prompt"]:
+        content = sample_copy["system_prompt"].get("content", "").strip()
+        if content:
+            # Classify language
+            language_result = classify_language_fasttext(fasttext_model, content, top_k)
+            
+            # Add to metadata
+            if "metadata" not in sample_copy["system_prompt"]:
+                sample_copy["system_prompt"]["metadata"] = {}
+            
+            # Ensure consistent schema for top_languages
+            top_languages = language_result["top_languages"]
+            if not top_languages:
+                top_languages = [{"language": "unknown", "confidence": 0.0}]
+            
+            sample_copy["system_prompt"]["metadata"]["language_classification"] = {
+                "primary_language": language_result["primary_language"],
+                "primary_confidence": language_result["primary_confidence"],
+                "top_languages": top_languages,
+                "timestamp": datetime.now().isoformat(),
+                "model": "fasttext-lid.176",
+                "top_k": top_k
+            }
     
-    # Annotate conversation branches
-    if "conversation_branches" in sample:
-        for branch in sample["conversation_branches"]:
+    # Annotate initial prompt if it has content (direct content field)
+    if "initial_prompt" in sample_copy and sample_copy["initial_prompt"]:
+        content = sample_copy["initial_prompt"].get("content", "").strip()
+        if content:
+            # Classify language
+            language_result = classify_language_fasttext(fasttext_model, content, top_k)
+            
+            # Add to metadata
+            if "metadata" not in sample_copy["initial_prompt"]:
+                sample_copy["initial_prompt"]["metadata"] = {}
+            
+            # Ensure consistent schema for top_languages
+            top_languages = language_result["top_languages"]
+            if not top_languages:
+                top_languages = [{"language": "unknown", "confidence": 0.0}]
+            
+            sample_copy["initial_prompt"]["metadata"]["language_classification"] = {
+                "primary_language": language_result["primary_language"],
+                "primary_confidence": language_result["primary_confidence"],
+                "top_languages": top_languages,
+                "timestamp": datetime.now().isoformat(),
+                "model": "fasttext-lid.176",
+                "top_k": top_k
+            }
+    
+    # Annotate conversation branches (messages may have parts structure)
+    if "conversation_branches" in sample_copy:
+        for branch in sample_copy["conversation_branches"]:
             if "messages" in branch:
                 for i, message in enumerate(branch["messages"]):
-                    branch["messages"][i] = annotate_message(message, fasttext_model, top_k)
+                    # Check if message has parts (new format) or direct content
+                    if "parts" in message:
+                        # New format with parts - use parts annotation
+                        branch["messages"][i] = annotate_message_parts(message, fasttext_model, top_k)
+                    elif "content" in message:
+                        # Some messages might have direct content - annotate if non-empty
+                        content = message.get("content", "").strip()
+                        if content:
+                            # Classify language
+                            language_result = classify_language_fasttext(fasttext_model, content, top_k)
+                            
+                            # Add to metadata
+                            if "metadata" not in branch["messages"][i]:
+                                branch["messages"][i]["metadata"] = {}
+                            
+                            # Ensure consistent schema for top_languages
+                            top_languages = language_result["top_languages"]
+                            if not top_languages:
+                                top_languages = [{"language": "unknown", "confidence": 0.0}]
+                            
+                            branch["messages"][i]["metadata"]["language_classification"] = {
+                                "primary_language": language_result["primary_language"],
+                                "primary_confidence": language_result["primary_confidence"],
+                                "top_languages": top_languages,
+                                "timestamp": datetime.now().isoformat(),
+                                "model": "fasttext-lid.176",
+                                "top_k": top_k
+                            }
     
-    return sample
+    return sample_copy
 
 
 def annotate_dataset_streaming(dataset, fasttext_model, top_k: int = 3, chunk_size: int = 10000):
@@ -405,7 +497,8 @@ def save_dataset_and_metadata(dataset, output_path: Path, input_path: Path, tota
         "total_messages_annotated": total_messages,
         "model": "fasttext-lid.176",
         "top_k": 3,
-        "annotation_success": True
+        "annotation_success": True,
+        "format": "new_chat_format_with_parts"
     }
     
     if "processing_log" not in metadata:
@@ -422,19 +515,24 @@ def save_dataset_and_metadata(dataset, output_path: Path, input_path: Path, tota
 def parse_arguments():
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(
-        description="Add FastText language detection to chat format datasets",
+        description="Add FastText language detection to new chat format datasets (with parts structure)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python 04-annotations/language_annotate.py data/02-standardised/smoltalk data/04-annotated/smoltalk
-  python 04-annotations/language_annotate.py data/03-filtered/smoltalk-numina data/04-annotated/smoltalk-numina
-  python 04-annotations/language_annotate.py data/02-standardised/smoltalk data/04-annotated/smoltalk --chunk-size 5000
+  # Annotate new format dataset
+  venv/bin/python 05-annotations/language_annotate.py data/02-standardised-newformat/dataset data/05-annotations/dataset-lang
+  
+  # With custom chunk size for large datasets
+  venv/bin/python 05-annotations/language_annotate.py data/04-decontaminated-newformat/dataset data/05-annotations/dataset-lang --chunk-size 5000
+  
+  # Test with OLMO prompts-only dataset
+  venv/bin/python 05-annotations/language_annotate.py /capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/olmo-2-0325-32b-preference-mix-promptsOnly data/05-annotations/
         """
     )
     
     parser.add_argument(
         "input_path",
-        help="Path to input chat format dataset directory"
+        help="Path to input new chat format dataset directory (with parts structure)"
     )
     parser.add_argument(
         "output_path", 

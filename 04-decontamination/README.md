@@ -19,16 +19,14 @@ If significant overlap is detected, the prompt is removed from the training data
 ## Usage
 
 ### Python interactive session
-Decontamination contains two steps. See below the commands, however, they are also provided in `run_decontamination.sh`
-so you can update paths and names there and run with the `bash` command.
-Additionally, the `unattended_run_decontamination.sh` can be used with the `sbatch` command that automatically calls the `run_decontamination.sh` script.
+Decontamination contains two steps:
 
 1. Gathering the prompts from the benchmarks. This is already done and unless you included new benchmarks, you can omit this step.
-```python
+```bash
     python gather-decontamination-prompts.py --output "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/decontamination_prompts"
 ```
 2. Execute the decontamination
-```python
+```bash
 export PROJECT_ROOT_AT="${HOME}/projects/post-training-scripts/04-decontamination"
 data_root_folder="/capstor/store/cscs/swissai/infra01/posttrain_data"
 decontamination_prompts_path="${data_root_folder}/04_decontaminated/decontamination_prompts"

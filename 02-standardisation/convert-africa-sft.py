@@ -240,7 +240,7 @@ def save_dataset_and_metadata(dataset, output_path: Path, dataset_name: str, inp
         "output_path": str(output_path),
         "samples_processed": len(dataset) if not isinstance(dataset, DatasetDict) else sum(len(split) for split in dataset.values()),
         "conversion_success": True,
-        "target_schema": "chat_format_newformat_v1.0",
+        "target_schema": "chat_format_v1.0",
         "filters_applied": [
             "filtered_chatgpt_mentions",
             "filtered_style_tags"

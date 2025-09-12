@@ -1,7 +1,7 @@
 # LLM-Based Classification Implementation Plan
 
 ## Overview
-This document outlines the implementation plan for LLM-based classification features in the 04-annotations folder, starting with refusal detection. The implementation will be simplified compared to the old codebase while maintaining core functionality and integrating with the existing processing pipeline.
+This document outlines the implementation plan for LLM-based classification features in `05-annotations`, starting with refusal detection. The implementation will be simplified compared to the old codebase while maintaining core functionality and integrating with the existing processing pipeline.
 
 ## Key Differences from Old Codebase
 
@@ -24,7 +24,7 @@ This document outlines the implementation plan for LLM-based classification feat
 
 ### Directory Layout
 ```
-04-annotations/
+05-annotations/
 ├── prompts/                    # Prompt templates
 │   ├── refusal.txt
 │   ├── assistant.txt
@@ -224,12 +224,12 @@ response = await client.chat.completions.create(
 - Mark failed messages with error details in metadata
 
 ### Classification Failures
-```python
+```Python
 # Failed classification metadata structure
 {
     "classification": "inconclusive",
     "reasoning": "API error: Rate limit exceeded",
-    "success": false,
+    "success": False,
     "error": "RateLimitError: ...",
     "timestamp": "2025-07-26T..."
 }

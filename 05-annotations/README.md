@@ -120,7 +120,7 @@ venv/bin/python 05-annotations/classify_assistant_newformat.py \
   --output data/05-annotations/dataset-assistant
 
 # Language annotation for new format
-venv/bin/python 05-annotations/language_annotate_newformat.py \
+venv/bin/python 05-annotations/language_annotate.py \
   data/04-decontaminated-newformat/dataset \
   data/05-annotations/dataset-lang
 ```

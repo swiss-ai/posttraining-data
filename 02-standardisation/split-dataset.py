@@ -309,19 +309,19 @@ def parse_arguments():
         epilog="""
 Examples:
   # Mode 1: Split by existing DatasetDict splits
-  python split_dataset_newformat.py data/dataset output_dir --mode splits
+  python split_dataset.py data/dataset output_dir --mode splits
   
   # Mode 2: Even N-way split (creates splitA, splitB, splitC, etc.)
-  python split_dataset_newformat.py data/dataset output_dir --mode even --parts 5
+  python split_dataset.py data/dataset output_dir --mode even --parts 5
   
   # Mode 3: Range extraction with custom output
-  python split_dataset_newformat.py data/dataset --mode range --start 1000 --end 2000 --output data/custom_path
+  python split_dataset.py data/dataset --mode range --start 1000 --end 2000 --output data/custom_path
   
   # Mode 3: Range extraction with auto-generated output name
-  python split_dataset_newformat.py data/dataset --mode range --start 1000 --end 2000
+  python split_dataset.py data/dataset --mode range --start 1000 --end 2000
   
   # Process specific split only
-  python split_dataset_newformat.py data/dataset output_dir --mode even --parts 3 --split validation
+  python split_dataset.py data/dataset output_dir --mode even --parts 3 --split validation
 
 All outputs are DatasetDict with "train" split for pipeline compatibility.
         """

@@ -312,14 +312,14 @@ def process_wikiqa_dataset(input_path: str, output_path: str, dataset_name: str 
         "dataset_name": dataset_name,
         "source_format": "wikiqa_chat_format",
         "target_format": "new_chat_format_with_parts",
-        "conversion_script": "convert_wikiqa_to_newformat.py",
+        "conversion_script": "convert_wikiqa_to.py",
         "total_samples": len(converted_samples),
         "failed_conversions": failed_count,
         "languages_detected": sorted(list(languages)),
         "processing_log": [
             {
                 "operation": "wikiqa_format_conversion",
-                "script": "02-standardisation/convert_wikiqa_to_newformat.py",
+                "script": "02-standardisation/convert_wikiqa_to.py",
                 "timestamp": datetime.now().isoformat(),
                 "input_path": input_path,
                 "output_path": str(output_path),
@@ -357,12 +357,12 @@ def main():
         epilog="""
 Examples:
   # Convert WikiQA dataset
-  python convert_wikiqa_to_newformat.py \\
+  python convert_wikiqa_to.py \\
     /capstor/store/cscs/swissai/infra01/posttrain_data/01_raw_hf_data/WikiQA \\
     data/02-standardised/WikiQA
     
   # Convert with custom dataset name
-  python convert_wikiqa_to_newformat.py \\
+  python convert_wikiqa_to.py \\
     /path/to/WikiQA \\
     data/02-standardised/WikiQA-converted \\
     --dataset-name "WikiQA-Multilingual"

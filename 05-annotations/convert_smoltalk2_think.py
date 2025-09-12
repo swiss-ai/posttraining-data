@@ -2,24 +2,15 @@
 """
 convert_smoltalk2_think.py
 
-Outputs messages[*] with:
-  { "role": "<user|assistant|system>", "parts": [ ... ], "metadata": {} }
+Extract <think>...</think> blocks from response parts in new format datasets.
+This script is specifically designed for datasets that already use the parts structure.
 
-Assistant parts:
-  - "thought" (from <think>…</think>)
-  - "response" (assistant visible text)
-  - optional tool parts passed through / normalized:
-      "function-call"  {name, args}
-      "function-output" {content}
-      "verifiable-responses" {answers}
+Processes messages with existing parts arrays:
+- Assistant parts: Extract <think> tags from response parts into separate thought parts
+- User/System parts: Keep existing response parts unchanged
+- Other part types: Preserve unchanged (function-call, function-output, etc.)
 
-User/System parts:
-  - single {type:"response", content:"..."}
-
-Also:
-  - Keep existing non-empty initial_prompt as-is (don’t remove any user turn).
-  - Else lift earliest user across ALL branches into initial_prompt and remove that one.
-  - Keep/backfill system_prompt.content from original_metadata.chat_template_kwargs.custom_instructions.
+Output: Messages with extracted thought parts separate from response content.
 """
 
 import re
@@ -49,129 +40,80 @@ def _ensure_metadata(d: Dict[str, Any]) -> Dict[str, Any]:
         d["metadata"] = {}
     return d
 
-def _norm_type(raw: Optional[str]) -> Optional[str]:
-    if not raw:
-        return None
-    t = str(raw).lower().replace("_", "-")
-    if t in ("response", "thought"):
-        return t
-    if t in ("function-call",):
-        return "function-call"
-    if t in ("function-output",):
-        return "function-output"
-    if t in ("verifiable-response", "verifiable-responses"):
-        return "verifiable-responses"
-    return None
-
-# --------------- parts builders ---------------- #
-def assistant_parts_from_string(content: Optional[str]) -> List[Dict[str, Any]]:
-    """Assistant string → parts: [thought*] + response?"""
-    cleaned, thinks = extract_thinks(content or "")
-    parts: List[Dict[str, Any]] = []
-    for t in thinks:
-        parts.append(_ensure_metadata({"type": "thought", "content": t}))
+def process_response_part(part: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Process a response part to extract think blocks."""
+    content = part.get("content", "")
+    if not isinstance(content, str):
+        return [part]  # Return original if not string
+    
+    cleaned, thinks = extract_thinks(content)
+    result_parts = []
+    
+    # Add thought parts first
+    for think_content in thinks:
+        result_parts.append(_ensure_metadata({
+            "type": "thought", 
+            "content": think_content
+        }))
+    
+    # Add response part with cleaned content if any remains
     if cleaned:
-        parts.append(_ensure_metadata({"type": "response", "content": cleaned}))
-    return parts
+        result_parts.append(_ensure_metadata({
+            "type": "response", 
+            "content": cleaned,
+            "metadata": part.get("metadata", {})
+        }))
+    
+    return result_parts if result_parts else [part]
 
-def assistant_parts_from_blocks(blocks: Any) -> List[Dict[str, Any]]:
-    """
-    Accept legacy assistant blocks:
-      {role: text|assistant_text|thought} OR
-      {type: response|thought|function-call|function-output|verifiable-response(s)} OR
-      plain strings (→ response).
-    Preserve tool fields (name/args/content/answers).
-    """
-    out: List[Dict[str, Any]] = []
-    if not isinstance(blocks, list):
-        return out
-
-    for b in blocks:
-        if isinstance(b, str):
-            out.append(_ensure_metadata({"type": "response", "content": b.strip()}))
+def process_assistant_parts(parts: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Process assistant parts array to extract think blocks from response parts."""
+    result_parts = []
+    
+    for part in parts:
+        if not isinstance(part, dict):
             continue
-        if not isinstance(b, dict):
-            continue
+            
+        part_type = part.get("type", "").lower()
+        
+        if part_type == "response":
+            # Extract think blocks from response parts
+            extracted_parts = process_response_part(part)
+            result_parts.extend(extracted_parts)
+        else:
+            # Keep other part types unchanged (thought, function-call, function-output, etc.)
+            result_parts.append(part)
+    
+    return result_parts
 
-        # prefer explicit role→type mapping if present; else use 'type'
-        role = b.get("role")
-        typ = b.get("type")
-        if role:
-            r = str(role).lower()
-            if r in ("text", "assistant_text"):
-                typ = "response"
-            elif r == "thought":
-                typ = "thought"
-        tnorm = _norm_type(typ)
-
-        if tnorm is None:
-            # Unknown block (e.g., tool stuff we don't recognize) → skip
-            continue
-
-        if tnorm in ("response", "thought"):
-            part = {"type": tnorm, "content": b.get("content")}
-            out.append(_ensure_metadata(part))
-        elif tnorm == "function-call":
-            out.append({
-                "type": "function-call",
-                "name": b.get("name"),
-                "args": b.get("args") or b.get("arguments") or {},
-            })
-        elif tnorm == "function-output":
-            out.append({
-                "type": "function-output",
-                "content": b.get("content"),
-            })
-        elif tnorm == "verifiable-responses":
-            answers = b.get("answers")
-            if answers is None and "answer" in b:
-                answers = [b.get("answer")]
-            out.append({
-                "type": "verifiable-responses",
-                "answers": answers or []
-            })
-
-    return out
-
-def user_or_system_parts_from_any(content: Any) -> List[Dict[str, Any]]:
-    """User/System → one response part with string content (join list-y content)."""
-    if isinstance(content, list):
-        pieces = []
-        for x in content:
-            if isinstance(x, dict):
-                v = x.get("content")
-                pieces.append(v if isinstance(v, str) else ("" if v is None else str(v)))
-            elif isinstance(x, str):
-                pieces.append(x)
-        text = "\n".join(p for p in pieces if p)
-    else:
-        text = content if isinstance(content, str) else ""
-    return [_ensure_metadata({"type": "response", "content": text.strip()})]
-
-def normalize_message_to_parts(msg: Dict[str, Any]) -> Dict[str, Any]:
+def normalize_message_newformat(msg: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Convert any input message into {role, parts[], metadata} — removes any 'content' key entirely.
+    Process a message that already has parts structure.
+    Extract think blocks from response parts for assistant messages.
     """
     role = msg.get("role")
-    content = msg.get("content")
-    out = {"role": role}
-
+    existing_parts = msg.get("parts", [])
+    metadata = msg.get("metadata", {})
+    
     if role == "assistant":
-        if isinstance(content, list):
-            parts = assistant_parts_from_blocks(content)
-        else:
-            parts = assistant_parts_from_string(content)
-        out["parts"] = parts
+        # Process assistant parts to extract think blocks
+        new_parts = process_assistant_parts(existing_parts)
     else:
-        out["parts"] = user_or_system_parts_from_any(content)
+        # Keep user/system parts unchanged
+        new_parts = existing_parts
+    
+    result = {
+        "role": role,
+        "parts": new_parts,
+        "metadata": metadata
+    }
+    
+    return result
 
-    out = _ensure_metadata({**out, "metadata": msg.get("metadata")})
-    return out
+def normalize_messages_newformat(messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    return [normalize_message_newformat(m) for m in (messages or [])]
 
-def normalize_messages_to_parts(messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    return [normalize_message_to_parts(m) for m in (messages or [])]
-
-# --------------- initial_prompt handling --------------- #
+# --------------- initial_prompt handling (same as original) --------------- #
 def keep_or_lift_initial_prompt(
     current_initial: Optional[Dict[str, Any]],
     branches: List[Dict[str, Any]]
@@ -226,11 +168,7 @@ def keep_or_lift_initial_prompt(
 # ---------------------------- map operations -------------------------------- #
 def process_batch(batch: Dict[str, List]) -> Dict[str, List]:
     """
-    Per-row:
-      • system_prompt: keep/backfill content; ensure metadata.
-      • conversation_branches: convert ALL messages to {role, parts[], metadata}.
-      • initial_prompt: keep if non-empty else lift earliest user.
-      • Never keep 'content' on messages (only 'parts').
+    Process batch for new format datasets with existing parts.
     """
     import copy
     out = copy.deepcopy(batch)
@@ -249,7 +187,7 @@ def process_batch(batch: Dict[str, List]) -> Dict[str, List]:
             if out["available_functions"][i] is None:
                 out["available_functions"][i] = []
         
-        # system_prompt
+        # system_prompt (same logic as original)
         sp = (out.get("system_prompt") or [None]*n)[i]
         current_content = sp.get("content") if isinstance(sp, dict) else None
         orig_meta_i = (out.get("original_metadata") or [None]*n)[i] or {}
@@ -260,13 +198,13 @@ def process_batch(batch: Dict[str, List]) -> Dict[str, List]:
             "metadata": {}
         }
 
-        # branches -> normalize to parts (and REMOVE any 'content' keys)
+        # branches -> process parts to extract think blocks
         in_branches = (out.get("conversation_branches") or [None]*n)[i] or []
         new_branches: List[Dict[str, Any]] = []
         for br in in_branches:
             msgs = br.get("messages") or []
-            norm_msgs = normalize_messages_to_parts(msgs)
-            # ensure no 'content' key leaked
+            norm_msgs = normalize_messages_newformat(msgs)
+            # ensure no 'content' key leaked (should not be present in new format)
             for m in norm_msgs:
                 m.pop("content", None)
             nb = {"messages": norm_msgs}
@@ -290,7 +228,7 @@ def map_split(ds: Dataset, num_proc: int, batch_size: int) -> Dataset:
         batch_size=batch_size,
         num_proc=num_proc,
         load_from_cache_file=False,
-        desc="Convert to messages[*].parts; keep tools; backfill system_prompt; keep/lift initial_prompt"
+        desc="Extract <think> blocks from response parts in new format datasets"
     )
 
 # ------------------------------- I/O & main --------------------------------- #
@@ -328,8 +266,10 @@ def save_with_meta(out_ds: DatasetDict, out_path: Path,
     print(f"Saved dataset + metadata to {out_path}")
 
 def parse_args():
-    p = argparse.ArgumentParser(description="Convert dataset to messages[*].parts schema (assistant/user/system)")
-    p.add_argument("input_path", help="Path to dataset saved via datasets.save_to_disk")
+    p = argparse.ArgumentParser(
+        description="Extract <think> blocks from response parts in new format datasets (parts structure)"
+    )
+    p.add_argument("input_path", help="Path to new format dataset saved via datasets.save_to_disk")
     p.add_argument("--output", "-o", required=True,
                    help="Output dir (if ends with '/', appends '<input>-ThinkFormatted')")
     p.add_argument("--batch-size", type=int, default=10000)

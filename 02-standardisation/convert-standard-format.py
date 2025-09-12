@@ -677,13 +677,13 @@ def save_dataset_and_metadata(dataset, output_path: Path, dataset_name: str, inp
     # Add processing log entry
     processing_entry = {
         "operation": "standardisation",
-        "script": "convert_to_chat_newformat.py",
+        "script": "convert_to_chat.py",
         "timestamp": datetime.now().isoformat(),
         "input_path": str(input_path),
         "output_path": str(output_path),
         "samples_processed": len(dataset) if not isinstance(dataset, DatasetDict) else sum(len(split) for split in dataset.values()),
         "conversion_success": True,
-        "target_schema": "chat_format_newformat_v1.0"
+        "target_schema": "chat_format_v1.0"
     }
     
     if "processing_log" not in metadata:
@@ -706,8 +706,8 @@ def parse_arguments():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python convert_to_chat_newformat.py ../data/01-hf-data/smoltalk ../data/02-standardised/smoltalk
-  python convert_to_chat_newformat.py ../data/01-hf-data/tulu-3-sft-mixture ../data/02-standardised/tulu-newformat
+  python convert_to_chat.py ../data/01-hf-data/smoltalk ../data/02-standardised/smoltalk
+  python convert_to_chat.py ../data/01-hf-data/tulu-3-sft-mixture ../data/02-standardised/tulu-newformat
         """
     )
     

@@ -1,9 +1,14 @@
 #!/usr/bin/env python3
 """
-Extract Boxed Answers Script
+Extract Boxed Answers Script (New Format)
 
-Extracts \\boxed{answer} patterns from assistant messages in chat format datasets,
-replacing them with just the answer text and storing the extracted answers in metadata.
+Extracts \\boxed{answer} patterns from assistant response parts in new chat format datasets,
+removing the LaTeX markup from response parts and storing all extracted answers from each
+assistant message in a single verifiable-responses part within that message.
+
+Works with the new chat format using parts structure. Only processes assistant messages
+and their response-type parts. All boxed answers from all response parts in an assistant
+message are collected into one verifiable-responses part with unified schema.
 
 Designed for high-performance processing of large datasets (up to 2M samples) using
 HuggingFace Dataset.map() with multiprocessing.
@@ -19,6 +24,36 @@ from multiprocessing import cpu_count
 
 from datasets import load_from_disk, Dataset, DatasetDict
 from tqdm import tqdm
+
+
+def _create_unified_part(part_type: str, 
+                         content: str = "", 
+                         name: str = "", 
+                         args: Any = None,
+                         metadata: Optional[Dict] = None,
+                         answers: Optional[List[str]] = None) -> Dict[str, Any]:
+    """Create a part with unified schema for Arrow compatibility."""
+    # Convert args to proper format
+    if args is None:
+        args_str = ""
+    elif isinstance(args, dict):
+        args_str = json.dumps(args) if args else ""
+    else:
+        args_str = str(args) if args else ""
+    
+    part = {
+        "type": part_type,
+        "content": content or "",
+        "metadata": metadata or {},
+        "name": name or "",
+        "args": args_str
+    }
+    
+    # Add answers field for verifiable-responses parts
+    if part_type == "verifiable-responses" and answers is not None:
+        part["answers"] = answers
+    
+    return part
 
 
 def extract_boxed_from_text(text: str) -> Tuple[str, List[str]]:
@@ -73,7 +108,7 @@ def extract_boxed_from_text(text: str) -> Tuple[str, List[str]]:
 
 def process_batch(examples: Dict[str, List]) -> Dict[str, List]:
     """
-    Process a batch of samples to extract boxed answers.
+    Process a batch of samples to extract boxed answers from new format datasets.
     This is the main function called by Dataset.map() in batched mode.
     
     Args:
@@ -99,21 +134,45 @@ def process_batch(examples: Dict[str, List]) -> Dict[str, List]:
                 if 'messages' in branch and branch['messages']:
                     for msg_idx, message in enumerate(branch['messages']):
                         # Only process assistant messages
-                        if message.get('role') == 'assistant':
-                            content = message.get('content', '')
+                        if message.get('role') == 'assistant' and 'parts' in message:
+                            # Collect all answers from all response parts in this message
+                            all_answers = []
                             
-                            # Extract boxed answers
-                            cleaned_content, answers = extract_boxed_from_text(content)
+                            # Process each part in the message
+                            for part_idx, part in enumerate(message['parts']):
+                                if isinstance(part, dict) and part.get('type') == 'response':
+                                    content = part.get('content', '')
+                                    
+                                    # Extract boxed answers and clean content
+                                    cleaned_content, answers = extract_boxed_from_text(content)
+                                    
+                                    # Update part content (remove boxed markup)
+                                    message['parts'][part_idx]['content'] = cleaned_content
+                                    
+                                    # Collect answers from this part
+                                    all_answers.extend(answers)
                             
-                            # Update message content
-                            message['content'] = cleaned_content
-                            
-                            # Add metadata
-                            if 'metadata' not in message:
-                                message['metadata'] = {}
-                            
-                            # Always store as list (even if empty)
-                            message['metadata']['verifiable_answer'] = answers
+                            # If we found any answers, add/update verifiable-responses part
+                            if all_answers:
+                                # Check if there's already a verifiable-responses part
+                                verifiable_part_idx = None
+                                for i, part in enumerate(message['parts']):
+                                    if isinstance(part, dict) and part.get('type') == 'verifiable-responses':
+                                        verifiable_part_idx = i
+                                        break
+                                
+                                # Create or update verifiable-responses part
+                                verifiable_part = _create_unified_part(
+                                    "verifiable-responses",
+                                    answers=all_answers
+                                )
+                                
+                                if verifiable_part_idx is not None:
+                                    # Update existing part
+                                    message['parts'][verifiable_part_idx] = verifiable_part
+                                else:
+                                    # Add new part
+                                    message['parts'].append(verifiable_part)
     
     return processed_examples
 
@@ -169,10 +228,10 @@ def process_dataset(dataset: Dataset, num_proc: int = None,
 
 def analyze_dataset_for_boxed(dataset: Dataset) -> Dict[str, int]:
     """
-    Quick analysis to count \\boxed{} patterns in dataset.
+    Quick analysis to count \\boxed{} patterns in dataset (new format).
     
     Args:
-        dataset: Input dataset
+        dataset: Input dataset with new chat format
         
     Returns:
         Dictionary with counts
@@ -189,12 +248,22 @@ def analyze_dataset_for_boxed(dataset: Dataset) -> Dict[str, int]:
             for branch in sample['conversation_branches']:
                 if 'messages' in branch:
                     for message in branch['messages']:
-                        if message.get('role') == 'assistant':
-                            content = message.get('content', '')
-                            count = content.count('\\boxed{')
-                            if count > 0:
+                        if message.get('role') == 'assistant' and 'parts' in message:
+                            message_has_boxed = False
+                            message_boxed_count = 0
+                            
+                            # Check all response parts in this message
+                            for part in message['parts']:
+                                if isinstance(part, dict) and part.get('type') == 'response':
+                                    content = part.get('content', '')
+                                    count = content.count('\\boxed{')
+                                    if count > 0:
+                                        message_has_boxed = True
+                                        message_boxed_count += count
+                            
+                            if message_has_boxed:
                                 messages_with_boxed += 1
-                                total_boxed += count
+                                total_boxed += message_boxed_count
     
     # Extrapolate if sampled
     if sample_size < len(dataset):
@@ -211,10 +280,10 @@ def analyze_dataset_for_boxed(dataset: Dataset) -> Dict[str, int]:
 
 def compute_extraction_stats(dataset: Dataset) -> Dict[str, int]:
     """
-    Compute statistics on extracted answers.
+    Compute statistics on extracted answers (new format).
     
     Args:
-        dataset: Processed dataset
+        dataset: Processed dataset with new chat format
         
     Returns:
         Dictionary with statistics
@@ -235,14 +304,18 @@ def compute_extraction_stats(dataset: Dataset) -> Dict[str, int]:
             for branch in sample['conversation_branches']:
                 if 'messages' in branch:
                     for message in branch['messages']:
-                        if message.get('role') == 'assistant':
-                            answers = message.get('metadata', {}).get('verifiable_answer', [])
-                            if answers:
-                                messages_with_answers += 1
-                                total_answers += len(answers)
-                                sample_has_answer = True
-                                if len(answers) > 1:
-                                    messages_with_multiple += 1
+                        if message.get('role') == 'assistant' and 'parts' in message:
+                            # Look for verifiable-responses part
+                            for part in message['parts']:
+                                if isinstance(part, dict) and part.get('type') == 'verifiable-responses':
+                                    answers = part.get('answers', [])
+                                    if answers:
+                                        messages_with_answers += 1
+                                        total_answers += len(answers)
+                                        sample_has_answer = True
+                                        if len(answers) > 1:
+                                            messages_with_multiple += 1
+                                    break  # Only one verifiable-responses part per message
         
         if sample_has_answer:
             samples_with_answers += 1
@@ -315,26 +388,26 @@ def save_dataset_and_metadata(dataset_dict: DatasetDict, output_path: Path,
 def parse_arguments():
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(
-        description="Extract \\boxed{answer} patterns from assistant messages",
+        description="Extract \\boxed{answer} patterns from assistant response parts (new format)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Auto-generate output name with -boxedRemoved suffix
+  # Auto-generate output name with -boxedRemoved suffix (new format)
   venv/bin/python 05-annotations/extract_boxed_answers.py \\
-    /capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/tulu-3-sft-mixture-ai2-adapt-dev_tulu_v3_9_open_math_2_gsm8k_50k \\
+    /capstor/store/cscs/swissai/infra01/posttrain_data/05_annotated/tulu-3-sft-olmo-2-mixture-0225-ai2-adapt-dev_numinamath_tir_math_decontaminated-toolExtracted \\
     --output data/05-annotations/
-  # Creates: data/05-annotations/tulu-3-sft-mixture-ai2-adapt-dev_tulu_v3_9_open_math_2_gsm8k_50k-boxedRemoved
+  # Creates: data/05-annotations/tulu-3-sft-olmo-2-mixture-0225-ai2-adapt-dev_numinamath_tir_math_decontaminated-toolExtracted-boxedRemoved
 
   # Specify custom output name
   venv/bin/python 05-annotations/extract_boxed_answers.py \\
-    data/02-standardised/large-math-dataset \\
-    --output data/05-annotations/my-custom-name \\
+    data/newformat/math-dataset-with-parts \\
+    --output data/05-annotations/math-extracted-newformat \\
     --batch-size 50000 \\
     --num-proc 16
 
   # Single process (for debugging)
   venv/bin/python 05-annotations/extract_boxed_answers.py \\
-    data/02-standardised/math-dataset \\
+    data/newformat/math-dataset \\
     --output data/05-annotations/math-extracted \\
     --num-proc 1
         """

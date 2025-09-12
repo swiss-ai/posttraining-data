@@ -427,7 +427,7 @@ def split_dataset_by_field(dataset, field_path: str, output_base_path: Path, dat
                     **original_metadata,
                     "processing_log": original_metadata.get("processing_log", []) + [{
                         "operation": "field_based_split",
-                        "script": "field_filter_newformat.py",
+                        "script": "field_filter.py",
                         "timestamp": datetime.now().isoformat(),
                         "input_path": str(input_path),
                         "output_path": str(output_path),
@@ -468,7 +468,7 @@ def split_dataset_by_field(dataset, field_path: str, output_base_path: Path, dat
                     **original_metadata,
                     "processing_log": original_metadata.get("processing_log", []) + [{
                         "operation": "field_based_split",
-                        "script": "field_filter_newformat.py",
+                        "script": "field_filter.py",
                         "timestamp": datetime.now().isoformat(),
                         "input_path": str(input_path),
                         "output_path": str(output_path),
@@ -570,25 +570,25 @@ def parse_arguments():
         epilog="""
 Examples:
   # Show dataset schema (all fields)
-  python field_filter_newformat.py data/02-standardised/xlam-function-calling-60k
+  python field_filter.py data/02-standardised/xlam-function-calling-60k
 
   # Analyze specific field
-  python field_filter_newformat.py data/02-standardised/xlam-function-calling-60k --field original_metadata.category
+  python field_filter.py data/02-standardised/xlam-function-calling-60k --field original_metadata.category
 
   # Filter to keep only samples with thought parts
-  python field_filter_newformat.py data/02-standardised/dataset \\
+  python field_filter.py data/02-standardised/dataset \\
     --field conversation_branches[0].messages[0].parts[0].type \\
     --keep-values thought \\
     --output data/03-filtered/dataset-thoughts-only
   
   # Filter by function name in parts
-  python field_filter_newformat.py data/02-standardised/dataset \\
+  python field_filter.py data/02-standardised/dataset \\
     --field conversation_branches[0].messages[0].parts[0].name \\
     --keep-values get_weather_data \\
     --output data/03-filtered/dataset-weather-only
     
   # Split dataset by available function names
-  python field_filter_newformat.py data/02-standardised/dataset \\
+  python field_filter.py data/02-standardised/dataset \\
     --field available_functions[0].name \\
     --split \\
     --output data/03-splits/
@@ -774,7 +774,7 @@ def main():
             **original_metadata,
             "processing_log": original_metadata.get("processing_log", []) + [{
                 "operation": "field_based_filtering",
-                "script": "field_filter_newformat.py",
+                "script": "field_filter.py",
                 "timestamp": datetime.now().isoformat(),
                 "input_path": str(dataset_path),
                 "output_path": str(args.output),
@@ -814,7 +814,7 @@ def main():
             **original_metadata,
             "processing_log": original_metadata.get("processing_log", []) + [{
                 "operation": "field_based_filtering",
-                "script": "field_filter_newformat.py",
+                "script": "field_filter.py",
                 "timestamp": datetime.now().isoformat(),
                 "input_path": str(dataset_path),
                 "output_path": str(args.output),

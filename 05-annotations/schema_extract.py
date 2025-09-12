@@ -564,16 +564,16 @@ def parse_arguments():
         epilog="""
 Examples:
   # Extract schemas and save to files
-  venv/bin/python 05-annotations/schema_extract_newformat.py data/path/dataset --save-schemas schemas/
+  venv/bin/python 05-annotations/schema_extract.py data/path/dataset --save-schemas schemas/
   
   # Check more samples for thorough analysis
-  venv/bin/python 05-annotations/schema_extract_newformat.py data/path/dataset --max-samples 5000 --save-schemas schemas/
+  venv/bin/python 05-annotations/schema_extract.py data/path/dataset --max-samples 5000 --save-schemas schemas/
   
   # Just generate report without saving
-  venv/bin/python 05-annotations/schema_extract_newformat.py data/path/dataset --verbose
+  venv/bin/python 05-annotations/schema_extract.py data/path/dataset --verbose
   
   # Save both report and schemas
-  venv/bin/python 05-annotations/schema_extract_newformat.py data/path/dataset --save-schemas schemas/ --output report.txt
+  venv/bin/python 05-annotations/schema_extract.py data/path/dataset --save-schemas schemas/ --output report.txt
         """
     )
     
@@ -701,7 +701,7 @@ def main():
             print(f"   Unified schema created with {len(unified_schema)} total fields")
             print(f"\n🔧 Next steps:")
             print(f"   1. Review normalization_template.py and customize defaults")
-            print(f"   2. Create schema_normalize_newformat.py using the template")
+            print(f"   2. Create schema_normalize.py using the template")
             print(f"   3. Run normalization on dataset before keyword annotation")
         else:
             print(f"\n💡 To enable parallel processing:")
