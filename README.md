@@ -1,6 +1,6 @@
 # Post-Training Data Processing Pipeline
 
-`posttraining-data` is a turn-key 7-stage pipeline for processing HuggingFace datasets into training-ready format. It was used to prepare Apertus' post-training data and notably its [SFT mixture](https://huggingface.co/datasets/swiss-ai/apertus-sft-mixture). More information can be found in the [Apertus tech report](https://github.com/swiss-ai/apertus-tech-report).
+`posttraining-data` is a turn-key 8-stage pipeline for processing HuggingFace datasets into training-ready format. It was used to prepare Apertus' post-training data and notably its [SFT mixture](https://huggingface.co/datasets/swiss-ai/apertus-sft-mixture). More information can be found in the [Apertus tech report](https://github.com/swiss-ai/apertus-tech-report).
 
 ## Pipeline Stages
 
