@@ -1,162 +1,314 @@
 """
 Stage 3: Compute reference log-probabilities for chosen and rejected.
 
-Computes per-sequence log-probabilities for chosen and rejected completions
-using the reference model. These precomputed logprobs avoid needing two
-model copies during DPO/QRPO training.
+Adapted from swiss_alignment.data_alignment.compute_ref_logprobs_swissaiformat.
+
+Features from swiss_alignment:
+  - Batched logprob computation (chosen + rejected padded together)
+  - Partition/subpartition parallelism (across nodes and GPUs within a node)
+  - Checkpoint/resume with save_interval
+  - GPU assignment via CUDA_VISIBLE_DEVICES per subpartition
 
 Input:  HuggingFace dataset with 'chosen', 'rejected', and 'prompt_messages'
         columns (output of stage 2).
-Output: Dataset with added columns:
+Output: Checkpoint datasets with added columns:
         - ref_chosen_logprob, chosen_length
         - ref_rejected_logprob, rejected_length
 
-Usage:
+Usage (single GPU):
     python compute_logprobs.py \
-        --dataset-path /path/to/dataset_with_completions \
+        --dataset-path /path/to/dataset \
         --output-dir /path/to/output \
-        --model-name-or-path /path/to/model
+        --model-name-or-path /path/to/model \
+        --partition-start 0 --partition-end 1000 \
+        --num-gpus-per-node 1
+
+Usage (multi-GPU via SLURM, one task per subpartition):
+    Automatically reads SLURM_PROCID from environment.
+    python compute_logprobs.py \
+        --dataset-path /path/to/dataset \
+        --output-dir /path/to/output \
+        --model-name-or-path /path/to/model \
+        --partition-start 0 --partition-end 8192 \
+        --num-gpus-per-node 4 \
+        --tensor-parallel-size 1
 """
 
 import argparse
-import json
+import copy
+import logging
+import math
+import os
+from pathlib import Path
+
+import datasets
 import torch
-from datasets import load_from_disk
-from transformers import AutoTokenizer, AutoModelForCausalLM
 from tqdm import tqdm
 
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-def compute_logprob(model, tokenizer, prompt_messages, completion_text, device, max_seq_len):
+
+def compute_logprobs_for_row(model, row, tokenizer, max_seq_len, batch_size):
     """
-    Compute the log-probability of a completion given a prompt.
+    Compute logprobs for chosen and rejected completions in a single row.
 
-    Args:
-        prompt_messages: list of message dicts (the conversation up to the assistant turn)
-        completion_text: the assistant response string
-
-    Returns:
-        (logprob: float, completion_length: int)
+    Adapted from swiss_alignment's compute_logprobs_for_row:
+    replaces conversation_branches / linearise_sample_for_sft with the
+    simpler (prompt_messages, chosen, rejected) format. Core logprob math
+    is identical.
     """
-    # Build full conversation: prompt + assistant response
-    full_messages = prompt_messages + [{"role": "assistant", "content": completion_text}]
+    # Prompt is the conversation up to (excluding) the last assistant message.
+    # chosen and rejected share the same prompt; last message is the completion.
+    prompt_messages = row["chosen"][:-1]
+    chosen_text = row["chosen"][-1]["content"]
+    rejected_text = row["rejected"][-1]["content"]
 
-    # Tokenize full conversation
-    full_ids = tokenizer.apply_chat_template(full_messages, tokenize=True, return_tensors="pt").to(device)
+    chats = [
+        prompt_messages + [{"role": "assistant", "content": chosen_text}],
+        prompt_messages + [{"role": "assistant", "content": rejected_text}],
+    ]
 
-    # Tokenize prompt only (with generation prompt to get the assistant header tokens)
-    prompt_ids = tokenizer.apply_chat_template(
-        prompt_messages, tokenize=True, add_generation_prompt=True, return_tensors="pt"
-    ).to(device)
+    # Tokenize full chats (prompt + completion) with padding
+    tokenized_chats = tokenizer.apply_chat_template(
+        chats,
+        return_tensors="pt",
+        padding=True,
+        return_dict=True,
+    )
 
-    seq_len = full_ids.shape[1]
-    if seq_len > max_seq_len:
-        return None, None
+    if tokenized_chats["input_ids"].shape[1] > max_seq_len:
+        logger.warning(
+            f"Sequence length {tokenized_chats['input_ids'].shape[1]} exceeds "
+            f"max_seq_len {max_seq_len}, skipping row."
+        )
+        new_row = copy.deepcopy(row)
+        new_row["ref_chosen_logprob"] = None
+        new_row["chosen_length"] = None
+        new_row["ref_rejected_logprob"] = None
+        new_row["rejected_length"] = None
+        return new_row
 
-    prompt_len = prompt_ids.shape[1]
-    completion_length = seq_len - prompt_len
+    # Tokenize prompts only (with generation prompt to get assistant header tokens)
+    tokenized_prompts = tokenizer.apply_chat_template(
+        [prompt_messages, prompt_messages],
+        add_generation_prompt=True,
+        return_tensors="pt",
+        padding=True,
+        return_dict=True,
+    )
 
-    if completion_length <= 0:
-        return 0.0, 0
+    # Extra padding to ensure prompts and chats have the same sequence length
+    max_len = tokenized_chats["input_ids"].shape[1]
+    if tokenized_prompts["input_ids"].shape[1] < max_len:
+        padding_length = max_len - tokenized_prompts["input_ids"].shape[1]
+        tokenized_prompts["input_ids"] = torch.nn.functional.pad(
+            tokenized_prompts["input_ids"],
+            (0, padding_length),
+            value=tokenizer.pad_token_id,
+        )
+        tokenized_prompts["attention_mask"] = torch.nn.functional.pad(
+            tokenized_prompts["attention_mask"], (0, padding_length), value=0
+        )
 
-    with torch.no_grad():
-        outputs = model(input_ids=full_ids)
-        logits = outputs.logits  # (1, seq_len, vocab_size)
+    chat_input_ids = tokenized_chats["input_ids"]
+    chat_attention_mask = tokenized_chats["attention_mask"]
+    prompt_attention_mask = tokenized_prompts["attention_mask"]
+    completion_mask = chat_attention_mask - prompt_attention_mask
 
-    # Shift: predict token t from logits at position t-1
-    shift_logits = logits[:, :-1, :]  # (1, seq_len-1, vocab)
-    shift_labels = full_ids[:, 1:]     # (1, seq_len-1)
+    all_logps = []
+    all_lens = []
 
-    log_probs = torch.log_softmax(shift_logits, dim=-1)
-    token_log_probs = torch.gather(log_probs, dim=2, index=shift_labels.unsqueeze(-1)).squeeze(-1)
+    num_iters = math.ceil(len(chats) / batch_size)
+    for i in range(num_iters):
+        start_idx = i * batch_size
+        end_idx = min((i + 1) * batch_size, len(chats))
+        input_ids = chat_input_ids[start_idx:end_idx].to(model.device)
+        attention_mask = chat_attention_mask[start_idx:end_idx].to(model.device)
+        loss_mask = completion_mask[start_idx:end_idx].to(model.device)
 
-    # Only sum over completion tokens (positions prompt_len-1 to seq_len-2 in shifted space)
-    completion_log_probs = token_log_probs[:, prompt_len - 1:]
-    total_logprob = completion_log_probs.sum().item()
+        with torch.no_grad():
+            outputs = model(input_ids=input_ids, attention_mask=attention_mask)
 
-    return total_logprob, completion_length
+            logits = outputs.logits[:, :-1, :]
+            labels = input_ids[:, 1:].clone()
+            loss_mask = loss_mask[:, 1:].bool()
+
+            labels[~loss_mask] = 0  # Dummy token
+            per_token_logps = torch.gather(
+                logits.log_softmax(-1), dim=2, index=labels.unsqueeze(2)
+            ).squeeze(2)
+            per_token_logps[~loss_mask] = 0
+            logps = per_token_logps.sum(-1).cpu()
+            lens = loss_mask.sum(-1).int().cpu()
+            all_logps.extend(logps.tolist())
+            all_lens.extend(lens.tolist())
+
+    new_row = copy.deepcopy(row)
+    new_row["ref_chosen_logprob"] = all_logps[0]
+    new_row["chosen_length"] = all_lens[0]
+    new_row["ref_rejected_logprob"] = all_logps[1]
+    new_row["rejected_length"] = all_lens[1]
+
+    return new_row
 
 
-def process_batch(model, tokenizer, batch_prompts, batch_completions, device, max_seq_len):
-    """Process a batch of (prompt, completion) pairs. Returns list of (logprob, length)."""
-    results = []
-    for prompt_msgs, completion in zip(batch_prompts, batch_completions):
-        lp, cl = compute_logprob(model, tokenizer, prompt_msgs, completion, device, max_seq_len)
-        results.append((lp, cl))
-    return results
+def compute_logprobs_batch(model, batch, tokenizer, max_seq_len, batch_size):
+    """Process a slice of the dataset row by row, return a Dataset with logprob columns."""
+    rows_result = []
+    for row in tqdm(batch, desc="Processing batch"):
+        new_row = compute_logprobs_for_row(
+            model, row, tokenizer, max_seq_len, batch_size
+        )
+        rows_result.append(new_row)
+    return datasets.Dataset.from_list(rows_result)
+
+
+def compute_subpartition_start_end_indices(
+    partition_start_idx, partition_end_idx, subpartition_number, num_subpartitions
+):
+    """Divide a partition range into subpartitions (one per GPU group)."""
+    subpartition_size = math.ceil(
+        (partition_end_idx - partition_start_idx) / num_subpartitions
+    )
+    start_idx = partition_start_idx + subpartition_number * subpartition_size
+    end_idx = partition_start_idx + (subpartition_number + 1) * subpartition_size
+    end_idx = min(end_idx, partition_end_idx)
+    return start_idx, end_idx
 
 
 def main(args):
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # GPU assignment for this subpartition
+    tp_size = args.tensor_parallel_size
+    cuda_devices = [args.subpartition_number * tp_size + i for i in range(tp_size)]
+    os.environ["CUDA_VISIBLE_DEVICES"] = ",".join(map(str, cuda_devices))
+    logger.info(f"Using GPUs: {os.environ['CUDA_VISIBLE_DEVICES']}")
 
-    print(f"Loading dataset from {args.dataset_path}")
-    dataset = load_from_disk(args.dataset_path)
+    # Import after setting CUDA_VISIBLE_DEVICES to ensure correct GPU binding
+    from transformers import AutoModelForCausalLM, AutoTokenizer
 
-    # Handle partition slicing
-    if args.partition_start is not None and args.partition_end is not None:
-        total = len(dataset)
-        start = args.partition_start
-        end = min(args.partition_end, total)
-        print(f"Processing partition [{start}, {end}) out of {total}")
-        dataset = dataset.select(range(start, end))
+    tokenizer = AutoTokenizer.from_pretrained(args.model_name_or_path, use_fast=True)
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
 
-    print(f"Dataset size: {len(dataset)}")
-
-    print(f"Loading model from {args.model_name_or_path}")
-    tokenizer = AutoTokenizer.from_pretrained(args.model_name_or_path)
     model = AutoModelForCausalLM.from_pretrained(
         args.model_name_or_path,
         torch_dtype=torch.bfloat16,
         attn_implementation="flash_attention_2",
-        device_map=device,
+        device_map="auto",
     )
     model.eval()
 
-    if tokenizer.pad_token is None:
-        tokenizer.pad_token = tokenizer.eos_token
+    # Compute subpartition range within the partition
+    num_subpartitions = args.num_gpus_per_node // tp_size
+    subpartition_start_idx, subpartition_end_idx = (
+        compute_subpartition_start_end_indices(
+            args.partition_start,
+            args.partition_end,
+            args.subpartition_number,
+            num_subpartitions,
+        )
+    )
 
-    chosen_logprobs = []
-    chosen_lengths = []
-    rejected_logprobs = []
-    rejected_lengths = []
+    if subpartition_start_idx >= subpartition_end_idx:
+        logger.info("Subpartition is empty. Exiting.")
+        return
 
-    for i in tqdm(range(len(dataset)), desc="Computing logprobs"):
-        row = dataset[i]
+    logger.info(
+        f"Subpartition {args.subpartition_number}: "
+        f"processing rows [{subpartition_start_idx}, {subpartition_end_idx})"
+    )
 
-        # Extract prompt messages
-        prompt_msgs = json.loads(row["prompt_messages"])
+    full_dataset = datasets.load_from_disk(args.dataset_path)
+    if args.split:
+        full_dataset = full_dataset[args.split]
+    subpartition_data = full_dataset.select(
+        range(subpartition_start_idx, subpartition_end_idx)
+    )
 
-        # Chosen: extract final assistant message
-        chosen_msgs = row["chosen"]
-        chosen_text = chosen_msgs[-1]["content"]
-        c_lp, c_len = compute_logprob(model, tokenizer, prompt_msgs, chosen_text, device, args.max_seq_len)
-        chosen_logprobs.append(c_lp)
-        chosen_lengths.append(c_len)
+    # Output directory for this subpartition's checkpoints
+    output_dir = Path(args.output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
 
-        # Rejected: extract final assistant message
-        rejected_msgs = row["rejected"]
-        rejected_text = rejected_msgs[-1]["content"]
-        r_lp, r_len = compute_logprob(model, tokenizer, prompt_msgs, rejected_text, device, args.max_seq_len)
-        rejected_logprobs.append(r_lp)
-        rejected_lengths.append(r_len)
+    # Resume: find the latest checkpoint
+    already_processed_samples = max(
+        (
+            int(item.name.split("-")[-1])
+            for item in output_dir.iterdir()
+            if item.is_dir() and item.name.startswith("checkpoint-")
+        ),
+        default=0,
+    )
+    if already_processed_samples == len(subpartition_data):
+        logger.info("All samples already processed. Exiting.")
+        return
 
-    # Add columns
-    dataset = dataset.add_column("ref_chosen_logprob", chosen_logprobs)
-    dataset = dataset.add_column("chosen_length", chosen_lengths)
-    dataset = dataset.add_column("ref_rejected_logprob", rejected_logprobs)
-    dataset = dataset.add_column("rejected_length", rejected_lengths)
+    local_start_idx = already_processed_samples
+    if local_start_idx > 0:
+        logger.info(
+            f"Resuming from checkpoint-{local_start_idx}. "
+            f"Processing from sample {local_start_idx}."
+        )
 
-    print(f"Saving to {args.output_dir}")
-    dataset.save_to_disk(args.output_dir)
-    print("Done.")
+    pbar = tqdm(total=len(subpartition_data), desc="Computing logprobs")
+    pbar.update(local_start_idx)
+
+    while local_start_idx < len(subpartition_data):
+        current_slice = (
+            local_start_idx,
+            min(local_start_idx + args.save_interval, len(subpartition_data)),
+        )
+        current_slice_data = subpartition_data.select(range(*current_slice))
+        local_end_idx = local_start_idx + len(current_slice_data)
+
+        current_slice_data = compute_logprobs_batch(
+            model, current_slice_data, tokenizer, args.max_seq_len, args.batch_size
+        )
+
+        save_path = output_dir / f"checkpoint-{local_end_idx}"
+        current_slice_data.save_to_disk(str(save_path))
+        logger.info(f"Saved checkpoint-{local_end_idx}")
+
+        pbar.update(len(current_slice_data))
+        local_start_idx = local_end_idx
+
+    logger.info("Logprobs computed successfully!")
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Compute reference logprobs for preference dataset")
-    parser.add_argument("--dataset-path", type=str, required=True, help="Path to input HF dataset (output of stage 2)")
-    parser.add_argument("--output-dir", type=str, required=True, help="Path to save output dataset")
-    parser.add_argument("--model-name-or-path", type=str, required=True, help="Reference model path")
-    parser.add_argument("--max-seq-len", type=int, default=4096, help="Max sequence length (skip longer sequences)")
-    parser.add_argument("--partition-start", type=int, default=None, help="Start index for dataset partition")
-    parser.add_argument("--partition-end", type=int, default=None, help="End index for dataset partition")
+    parser = argparse.ArgumentParser(
+        description="Compute reference logprobs for preference dataset"
+    )
+    parser.add_argument(
+        "--dataset-path", type=str, required=True,
+        help="Path to input HF dataset (output of stage 2)",
+    )
+    parser.add_argument(
+        "--output-dir", type=str, required=True,
+        help="Path to save checkpointed output (per subpartition)",
+    )
+    parser.add_argument(
+        "--model-name-or-path", type=str, required=True,
+        help="Reference model path",
+    )
+    parser.add_argument("--max-seq-len", type=int, default=4096)
+    parser.add_argument(
+        "--batch-size", type=int, default=2,
+        help="Inner batch size for completions within a row (2 = chosen + rejected)",
+    )
+    parser.add_argument("--partition-start", type=int, required=True)
+    parser.add_argument("--partition-end", type=int, required=True)
+    parser.add_argument(
+        "--subpartition-number", type=int,
+        default=int(os.environ.get("SLURM_PROCID", "0")),
+        help="Subpartition index within the node (defaults to SLURM_PROCID)",
+    )
+    parser.add_argument("--num-gpus-per-node", type=int, default=4)
+    parser.add_argument("--tensor-parallel-size", type=int, default=1)
+    parser.add_argument(
+        "--save-interval", type=int, default=2048,
+        help="Save a checkpoint every N rows",
+    )
+    parser.add_argument("--split", type=str, default=None)
     args = parser.parse_args()
     main(args)

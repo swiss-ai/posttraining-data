@@ -42,8 +42,8 @@ from tqdm.asyncio import tqdm_asyncio
 from transformers import AutoTokenizer
 
 SCRATCH = os.environ.get("SCRATCH", "/iopsstor/scratch/cscs/dmelikidze")
-SUBMIT_JOB_PATH = f"{SCRATCH}/model-launch/serving/submit_job.py"
-VLLM_ENV_PATH = f"{SCRATCH}/model-launch/serving/envs/vllm.toml"
+SUBMIT_JOB_PATH = f"{SCRATCH}/model-launch/legacy/serving/submit_job.py"
+VLLM_ENV_PATH = f"{SCRATCH}/model-launch/legacy/serving/envs/vllm.toml"
 WORKER_PORT = 8080
 
 
@@ -191,20 +191,25 @@ async def writer_task(queue, filepath):
 
 
 async def get_completions(idx, messages, client, model, n_completions, max_tokens,
-                          temperature, top_p, semaphore, queue):
+                          temperature, top_p, semaphore, queue, max_n_per_request=10):
     """Fetch N completions for a single prompt and push to write queue."""
     async with semaphore:
         try:
             messages = sanitize_messages(messages)
-            res = await client.chat.completions.create(
-                model=model,
-                messages=messages,
-                n=n_completions,
-                temperature=temperature,
-                top_p=top_p,
-                max_tokens=max_tokens,
-            )
-            completions = [choice.message.content for choice in res.choices]
+            completions = []
+            remaining = n_completions
+            while remaining > 0:
+                batch_n = min(remaining, max_n_per_request)
+                res = await client.chat.completions.create(
+                    model=model,
+                    messages=messages,
+                    n=batch_n,
+                    temperature=temperature,
+                    top_p=top_p,
+                    max_tokens=max_tokens,
+                )
+                completions.extend([choice.message.content for choice in res.choices])
+                remaining -= batch_n
         except Exception as e:
             print(f"Error for index {idx}: {e}")
             completions = [""] * n_completions
@@ -267,7 +272,7 @@ async def main(args):
         end = min(args.partition_end, total)
         print(f"Processing partition [{start}, {end}) out of {total}")
         dataset = dataset.select(range(start, end))
-    dataset = dataset.select(range(100))
+    
     print(f"Dataset size: {len(dataset)}")
 
     # Extract prompts
@@ -368,7 +373,17 @@ async def main(args):
 
     print("Done.")
 
-
+"""
+    python 2-generate-ref-completions/generate_completions.py --dataset-path /iopsstor/scratch/cscs/dmelikidze/posttraining-data/preference_acquisition/datasets/MaxMin \
+        --output-dir ./datasets/MaxMin-Filtered-Completions \
+        --model-name-or-path /iopsstor/scratch/cscs/dmelikidze/huggingface/hub/models--swiss-ai--Apertus-8B-Instruct-2509-SFT/snapshots/d57e4f1a3baa6315c60707346b5498b48b40a364 \
+        --n-completions 30 \
+        --concurrent 500 \
+        --slurm-nodes 4 \
+        --workers 4 \
+        --data-parallel-size 4 \
+        --router-environment $SCRATCH/model-launch/legacy/serving/envs/sglang.toml
+"""
 if __name__ == "__main__":
     uvloop.install()
 
@@ -381,7 +396,7 @@ if __name__ == "__main__":
     parser.add_argument("--partition-end", type=int, default=None, help="End index for dataset partition")
 
     # Generation args
-    parser.add_argument("--n-completions", type=int, default=10, help="Number of completions per prompt")
+    parser.add_argument("--n-completions", type=int, default=30, help="Number of completions per prompt")
     parser.add_argument("--max-new-tokens", type=int, default=4096, help="Max tokens to generate per completion")
     parser.add_argument("--temperature", type=float, default=1.0, help="Sampling temperature")
     parser.add_argument("--top-p", type=float, default=1.0, help="Top-p sampling")
@@ -389,7 +404,7 @@ if __name__ == "__main__":
     # Server connection args
     parser.add_argument("--served-model-name", type=str, default=None, help="Model name served by vLLM (default: swissai-ref-model-$USER)")
     parser.add_argument("--base-url", type=str, default=None, help="OpenAI-compatible API base URL; if not provided, launches a server and auto-discovers")
-    parser.add_argument("--concurrent", type=int, default=500, help="Max concurrent requests")
+    parser.add_argument("--concurrent", type=int, default=2000, help="Max concurrent requests")
     parser.add_argument("--server-timeout", type=int, default=600, help="Seconds to wait for server readiness")
 
     # Server launch args (used when --base-url is not provided)
