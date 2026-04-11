@@ -20,12 +20,15 @@ from transformers import AutoTokenizer
 # ---------------------------------------------------------------------------
 # Config
 # ---------------------------------------------------------------------------
-DATASET_PATH = "/iopsstor/scratch/cscs/dmelikidze/posttraining-data/response_annotation/datasets/combined_annotated"
-OUTPUT_PATH = "/iopsstor/scratch/cscs/dmelikidze/posttraining-data/preference_acquisition/datasets/MaxMin_Initial"
-MODEL_NAME_OR_PATH = "/iopsstor/scratch/cscs/dmelikidze/aper_mods/apertus1-base-sft-stage1"
+DATASET_PATH = "/iopsstor/scratch/cscs/smarian/datasets/apertus/aya_dataset/annotation-merged-formatted"
+OUTPUT_PATH = "/iopsstor/scratch/cscs/smarian/datasets/apertus/aya_dataset/MaxMin"
+MODEL_NAME_OR_PATH = "/iopsstor/scratch/cscs/smarian/cache/hf_home/hub/models--swiss-ai--Apertus-8B-Instruct-2509/snapshots/d57e4f1a3baa6315c60707346b5498b48b40a364"
 MAX_TOKENS = 4096
 EXCLUDED_MODELS = {}
 NUM_PROC = min(os.cpu_count() or 4, 288)
+
+PROMPT_COLUMN_NAME = "prompt"
+REMOVE_LAST_MESSAGE = False
 
 print(f"Using {NUM_PROC} processes.")
 print(f"Excluding models: {EXCLUDED_MODELS or 'none'}")
@@ -65,13 +68,14 @@ def extract_maxmin(batch):
     }
 
     for prompt, prompt_id, annotations_json in zip(
-        batch["chosen"], batch["prompt_id"], batch["annotations"]
+        batch[PROMPT_COLUMN_NAME], batch["prompt_id"], batch["annotations"]
     ):
         annotations = json.loads(annotations_json)
 
         # Filter out excluded models and None/empty responses
         valid = [
-            a for a in annotations
+            a
+            for a in annotations
             if a["model"] not in EXCLUDED_MODELS
             and a.get("response") is not None
             and str(a["response"]).strip() != ""
@@ -80,7 +84,12 @@ def extract_maxmin(batch):
             continue
 
         # Extract prompt messages (keep only role and content keys)
-        raw_msgs = prompt[:-1] if isinstance(prompt, list) else json.loads(prompt)[:-1]
+        if REMOVE_LAST_MESSAGE:
+            raw_msgs = (
+                prompt[:-1] if isinstance(prompt, list) else json.loads(prompt)[:-1]
+            )
+        else:
+            raw_msgs = prompt
         prompt_msgs = [{"role": m["role"], "content": m["content"]} for m in raw_msgs]
 
         # Count tokens for each valid completion
@@ -123,15 +132,17 @@ def extract_maxmin(batch):
     return out
 
 
-output_features = Features({
-    "prompt_id": Value("string"),
-    "chosen": [{"role": Value("string"), "content": Value("string")}],
-    "rejected": [{"role": Value("string"), "content": Value("string")}],
-    "chosen_model": Value("string"),
-    "rejected_model": Value("string"),
-    "chosen_score": Value("float64"),
-    "rejected_score": Value("float64"),
-})
+output_features = Features(
+    {
+        "prompt_id": Value("string"),
+        "chosen": [{"role": Value("string"), "content": Value("string")}],
+        "rejected": [{"role": Value("string"), "content": Value("string")}],
+        "chosen_model": Value("string"),
+        "rejected_model": Value("string"),
+        "chosen_score": Value("float64"),
+        "rejected_score": Value("float64"),
+    }
+)
 
 print("Extracting max-min preference pairs ...", flush=True)
 processed = dataset.map(
