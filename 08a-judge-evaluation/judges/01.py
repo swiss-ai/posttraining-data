@@ -2,7 +2,7 @@
 ActiveUF judge for aspect helpfulness
 """
 
-from utils import extract_score_distribution_like_activeuf
+from src.utils import extract_score_distribution_like_activeuf, get_score_from_distribution_like_activeuf
 
 MODEL = "Qwen/Qwen3-235B-A22B-Instruct-2507"
 TEMPERATURE = 0.0
@@ -43,3 +43,6 @@ Here are the user inputs and the AI assistant response to evaluate:
 
 def extract_score_distribution(res, scoring_range):
     return extract_score_distribution_like_activeuf(res, scoring_range)
+
+def get_score_from_distribution(score_distribution: dict[str, float]) -> float:
+    return get_score_from_distribution_like_activeuf(score_distribution)
