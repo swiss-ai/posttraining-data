@@ -6,7 +6,7 @@ import uvloop
 from datasets import load_from_disk
 from tqdm.asyncio import tqdm_asyncio
 
-from utils import create_async_openai_client, load_module, stringify_prompt
+from src.utils import create_async_openai_client, load_module, stringify_prompt
 
 
 def parse_args():

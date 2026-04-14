@@ -86,3 +86,10 @@ def extract_score_distribution_like_activeuf(res, scoring_range: list[str]) -> d
         print(f"⚠️ Warning: Failed to extract probabilities, returning uniform distribution. Error: {e}")
         return {score: 0.0 for score in scoring_range}
 
+def get_score_from_distribution_like_activeuf(score_distribution: dict[str, float]) -> float:
+    try:
+        return sum(float(score) * weight for score, weight in score_distribution.items())
+
+    except Exception as e:
+        print(f"⚠️ Warning: Failed to get score from distribution, returning 0. Error: {e}")
+        return 0.0
