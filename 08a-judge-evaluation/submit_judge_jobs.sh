@@ -19,7 +19,13 @@ BENCHMARK_DIRS=(
 )
 JUDGE_ARGS_PATHS=(
     "$SCRATCH/posttraining-data/08a-judge-evaluation/judges/01.py"
-    # "$SCRATCH/posttraining-data/08a-judge-evaluation/judges/02.py"
+    "$SCRATCH/posttraining-data/08a-judge-evaluation/judges/02.py"
+    "$SCRATCH/posttraining-data/08a-judge-evaluation/judges/03.py"
+    "$SCRATCH/posttraining-data/08a-judge-evaluation/judges/04.py"
+
+    "$SCRATCH/posttraining-data/08a-judge-evaluation/judges/05.py"
+
+    "$SCRATCH/posttraining-data/08a-judge-evaluation/judges/11.py"
 )
 
 WORKDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
