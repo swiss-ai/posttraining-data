@@ -157,7 +157,7 @@ def main():
     server_url = wait_for_server_url(server_job_id, args.workers)
 
     judge_cmd = [
-        "python", "src/judge.py",
+        "python -m src.judge",
         "--input-dir", args.input_dir,
         "--output-dir", output_dir,
         "--judge-args-path", args.judge_args_path,
