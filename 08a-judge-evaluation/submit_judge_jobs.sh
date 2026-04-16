@@ -14,18 +14,18 @@ OCF_FLAG="--disable-ocf"
 CONCURRENT=32
 
 BENCHMARK_DIRS=(
-    "$SCRATCH/posttraining-data/08a-judge-evaluation/benchmarks/JudgeBench-gpt"
-    # "$SCRATCH/posttraining-data/08a-judge-evaluation/benchmarks/RM-Bench-train"
+    # "$SCRATCH/posttraining-data/08a-judge-evaluation/benchmarks/JudgeBench-gpt"
+    "$SCRATCH/posttraining-data/08a-judge-evaluation/benchmarks/RM-Bench-train"
 )
 JUDGE_ARGS_PATHS=(
     # "$SCRATCH/posttraining-data/08a-judge-evaluation/judges/01.py"
-    # "$SCRATCH/posttraining-data/08a-judge-evaluation/judges/02.py"
-    # "$SCRATCH/posttraining-data/08a-judge-evaluation/judges/03.py"
-    # "$SCRATCH/posttraining-data/08a-judge-evaluation/judges/04.py"
+    "$SCRATCH/posttraining-data/08a-judge-evaluation/judges/02.py"
+    "$SCRATCH/posttraining-data/08a-judge-evaluation/judges/03.py"
+    "$SCRATCH/posttraining-data/08a-judge-evaluation/judges/04.py"
 
-    # "$SCRATCH/posttraining-data/08a-judge-evaluation/judges/05.py"
+    "$SCRATCH/posttraining-data/08a-judge-evaluation/judges/05.py"
 
-    # "$SCRATCH/posttraining-data/08a-judge-evaluation/judges/11.py"
+    "$SCRATCH/posttraining-data/08a-judge-evaluation/judges/11.py"
     "$SCRATCH/posttraining-data/08a-judge-evaluation/judges/12.py"
 )
 
