@@ -21,7 +21,7 @@ After providing your explanation, you must output only one of the following choi
 4. The response is good: [[4]]
 5. The response is excellent: [[5]]
 
-Example output: "My final verdict is the response is good: [[4]].""""
+Example output: "My final verdict is the response is good: [[4]]."""
 
 USER_PROMPT_FOR_JUDGE = """Here are the user inputs and the AI assistant response to evaluate:
 
