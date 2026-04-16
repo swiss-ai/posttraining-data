@@ -46,7 +46,7 @@ Here are the user inputs and the AI assistant response to evaluate:
 
 <USER_INPUT>{prompt}</USER_INPUT>
 
-<ASSISTANT_RESPONSE_TO_EVALUATE>{completion}</ASSISTANT_RESPONSE_TO_EVALUATE>"""
+<ASSISTANT_RESPONSE_TO_EVALUATE>{response}</ASSISTANT_RESPONSE_TO_EVALUATE>"""
 
 def extract_score_distribution(res, scoring_range):
     return extract_score_distribution_like_activeuf(res, scoring_range)
