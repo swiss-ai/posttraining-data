@@ -82,8 +82,6 @@ async def main(args):
         await queue.put({
             "sample_idx": sample_idx,
             "score_distribution": score_distribution,
-            "messages": messages,
-            "judge_response": res.choices[0].message.content,
         })
     tasks = [
         asyncio.create_task(judge_one_sample(sample_idx, sample))
