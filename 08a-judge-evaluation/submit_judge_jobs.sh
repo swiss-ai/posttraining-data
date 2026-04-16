@@ -1,6 +1,6 @@
 #!/bin/bash
 ACCOUNT="infra01"
-RESERVATION="SD-69241-apertus-1-5-6"
+RESERVATION="SD-69241-apertus-1-5"
 JOB_TIME="01:00:00"
 
 MODEL="Qwen/Qwen3-235B-A22B-Instruct-2507"
@@ -15,17 +15,18 @@ CONCURRENT=32
 
 BENCHMARK_DIRS=(
     "$SCRATCH/posttraining-data/08a-judge-evaluation/benchmarks/JudgeBench-gpt"
-    "$SCRATCH/posttraining-data/08a-judge-evaluation/benchmarks/RM-Bench-train"
+    # "$SCRATCH/posttraining-data/08a-judge-evaluation/benchmarks/RM-Bench-train"
 )
 JUDGE_ARGS_PATHS=(
-    "$SCRATCH/posttraining-data/08a-judge-evaluation/judges/01.py"
-    "$SCRATCH/posttraining-data/08a-judge-evaluation/judges/02.py"
-    "$SCRATCH/posttraining-data/08a-judge-evaluation/judges/03.py"
-    "$SCRATCH/posttraining-data/08a-judge-evaluation/judges/04.py"
+    # "$SCRATCH/posttraining-data/08a-judge-evaluation/judges/01.py"
+    # "$SCRATCH/posttraining-data/08a-judge-evaluation/judges/02.py"
+    # "$SCRATCH/posttraining-data/08a-judge-evaluation/judges/03.py"
+    # "$SCRATCH/posttraining-data/08a-judge-evaluation/judges/04.py"
 
-    "$SCRATCH/posttraining-data/08a-judge-evaluation/judges/05.py"
+    # "$SCRATCH/posttraining-data/08a-judge-evaluation/judges/05.py"
 
-    "$SCRATCH/posttraining-data/08a-judge-evaluation/judges/11.py"
+    # "$SCRATCH/posttraining-data/08a-judge-evaluation/judges/11.py"
+    "$SCRATCH/posttraining-data/08a-judge-evaluation/judges/12.py"
 )
 
 WORKDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -36,16 +37,15 @@ for BENCHMARK_DIR in "${BENCHMARK_DIRS[@]}"; do
 
     for JUDGE_ARGS_PATH in "${JUDGE_ARGS_PATHS[@]}"; do
         JUDGE_NAME="$(basename "$JUDGE_ARGS_PATH" .py)"
-        BASE_OUTPUT_DIR="${BENCHMARK_DIR}/2-judged/${JUDGE_NAME}"
-        LOGS_DIR="${BASE_OUTPUT_DIR}/logs"
-        mkdir -p "$LOGS_DIR"
+        OUTPUT_DIR="${BENCHMARK_DIR}/2-judged/${JUDGE_NAME}"
+        mkdir -p "$OUTPUT_DIR"
 
         sbatch <<EOF
 #!/bin/bash
 #SBATCH --job-name=judge_${BENCHMARK_NAME}_${JUDGE_NAME}
 #SBATCH --account=${ACCOUNT}
 #SBATCH --reservation=${RESERVATION}
-#SBATCH --output=${LOGS_DIR}/%j.log
+#SBATCH --output=${BENCHMARK_DIR}/2-judged/logs/${JUDGE_NAME}_%j.log
 #SBATCH --time=${JOB_TIME}
 #SBATCH --partition=normal
 #SBATCH --nodes=1
@@ -54,9 +54,8 @@ cd "${WORKDIR}"
 
 srun --environment=activeuf --container-writable --container-workdir="${WORKDIR}" \\
     bash -c "unset SSL_CERT_FILE && python -u run_judge.py \\
-    --logs-dir '${LOGS_DIR}' \\
     --input-dir '${INPUT_DIR}' \\
-    --base-output-dir '${BASE_OUTPUT_DIR}' \\
+    --output-dir '${OUTPUT_DIR}' \\
     --judge-args-path '${JUDGE_ARGS_PATH}' \\
     --model '${MODEL}' \\
     --slurm-nodes ${NNODES} \\
