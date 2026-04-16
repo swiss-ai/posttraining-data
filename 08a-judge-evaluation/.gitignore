@@ -1,2 +1,4 @@
-benchmarks/*
-!benchmarks/*/src
+benchmarks/*/1-reformatted
+benchmarks/*/2-judged
+benchmarks/*/3-rereformatted
+benchmarks/*/4-results
