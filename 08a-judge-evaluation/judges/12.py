@@ -40,5 +40,7 @@ def extract_score_distribution(res, scoring_range):
         print(f"⚠️ Warning: Failed to extract score from distribution, returning uniform distribution. Error: {e}")
         return {score: 0.0 for score in scoring_range}
     
-def get_score_from_distribution(score_distribution: dict[str, float]) -> float:
+def get_score_from_distribution(score_distribution: dict[str, float]) -> float | None:
+    if sum(score_distribution.values()) == 0:
+        return None
     return float(max(score_distribution.keys(), key=lambda x: score_distribution[x]))
