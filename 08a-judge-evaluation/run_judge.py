@@ -12,8 +12,7 @@ def parse_args():
     parser.add_argument("--model", type=str, required=True)
     parser.add_argument("--input-dir", type=str, required=True)
     parser.add_argument("--judge-args-path", type=str, required=True)
-    parser.add_argument("--base-output-dir", type=str, required=True)
-    parser.add_argument("--logs-dir", type=str, required=True)
+    parser.add_argument("--output-dir", type=str, required=True)
 
     parser.add_argument("--job-time", type=str, default="01:00:00")
     parser.add_argument("--slurm-nodes", type=int, default=1)
@@ -148,9 +147,7 @@ def wait_for_server_url(server_job_id: str, workers: int) -> str:
 
 def main():
     args = parse_args()
-    os.makedirs(args.logs_dir, exist_ok=True)
-    output_dir = os.path.join(args.base_output_dir, os.environ["SLURM_JOB_ID"])
-    os.makedirs(output_dir, exist_ok=True)
+    os.makedirs(args.output_dir, exist_ok=True)
 
     server_cmd = build_server_cmd(args)
     server_job_id = get_server_job_id(server_cmd)
@@ -159,7 +156,7 @@ def main():
     judge_cmd = [
         "python", "-m", "src.judge",
         "--input-dir", args.input_dir,
-        "--output-dir", output_dir,
+        "--output-dir", args.output_dir,
         "--judge-args-path", args.judge_args_path,
         "--server-url", server_url,
         "--concurrent", str(args.concurrent),
