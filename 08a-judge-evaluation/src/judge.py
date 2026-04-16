@@ -69,8 +69,8 @@ async def main(args):
                     messages=messages,
                     max_tokens=judge_args.MAX_TOKENS,
                     temperature=judge_args.TEMPERATURE,
-                    logprobs=True,
-                    top_logprobs=20,
+                    logprobs=judge_args.LOGPROBS,
+                    top_logprobs=judge_args.TOP_LOGPROBS,
                     extra_body={"chat_template_kwargs": {"enable_thinking": False}},
                 )
                 score_distribution = judge_args.extract_score_distribution(
