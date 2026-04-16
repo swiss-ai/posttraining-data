@@ -5,6 +5,18 @@ import importlib.util
 import httpx
 from openai import AsyncOpenAI
 
+JUDGE_MAPPING = {
+    "01": "Helpfulness",
+    "02": "Instruction Following",
+    "03": "Honesty",
+    "04": "Truthfulness",
+
+    "05": "Swiss AI Charter compliance",
+
+    "11": "General quality",
+    "12": "ArenaHard Judge",
+}
+
 
 def create_async_openai_client(
     base_url: str,

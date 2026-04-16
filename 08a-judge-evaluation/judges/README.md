@@ -2,7 +2,7 @@
 
 ## Overview
 
-| Judge | Aspect | Model | Scoring |
+| Judge | Description | Model | Scoring |
 |-------|--------|-------|---------|
 | 01 | Helpfulness | Qwen3-235B-A22B | 1-5, ActiveUF-style logprobs |
 | 02 | Instruction Following | Qwen3-235B-A22B | 1-5, ActiveUF-style logprobs |
@@ -10,6 +10,8 @@
 | 04 | Truthfulness  | Qwen3-235B-A22B | 1-5, ActiveUF-style logprobs |
 | 05 | Swiss AI Charter compliance | Qwen3-235B-A22B | 1-5, ActiveUF-style logprobs |
 | 11 | General quality | Qwen3-235B-A22B | 1-5, ActiveUF-style logprobs |
+| 12 | ArenaHard Judge | Qwen3-235B-A22B | 1-5, Discrete |
+| 13 | ArenaHard Judge | Qwen3-235B-A22B | 1-5, ActiveUF-style logprobs |
 
 ## Adding a new judge
 
