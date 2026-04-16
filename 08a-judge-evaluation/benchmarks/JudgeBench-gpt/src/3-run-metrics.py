@@ -132,3 +132,5 @@ if __name__ == "__main__":
     print(f"Writing scores to {output_path}")
     with open(output_path, "w") as f:
         json.dump(metrics_dict, f, indent=4)
+
+    input_ds.cleanup_cache_files()

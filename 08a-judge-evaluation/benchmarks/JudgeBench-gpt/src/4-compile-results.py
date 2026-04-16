@@ -66,7 +66,7 @@ if __name__ == "__main__":
 
     # Also print a markdown table with the best value per numeric column bolded.
     with open(os.path.join(folder, "overall.md"), "w") as f_out:
-        display_df = _bold_best_per_numeric_column(df[["Judge #", "Description", "mmlu-pro", "livebench-reasoning", "livebench-math", "livecodebench"]], best_type="max")
+        display_df = _bold_best_per_numeric_column(df[["Judge #", "Description", "mmlu-pro", "livebench-reasoning", "livebench-math", "livecodebench", "overall"]], best_type="max")
         print(display_df.to_markdown(index=False), file=f_out)
         print("", file=f_out)
         display_df = _bold_best_per_numeric_column(df[["Judge #", "Description", "two-None rate", "one-None rate", "tie rate", "tie rate (among zero-None)"]], best_type="min")
