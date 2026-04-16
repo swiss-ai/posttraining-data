@@ -9,6 +9,8 @@ TEMPERATURE = 0.0
 MAX_TOKENS = 1
 
 SCORING_RANGE = ["1", "2", "3", "4", "5"]
+LOGPROBS = True
+TOP_LOGPROBS = 20
 
 # TODO: import these from a file instead because these are reused a lot
 SYSTEM_PROMPT_FOR_JUDGE = """You will be doing a Truthfulness and Hallucination Assessment of an AI assistant response.

@@ -2,13 +2,13 @@
 Aspectless judge, just general quality. Prompts are only minimally modified from those for activeuf judges.
 """
 
-from src.utils import extract_score_distribution_like_activeuf, get_score_from_distribution_like_activeuf
-
 MODEL = "Qwen/Qwen3-235B-A22B-Instruct-2507"
 TEMPERATURE = 0.0
 MAX_TOKENS = 4096
 
 SCORING_RANGE = ["1", "2", "3", "4", "5"]
+LOGPROBS = False
+TOP_LOGPROBS = None
 
 SYSTEM_PROMPT_FOR_JUDGE = """Please act as an impartial judge and evaluate the quality of the response provided by an AI assistant to the user prompt displayed below. You will be given the assistant's answer. Your job is to evaluate how good the response is at addressing the user input prompt.
 
@@ -30,7 +30,15 @@ USER_PROMPT_FOR_JUDGE = """Here are the user inputs and the AI assistant respons
 <ASSISTANT_RESPONSE_TO_EVALUATE>{response}</ASSISTANT_RESPONSE_TO_EVALUATE>"""
 
 def extract_score_distribution(res, scoring_range):
-    return extract_score_distribution_like_activeuf(res, scoring_range)
+    import re
 
+    pattern = r"\[\[(" + "|".join(map(re.escape, scoring_range)) + r")\]\]"
+    try:
+        match = re.search(pattern, res.choices[0].message.content).group(1)
+        return {score: 1.0 if score == match else 0.0 for score in scoring_range}
+    except Exception as e:
+        print(f"⚠️ Warning: Failed to extract score from distribution, returning uniform distribution. Error: {e}")
+        return {score: 0.0 for score in scoring_range}
+    
 def get_score_from_distribution(score_distribution: dict[str, float]) -> float:
-    return get_score_from_distribution_like_activeuf(score_distribution)
+    return float(max(score_distribution.keys(), key=lambda x: score_distribution[x]))

@@ -9,6 +9,8 @@ TEMPERATURE = 0.0
 MAX_TOKENS = 1
 
 SCORING_RANGE = ["1", "2", "3", "4", "5"]
+LOGPROBS = True
+TOP_LOGPROBS = 20
 
 # TODO: import these from a file instead because these are reused a lot
 SYSTEM_PROMPT_FOR_JUDGE = """You are an impartial judge. Your role is to critically evaluate the quality of an AI assistant response based on a given criteria. You'll receive an input with two sections, enclosed in tags: <USER_INPUT>...</USER_INPUT> for the task instructions (and any accompanying context, if applicable), and <ASSISTANT_RESPONSE_TO_EVALUATE>...</ASSISTANT_RESPONSE_TO_EVALUATE> for the AI assistant's response. 
