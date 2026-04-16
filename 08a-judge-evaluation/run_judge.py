@@ -1,6 +1,7 @@
 import os
 import sys
 import time
+import shutil
 import argparse
 import subprocess
 import urllib.request
@@ -148,7 +149,7 @@ def wait_for_server_url(server_job_id: str, workers: int) -> str:
 def main():
     args = parse_args()
     if os.path.exists(args.output_dir):
-        os.remove(args.output_dir)
+        shutil.rmtree(args.output_dir)
     os.makedirs(args.output_dir, exist_ok=True)
 
     server_cmd = build_server_cmd(args)
