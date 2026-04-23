@@ -1,7 +1,7 @@
 #!/bin/bash
 ACCOUNT="infra01"
 RESERVATION="SD-69241-apertus-1-5"
-JOB_TIME="01:00:00"
+JOB_TIME="08:00:00"
 
 MODEL="Qwen/Qwen3-235B-A22B-Instruct-2507"
 NNODES=4
@@ -19,14 +19,14 @@ BENCHMARK_DIRS=(
 )
 JUDGE_ARGS_PATHS=(
     # "$SCRATCH/posttraining-data/08a-judge-evaluation/judges/01.py"
-    "$SCRATCH/posttraining-data/08a-judge-evaluation/judges/02.py"
-    "$SCRATCH/posttraining-data/08a-judge-evaluation/judges/03.py"
-    "$SCRATCH/posttraining-data/08a-judge-evaluation/judges/04.py"
+    # "$SCRATCH/posttraining-data/08a-judge-evaluation/judges/02.py"
+    # "$SCRATCH/posttraining-data/08a-judge-evaluation/judges/03.py"
+    # "$SCRATCH/posttraining-data/08a-judge-evaluation/judges/04.py"
 
-    "$SCRATCH/posttraining-data/08a-judge-evaluation/judges/05.py"
+    # "$SCRATCH/posttraining-data/08a-judge-evaluation/judges/05.py"
 
-    "$SCRATCH/posttraining-data/08a-judge-evaluation/judges/11.py"
-    "$SCRATCH/posttraining-data/08a-judge-evaluation/judges/12.py"
+    # "$SCRATCH/posttraining-data/08a-judge-evaluation/judges/11.py"
+    "$SCRATCH/posttraining-data/08a-judge-evaluation/judges/12.py" # this judge takes much longer than the others, ~1h for 1K samples
 )
 
 WORKDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -57,6 +57,7 @@ srun --environment=activeuf --container-writable --container-workdir="${WORKDIR}
     --input-dir '${INPUT_DIR}' \\
     --output-dir '${OUTPUT_DIR}' \\
     --judge-args-path '${JUDGE_ARGS_PATH}' \\
+    --job-time '${JOB_TIME}' \\
     --model '${MODEL}' \\
     --slurm-nodes ${NNODES} \\
     --workers ${WORKERS} \\
