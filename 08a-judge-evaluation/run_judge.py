@@ -6,68 +6,60 @@ import argparse
 import subprocess
 import urllib.request
 
+from src.utils import load_module
+
 def parse_args():
     parser = argparse.ArgumentParser(
         description="Orchestrate SGLang/vLLM server and judge.py evaluation"
     )
-    parser.add_argument("--model", type=str, required=True)
     parser.add_argument("--input-dir", type=str, required=True)
-    parser.add_argument("--judge-args-path", type=str, required=True)
+    parser.add_argument("--judge-cfg-path", type=str, required=True)
     parser.add_argument("--output-dir", type=str, required=True)
-
     parser.add_argument("--job-time", type=str, default="01:00:00")
-    parser.add_argument("--slurm-nodes", type=int, default=1)
-    parser.add_argument("--workers", type=int, default=1)
-    parser.add_argument("--nodes-per-worker", type=int, default=1)
-    parser.add_argument("--dp-size", type=int, default=1)
-    parser.add_argument("--tp-size", type=int, default=1)
-    parser.add_argument("--disable-ocf", action="store_true", help="Disable OCF optimization")
-    parser.add_argument("--framework", type=str, default="sglang", help="Serving framework (e.g., sglang, vllm)")
-    parser.add_argument("--concurrent", type=int, default=32, help="Max concurrent judge API calls (passed to judge.py)")
     return parser.parse_args()
 
 
-def build_server_cmd(args) -> list[str]:
+def build_server_cmd(args, judge_cfg) -> list[str]:
     scratch = os.environ.get("SCRATCH", "/tmp")
     input_name = os.path.basename(os.path.dirname(args.input_dir))
-    judge_name = os.path.basename(args.judge_args_path).rstrip(".py")
+    ml_python = os.path.join(scratch, "model-launch", ".venv", "bin", "python")
 
     server_cmd = [
-        "python", f"{scratch}/model-launch/serving/submit_job.py",
-        "--slurm-job-name", f"{input_name}_{judge_name}",
-        "--slurm-nodes", str(args.slurm_nodes),
+        ml_python, f"{scratch}/model-launch/legacy/serving/submit_job.py",
+        "--slurm-job-name", f"{input_name}_{judge_cfg.name}",
+        "--slurm-nodes", str(judge_cfg.slurm_nodes),
         "--slurm-time", args.job_time,
-        "--serving-framework", args.framework,
         "--worker-port", "8080",
-        "--slurm-environment", f"{scratch}/model-launch/serving/envs/{args.framework}.toml",
+        "--serving-framework", judge_cfg.framework,
+        "--slurm-environment", f"{scratch}/model-launch/legacy/serving/envs/{judge_cfg.framework}.toml",
     ]
 
-    if args.workers > 1:
+    if judge_cfg.workers > 1:
         server_cmd.extend([
-            "--workers", str(args.workers),
-            "--nodes-per-worker", str(args.nodes_per_worker),
+            "--workers", str(judge_cfg.workers),
+            "--nodes-per-worker", str(judge_cfg.nodes_per_worker),
             "--use-router"
         ])
 
-    if args.disable_ocf:
+    if judge_cfg.disable_ocf:
         server_cmd.append("--disable-ocf")
 
-    if args.framework == "sglang":
+    if judge_cfg.framework == "sglang":
         fw_args = (
-            f"--model-path {args.model} --host 0.0.0.0 --port 8080 "
-            f"--served-model-name {args.model} --dp-size {args.dp_size} "
-            f"--tp-size {args.tp_size} --trust-remote-code"
+            f"--model-path {judge_cfg.model} --host 0.0.0.0 --port 8080 "
+            f"--served-model-name {judge_cfg.model} --dp-size {judge_cfg.dp_size} "
+            f"--tp-size {judge_cfg.tp_size} --trust-remote-code"
         )
-    elif args.framework == "vllm":
+    elif judge_cfg.framework == "vllm":
         fw_args = (
-            f"--model {args.model} --host 0.0.0.0 --port 8080 "
-            f"--served-model-name {args.model} --data-parallel-size {args.dp_size} "
-            f"--tensor-parallel-size {args.tp_size} --trust-remote-code"
+            f"--model {judge_cfg.model} --host 0.0.0.0 --port 8080 "
+            f"--served-model-name {judge_cfg.model} --data-parallel-size {judge_cfg.dp_size} "
+            f"--tensor-parallel-size {judge_cfg.tp_size} --trust-remote-code"
         )
-        if "mistral" in args.model.lower():
+        if "mistral" in judge_cfg.model.lower():
             fw_args += " --tokenizer_mode mistral --load_format mistral --config_format mistral"
     else:
-        raise ValueError(f"Invalid framework: {args.framework}")
+        raise ValueError(f"Invalid framework: {judge_cfg.framework}")
     server_cmd.extend(["--framework-args", fw_args])
 
     return server_cmd
@@ -151,18 +143,18 @@ def main():
     if os.path.exists(args.output_dir):
         shutil.rmtree(args.output_dir)
     os.makedirs(args.output_dir, exist_ok=True)
+    judge_cfg = load_module(args.judge_cfg_path)
 
-    server_cmd = build_server_cmd(args)
+    server_cmd = build_server_cmd(args, judge_cfg)
     server_job_id = get_server_job_id(server_cmd)
-    server_url = wait_for_server_url(server_job_id, args.workers)
+    server_url = wait_for_server_url(server_job_id, judge_cfg.workers)
 
     judge_cmd = [
         "python", "-m", "src.judge",
         "--input-dir", args.input_dir,
         "--output-dir", args.output_dir,
-        "--judge-args-path", args.judge_args_path,
+        "--judge-cfg-path", args.judge_cfg_path,
         "--server-url", server_url,
-        "--concurrent", str(args.concurrent),
     ]
 
     print(f"🚀 Running: {' '.join(judge_cmd)}")
