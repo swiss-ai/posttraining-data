@@ -77,31 +77,3 @@ def stringify_prompt(prompt: str | list[dict]) -> str:
         return stringified_prompt
 
     raise ValueError(f"Invalid prompt type: {type(prompt)}")
-
-def extract_score_distribution_like_activeuf(res, scoring_range: list[str]) -> dict[str, float]:
-    try:
-        token2logprob = {
-            x.token: x.logprob 
-            for x in res.choices[0].logprobs.content[0].top_logprobs
-        }
-        score2prob = {
-            score: math.exp(token2logprob.get(score, -float("inf"))) for score in scoring_range
-        }
-        total_prob = sum(score2prob.values())
-        if total_prob == 0:
-            return {score: 0.0 for score in scoring_range}
-            
-        return {score: score2prob[score] / total_prob for score in scoring_range}
-
-    except Exception as e:
-        # Fallback if no probabilities are returned
-        print(f"⚠️ Warning: Failed to extract probabilities, returning uniform distribution. Error: {e}")
-        return {score: 0.0 for score in scoring_range}
-
-def get_score_from_distribution_like_activeuf(score_distribution: dict[str, float]) -> float:
-    try:
-        return sum(float(score) * weight for score, weight in score_distribution.items())
-
-    except Exception as e:
-        print(f"⚠️ Warning: Failed to get score from distribution, returning 0. Error: {e}")
-        return 0.0
