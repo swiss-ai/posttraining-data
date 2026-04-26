@@ -11,38 +11,25 @@
 | 05 | Swiss AI Charter compliance | Qwen3-235B-A22B | 1-5, ActiveUF-style logprobs |
 | 11 | General quality | Qwen3-235B-A22B | 1-5, ActiveUF-style logprobs |
 | 12 | ArenaHard Judge | Qwen3-235B-A22B | 1-5, Discrete |
-| 13 | ArenaHard Judge | Qwen3-235B-A22B | 1-5, ActiveUF-style logprobs |
 
 ## Adding a new judge
 
-Copy the template below to a new file (e.g. `judges/06.py`) and fill in prompts and scoring.
+1. Add `judges/NN.py` and set `name = "NN"`.
+2. Usually copy `01.py` and adjust prompts and any overrides; import shared pieces from `activeuf` (`extract_score_distribution`, prompts, `model`, server fields, etc.) as needed.
+3. The module must expose **snake_case** names used by `src.judge` and `run_judge.py`: e.g. `model`, `system_prompt_for_judge`, `user_prompt_for_judge` (with `{prompt}` and `{response}` in the user template), `temperature`, `max_tokens`, `logprobs`, `top_logprobs`, `scoring_range`, `concurrent`, and for the launcher `slurm_nodes`, `workers`, `nodes_per_worker`, `dp_size`, `tp_size`, `framework`, `disable_ocf`.
+4. Implement `extract_score_distribution(response, scoring_range)`; the first argument is the **full** chat completion `response` from the API (see `activeuf` for logprob-based scoring, `12.py` for text/regex). Optional: `get_score_from_distribution` for downstream metrics.
 
-Required exports: `MODEL`, `TEMPERATURE`, `MAX_TOKENS`,
-`SYSTEM_PROMPT_FOR_JUDGE`, `USER_PROMPT_FOR_JUDGE`, `extract_score_distribution`.
-Optional: `SCORING_RANGE` when using the ActiveUF-style logprob helper.
+**Skeleton** (re-exporting ActiveUF-style defaults):
 
 ```python
-from src.utils import extract_score_distribution_like_activeuf
+import activeuf
 
-MODEL = "your-serving-model-id"
-TEMPERATURE = 0.0
-MAX_TOKENS = 1
-
-SCORING_RANGE = ["1", "2", "3", "4", "5"]
-
-SYSTEM_PROMPT_FOR_JUDGE = """..."""
-
-USER_PROMPT_FOR_JUDGE = """...
-
-<USER_INPUT>{prompt}</USER_INPUT>
-
-<ASSISTANT_RESPONSE_TO_EVALUATE>{response}</ASSISTANT_RESPONSE_TO_EVALUATE>"""
-
-
-def extract_score_distribution(res, scoring_range):
-    return ...
-
-def get_score_from_distribution(score_distribution):
-    return ...
+name = "06"
+model = activeuf.model
+# … copy serving / hyperparameters from 01.py or activeuf as needed …
+system_prompt_for_judge = activeuf.system_prompt
+user_prompt_for_judge = activeuf.helpfulness_user_prompt
+extract_score_distribution = activeuf.extract_score_distribution
+get_score_from_distribution = activeuf.get_score_from_distribution
 ```
 
