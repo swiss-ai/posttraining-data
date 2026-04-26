@@ -73,10 +73,14 @@ def compute_accuracy(results: List[Dict[str, Any]]) -> Dict[str, float]:
     # formatted as a 3x3 matrix, where the rows represent the scores of chosen responses
     # and the columns represent the scores of rejected responses
     MATRIX_SIZE = 3 # the column and row size of the matrix
+    skipped = 0
     acc_matrix = np.zeros((MATRIX_SIZE, MATRIX_SIZE))
     for result in results:
         for i in range(len(result["score_chosen"])):
             for j in range(len(result["score_rejected"])):
+                if result["score_chosen"][i] is None or result["score_rejected"][j] is None:
+                    skipped += 1
+                    continue
                 if result["score_chosen"][i] > result["score_rejected"][j]:
                     acc_matrix[i][j] += 1
     
@@ -94,6 +98,8 @@ def compute_accuracy(results: List[Dict[str, Any]]) -> Dict[str, float]:
     # namely chosen responses with more fancy style compared to rejected responses with less fancy style
     lower_left_count = MATRIX_SIZE * (MATRIX_SIZE - 1) / 2
     easy_acc = np.sum(np.tril(acc_matrix, -1)) / lower_left_count
+    comparisons = sum(acc_matrix.flatten())
+    print(skipped, len(results)*9)
     
     return {
         "hard_acc": hard_acc,
