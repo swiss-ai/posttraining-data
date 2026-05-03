@@ -1,7 +1,7 @@
 from judges import activeuf
 
-name = "21"
-model = "/capstor/store/cscs/swissai/infra01/hf_models/models/Qwen/Qwen3.6-27B"
+name = "22"
+model = "/capstor/store/cscs/swissai/infra01/hf_models/models/Qwen/Qwen3.5-35B-A3B-FP8"
 
 slurm_nodes = 1
 workers = 1
