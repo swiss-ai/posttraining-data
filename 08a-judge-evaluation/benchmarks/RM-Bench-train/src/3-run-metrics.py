@@ -21,7 +21,7 @@ import numpy as np
 from datasets import load_from_disk
 
 ################################################################################
-# Copy-paste from THU-KEG/RM-Bench
+# Copy-paste from THU-KEG/RM-Bench (slightly modified to report number of skipped comparisons)
 def split_dataset_by_domain(dataset: List[Dict[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:
     domains = ["chat","math","code","safety"]
     domain_dataset_dict = {}
@@ -45,15 +45,21 @@ def compute_accuracy(results: List[Dict[str, Any]]) -> Dict[str, float]:
         domain_results = {}
         for domain in split_results:
             domain_results[domain] = compute_accuracy(split_results[domain])
+            print(domain, domain_results[domain])
         domain_avg_results = {}
         for domain in domain_results:
-            domain_avg_results[domain] = np.mean(list(domain_results[domain].values()))
+            domain_avg_results[domain] = {
+                "percentage_comparisons_skipped": domain_results[domain]["percentage_comparisons_skipped"],
+                "acc": np.mean(list(
+                    val for key, val in domain_results[domain].items() if key not in ["percentage_comparisons_skipped", "acc"]
+        ))}
+            print(domain, domain_avg_results[domain])
         domain_hard_normal_easy_acc = {
             "hard_acc": np.mean([domain_results[domain]["hard_acc"] for domain in domain_results]),
             "normal_acc": np.mean([domain_results[domain]["normal_acc"] for domain in domain_results]),
-            "easy_acc": np.mean([domain_results[domain]["easy_acc"] for domain in domain_results])
+            "easy_acc": np.mean([domain_results[domain]["easy_acc"] for domain in domain_results]),
         }
-        total_avg_acc = np.mean([domain_avg_results[domain] for domain in domain_avg_results])
+        total_avg_acc = np.mean([domain_avg_results[domain]["acc"] for domain in domain_avg_results])
         # merge the results into one falten dictionary
         final_results = {}
         # merge domain_avg_results into final_results
@@ -73,14 +79,17 @@ def compute_accuracy(results: List[Dict[str, Any]]) -> Dict[str, float]:
     # formatted as a 3x3 matrix, where the rows represent the scores of chosen responses
     # and the columns represent the scores of rejected responses
     MATRIX_SIZE = 3 # the column and row size of the matrix
-    skipped = 0
     acc_matrix = np.zeros((MATRIX_SIZE, MATRIX_SIZE))
+    total_n_comparisons = 0
+    n_skipped_comparisons = 0
     for result in results:
         for i in range(len(result["score_chosen"])):
             for j in range(len(result["score_rejected"])):
+                total_n_comparisons += 1
                 if result["score_chosen"][i] is None or result["score_rejected"][j] is None:
-                    skipped += 1
+                    n_skipped_comparisons += 1
                     continue
+
                 if result["score_chosen"][i] > result["score_rejected"][j]:
                     acc_matrix[i][j] += 1
     
@@ -98,13 +107,12 @@ def compute_accuracy(results: List[Dict[str, Any]]) -> Dict[str, float]:
     # namely chosen responses with more fancy style compared to rejected responses with less fancy style
     lower_left_count = MATRIX_SIZE * (MATRIX_SIZE - 1) / 2
     easy_acc = np.sum(np.tril(acc_matrix, -1)) / lower_left_count
-    comparisons = sum(acc_matrix.flatten())
-    print(skipped, len(results)*9)
-    
+
     return {
         "hard_acc": hard_acc,
         "normal_acc": normal_acc,
-        "easy_acc": easy_acc
+        "easy_acc": easy_acc,
+        "percentage_comparisons_skipped": 100 * n_skipped_comparisons / total_n_comparisons,
     }
 ################################################################################
 
