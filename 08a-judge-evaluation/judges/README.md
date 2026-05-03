@@ -4,7 +4,7 @@
 
 | Judge | Description | Model | Scoring |
 |-------|--------|-------|---------|
-| 00 | ActiveUF | Qwen3-235B-A22B | 1-5, ActiveUF-style logprobs, mean of scores from judges 01-04 |
+| 00 | ActiveUF | Qwen3-235B-A22B | 1-5, Mean of scores from judges 01-04 |
 | 01 | Helpfulness | Qwen3-235B-A22B | 1-5, ActiveUF-style logprobs |
 | 02 | Instruction Following | Qwen3-235B-A22B | 1-5, ActiveUF-style logprobs |
 | 03 | Honesty | Qwen3-235B-A22B | 1-5, ActiveUF-style logprobs |
