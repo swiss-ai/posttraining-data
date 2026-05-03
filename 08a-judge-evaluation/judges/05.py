@@ -1,4 +1,4 @@
-import activeuf
+from judges import activeuf
 
 name = "05"
 model = activeuf.model
