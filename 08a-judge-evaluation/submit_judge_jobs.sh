@@ -1,11 +1,11 @@
 #!/bin/bash
 ACCOUNT="infra01"
 RESERVATION="SD-69241-apertus-1-5"
-JOB_TIME="00:15:00"
+JOB_TIME="00:30:00"
 
 BENCHMARK_DIRS=(
-    # "$SCRATCH/posttraining-data/08a-judge-evaluation/benchmarks/JudgeBench-gpt"
-    "$SCRATCH/posttraining-data/08a-judge-evaluation/benchmarks/RM-Bench-train"
+    "$SCRATCH/posttraining-data/08a-judge-evaluation/benchmarks/JudgeBench-gpt"
+    # "$SCRATCH/posttraining-data/08a-judge-evaluation/benchmarks/RM-Bench-train"
 )
 JUDGE_CFG_PATHS=(
     # "$SCRATCH/posttraining-data/08a-judge-evaluation/judges/01.py"
@@ -19,6 +19,7 @@ JUDGE_CFG_PATHS=(
     # "$SCRATCH/posttraining-data/08a-judge-evaluation/judges/12.py" # this judge takes much longer than the others, ~1h for 1K samples
     
     "$SCRATCH/posttraining-data/08a-judge-evaluation/judges/21.py"
+    # "$SCRATCH/posttraining-data/08a-judge-evaluation/judges/22.py"
 )
 
 WORKDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -37,7 +38,7 @@ for BENCHMARK_DIR in "${BENCHMARK_DIRS[@]}"; do
 #SBATCH --job-name=judge_${BENCHMARK_NAME}_${JUDGE_NAME}
 #SBATCH --account=${ACCOUNT}
 #SBATCH --reservation=${RESERVATION}
-#SBATCH --output=debug.log
+#SBATCH --output=${BENCHMARK_DIR}/2-judged/logs/${JUDGE_NAME}_%j.log
 #SBATCH --time=${JOB_TIME}
 #SBATCH --partition=normal
 #SBATCH --nodes=1
