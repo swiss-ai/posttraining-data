@@ -135,7 +135,7 @@ if __name__ == "__main__":
     if "Judge #" in df.columns:
         df = df.sort_values("Judge #")
 
-    out_path = os.path.join(folder, "overall.md")
+    out_path = "benchmarks/RM-Bench-train/overall.md"
     # Domain-level average accuracy (per-domain mean over the 3×3 score matrix), plus RM-Bench aggregate.
     domain_cols = ["Judge #", "Description", "chat", "math", "code", "safety", "total_avg_acc"]
     # hard / normal / easy: sub-aggregates of the style comparison matrix (see RM-Bench README).
