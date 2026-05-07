@@ -17,28 +17,28 @@ DATASETS=(
     $SCRATCH/posttraining-data/response_generation/datasets/inference_results_final/Qwen2.5-0.5B-Instruct
     $SCRATCH/posttraining-data/response_generation/datasets/inference_results_final/Qwen3-1.7B          
     $SCRATCH/posttraining-data/response_generation/datasets/inference_results_final/Qwen3-32B          
-    $SCRATCH/posttraining-data/response_generation/datasets/inference_results_final/Qwen3-Next-80B-A3B-Instruct
+    # $SCRATCH/posttraining-data/response_generation/datasets/inference_results_final/Qwen3-Next-80B-A3B-Instruct
     $SCRATCH/posttraining-data/response_generation/datasets/inference_results_final/Mixtral-8x22B-Instruct-v0.1   
     $SCRATCH/posttraining-data/response_generation/datasets/inference_results_final/Qwen2.5-1.5B-Instruct 
-    $SCRATCH/posttraining-data/response_generation/datasets/inference_results_final/Qwen3.5-397B-A17B
-    $SCRATCH/posttraining-data/response_generation/datasets/inference_results_final/Qwen3-235B-A22B-Instruct-2507 
-    $SCRATCH/posttraining-data/response_generation/datasets/inference_results_final/Qwen3-4B-Instruct-2507 
+    # $SCRATCH/posttraining-data/response_generation/datasets/inference_results_final/Qwen3.5-397B-A17B
+    # $SCRATCH/posttraining-data/response_generation/datasets/inference_results_final/Qwen3-235B-A22B-Instruct-2507 
+    # $SCRATCH/posttraining-data/response_generation/datasets/inference_results_final/Qwen3-4B-Instruct-2507 
     $SCRATCH/posttraining-data/response_generation/datasets/inference_results_final/Qwen3-Omni-30B-A3B-Instruct
-    $SCRATCH/posttraining-data/response_generation/datasets/inference_results_final/Phi-4-mini-instruct           
+    # $SCRATCH/posttraining-data/response_generation/datasets/inference_results_final/Phi-4-mini-instruct           
     $SCRATCH/posttraining-data/response_generation/datasets/inference_results_final/Qwen3-0.6B           
-    $SCRATCH/posttraining-data/response_generation/datasets/inference_results_final/Qwen3-30B-A3B-Instruct-2507  
-    $SCRATCH/posttraining-data/response_generation/datasets/inference_results_final/Qwen3-8B
-    $SCRATCH/posttraining-data/response_generation/datasets/inference_results_final/EuroLLM-1.7B-Instruct 
-    $SCRATCH/posttraining-data/response_generation/datasets/inference_results_final/Ministral-3-8B-Instruct-2512 
-    $SCRATCH/posttraining-data/response_generation/datasets/inference_results_final/SmolLM3-3B 
+    # $SCRATCH/posttraining-data/response_generation/datasets/inference_results_final/Qwen3-30B-A3B-Instruct-2507  
+    # $SCRATCH/posttraining-data/response_generation/datasets/inference_results_final/Qwen3-8B
+    # $SCRATCH/posttraining-data/response_generation/datasets/inference_results_final/EuroLLM-1.7B-Instruct 
+    # $SCRATCH/posttraining-data/response_generation/datasets/inference_results_final/Ministral-3-8B-Instruct-2512 
+    # $SCRATCH/posttraining-data/response_generation/datasets/inference_results_final/SmolLM3-3B 
     $SCRATCH/posttraining-data/response_generation/datasets/inference_results_final/EuroLLM-22B-Instruct-2512     
-    $SCRATCH/posttraining-data/response_generation/datasets/inference_results_final/Trinity-Mini
+    # $SCRATCH/posttraining-data/response_generation/datasets/inference_results_final/Trinity-Mini
     $SCRATCH/posttraining-data/response_generation/datasets/inference_results_final/EuroLLM-9B-Instruct-2512             
     $SCRATCH/posttraining-data/response_generation/datasets/inference_results_final/Trinity-Nano-Preview
-    $SCRATCH/posttraining-data/response_generation/datasets/inference_results_final/Ministral-3-14B-Instruct-2512          
+    # $SCRATCH/posttraining-data/response_generation/datasets/inference_results_final/Ministral-3-14B-Instruct-2512          
     $SCRATCH/posttraining-data/response_generation/datasets/inference_results_final/Ministral-3-3B-Instruct-2512  
     $SCRATCH/posttraining-data/response_generation/datasets/inference_results_final/Mistral-Large-3-675B-Instruct-2512
-    $SCRATCH/posttraining-data/response_generation/datasets/inference_results_final/Qwen3.5-397B-A17B
+    # $SCRATCH/posttraining-data/response_generation/datasets/inference_results_final/Qwen3.5-397B-A17B
 )
 
 BASE_OUTPUT_DIR="$SCRATCH/posttraining-data/response_annotation/datasets/inference_results_final"

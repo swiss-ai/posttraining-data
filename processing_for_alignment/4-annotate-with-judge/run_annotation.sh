@@ -16,7 +16,7 @@ DATASETS_DIR="$SCRATCH/posttraining-data/processing_for_alignment/datasets/MaxMi
 BASE_OUTPUT_DIR="$SCRATCH/posttraining-data/processing_for_alignment/datasets/MaxMin-Filtered-Ref-Completions-30-split-Annotated"
 PROMPT_COLUMN_NAME="chosen"
 REMOVE_LAST_MESSAGE=1
-JOB_TIME="09:00:00"
+JOB_TIME="12:00:00"
 
 ACCOUNT="infra01"
 RESERVATION="PA-2338-RL"

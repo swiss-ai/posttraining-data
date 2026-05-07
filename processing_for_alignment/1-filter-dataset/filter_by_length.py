@@ -58,7 +58,10 @@ def main(args):
 
     dataset = dataset.map(keep_role_content, num_proc=args.num_proc, desc="Stripping extra message keys")
 
-    cols_to_keep = {"chosen", "rejected", "chosen_score", "rejected_score", "chosen_model", "rejected_model"}
+    # Add original_index before any filtering so we can trace rows back
+    dataset = dataset.add_column("original_index", list(range(len(dataset))))
+
+    cols_to_keep = {"chosen", "rejected", "chosen_score", "rejected_score", "chosen_model", "rejected_model", "prompt_id", "original_index"}
     cols_to_remove = [c for c in dataset.column_names if c not in cols_to_keep]
     if cols_to_remove:
         print(f"Removing extra columns: {cols_to_remove}")

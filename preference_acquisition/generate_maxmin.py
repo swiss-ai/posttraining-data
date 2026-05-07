@@ -1,8 +1,9 @@
 """
 Generate max-min preference pairs from the combined annotated dataset.
 
-Reads the new dataset format where each row has an 'annotations' column
-containing a JSON array of {model, response, detailed_annotations, final_score}.
+Reads the combined dataset where each row has a 'prompt' column (chosen[:-1])
+and a 'model_evaluations' column containing an array of
+{model, response, detailed_annotations, final_score}.
 Picks the best and worst scoring models per row to form preference pairs.
 
 Token filtering: applies a chat template via a tokenizer and excludes any
@@ -10,7 +11,7 @@ prompt+completion that exceeds MAX_TOKENS. If ALL completions exceed the limit
 for a given row, falls back to picking best/worst without the token filter.
 """
 
-import json
+import argparse
 import os
 
 import numpy as np
@@ -19,16 +20,21 @@ from transformers import AutoTokenizer
 
 # ---------------------------------------------------------------------------
 # Config
-# ---------------------------------------------------------------------------
-DATASET_PATH = "/iopsstor/scratch/cscs/smarian/datasets/apertus/aya_dataset/annotation-merged-formatted"
-OUTPUT_PATH = "/iopsstor/scratch/cscs/smarian/datasets/apertus/aya_dataset/MaxMin"
-MODEL_NAME_OR_PATH = "/iopsstor/scratch/cscs/smarian/cache/hf_home/hub/models--swiss-ai--Apertus-8B-Instruct-2509/snapshots/d57e4f1a3baa6315c60707346b5498b48b40a364"
-MAX_TOKENS = 4096
-EXCLUDED_MODELS = {}
-NUM_PROC = min(os.cpu_count() or 4, 288)
+# --------------------------------------------------------------------------- Trinity-Mini Phi-4-mini-instruct
+parser = argparse.ArgumentParser()
+parser.add_argument("--exclude_models", nargs="*", default=[], help="Model names to exclude")
+parser.add_argument("--dataset_path", default="/iopsstor/scratch/cscs/dmelikidze/posttraining-data/response_annotation/datasets/combined_annotated_new2")
+parser.add_argument("--output_path", default="/iopsstor/scratch/cscs/dmelikidze/posttraining-data/preference_acquisition/datasets/aMaxMin_4096")
+parser.add_argument("--tokenizer", default="/iopsstor/scratch/cscs/dmelikidze/huggingface/hub/models--swiss-ai--Apertus-8B-Instruct-2509-SFT/snapshots/d57e4f1a3baa6315c60707346b5498b48b40a364")
+parser.add_argument("--max_tokens", type=int, default=4096)
+args = parser.parse_args()
 
-PROMPT_COLUMN_NAME = "prompt"
-REMOVE_LAST_MESSAGE = False
+DATASET_PATH = args.dataset_path
+OUTPUT_PATH = args.output_path
+MODEL_NAME_OR_PATH = args.tokenizer
+MAX_TOKENS = args.max_tokens
+EXCLUDED_MODELS = set(args.exclude_models)
+NUM_PROC = min(os.cpu_count() or 4, 288)
 
 print(f"Using {NUM_PROC} processes.")
 print(f"Excluding models: {EXCLUDED_MODELS or 'none'}")
@@ -67,15 +73,12 @@ def extract_maxmin(batch):
         "rejected_score": [],
     }
 
-    for prompt, prompt_id, annotations_json in zip(
-        batch[PROMPT_COLUMN_NAME], batch["prompt_id"], batch["annotations"]
+    for prompt_msgs_raw, prompt_id, evaluations in zip(
+        batch["prompt"], batch["prompt_id"], batch["model_evaluations"]
     ):
-        annotations = json.loads(annotations_json)
-
         # Filter out excluded models and None/empty responses
         valid = [
-            a
-            for a in annotations
+            a for a in evaluations
             if a["model"] not in EXCLUDED_MODELS
             and a.get("response") is not None
             and str(a["response"]).strip() != ""
@@ -83,39 +86,34 @@ def extract_maxmin(batch):
         if len(valid) < 2:
             continue
 
-        # Extract prompt messages (keep only role and content keys)
-        if REMOVE_LAST_MESSAGE:
-            raw_msgs = (
-                prompt[:-1] if isinstance(prompt, list) else json.loads(prompt)[:-1]
-            )
-        else:
-            raw_msgs = prompt
-        prompt_msgs = [{"role": m["role"], "content": m["content"]} for m in raw_msgs]
+        # Keep only role and content keys from prompt
+        prompt_msgs = [{"role": m["role"], "content": m["content"]} for m in prompt_msgs_raw]
 
-        # Count tokens for each valid completion
-        token_counts = [count_tokens(prompt_msgs, a["response"]) for a in valid]
+        # Sort by score: descending for best-first, ascending for worst-first
+        sorted_by_score = sorted(valid, key=lambda a: a["final_score"], reverse=True)
 
-        # Filter by token count
-        within_limit = [
-            (a, tc) for a, tc in zip(valid, token_counts) if tc <= MAX_TOKENS
-        ]
+        # Find best within token limit (search from highest score down)
+        best = None
+        for a in sorted_by_score:
+            if count_tokens(prompt_msgs, a["response"]) <= MAX_TOKENS:
+                best = a
+                break
 
-        # If all exceed the limit, fall back to unfiltered
-        if len(within_limit) < 2:
-            candidates = valid
-        else:
-            candidates = [a for a, _ in within_limit]
+        # Find worst within token limit (search from lowest score up)
+        worst = None
+        for a in reversed(sorted_by_score):
+            if count_tokens(prompt_msgs, a["response"]) <= MAX_TOKENS:
+                worst = a
+                break
 
-        scores = np.array([a["final_score"] for a in candidates])
-        best_idx = int(np.argmax(scores))
-        worst_idx = int(np.argmin(scores))
+        # Fallback: if fewer than 2 passed token filter, use unfiltered extremes
+        if best is None or worst is None or best is worst:
+            best = sorted_by_score[0]
+            worst = sorted_by_score[-1]
 
-        # Skip ties (same model is best and worst)
-        if best_idx == worst_idx:
+        # Skip if same model ended up as both best and worst
+        if best["model"] == worst["model"]:
             continue
-
-        best = candidates[best_idx]
-        worst = candidates[worst_idx]
 
         out["prompt_id"].append(prompt_id)
         out["chosen"].append(
@@ -132,17 +130,15 @@ def extract_maxmin(batch):
     return out
 
 
-output_features = Features(
-    {
-        "prompt_id": Value("string"),
-        "chosen": [{"role": Value("string"), "content": Value("string")}],
-        "rejected": [{"role": Value("string"), "content": Value("string")}],
-        "chosen_model": Value("string"),
-        "rejected_model": Value("string"),
-        "chosen_score": Value("float64"),
-        "rejected_score": Value("float64"),
-    }
-)
+output_features = Features({
+    "prompt_id": Value("string"),
+    "chosen": [{"role": Value("string"), "content": Value("string")}],
+    "rejected": [{"role": Value("string"), "content": Value("string")}],
+    "chosen_model": Value("string"),
+    "rejected_model": Value("string"),
+    "chosen_score": Value("float64"),
+    "rejected_score": Value("float64"),
+})
 
 print("Extracting max-min preference pairs ...", flush=True)
 processed = dataset.map(

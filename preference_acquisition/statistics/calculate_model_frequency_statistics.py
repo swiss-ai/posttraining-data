@@ -1,5 +1,5 @@
 import os
-from datasets import load_from_disk
+from datasets import load_from_disk, Dataset
 from collections import defaultdict
 import matplotlib.pyplot as plt
 from tqdm import tqdm
@@ -12,36 +12,50 @@ def generate_model_frequency_histograms(
     if single_file:
         files_to_process = [data_dir]
     else:
-        files_to_process = os.listdir(data_dir)
-
+        files_to_process = sorted(
+            f for f in os.listdir(data_dir)
+        )
+    # print(files_to_process)
     for fname in files_to_process:
         print("Processing file:", fname)
-        data_path = os.path.join(data_dir, fname)
-        dataset = load_from_disk(data_path)
-        dataset = dataset["train_split"]  # Assuming we want to process the 'train' split
+        data_path = os.path.join(data_dir, fname) if not single_file else fname
+
+        # Support both HF dataset dirs and individual arrow files
+        if os.path.isfile(data_path) and data_path.endswith(".arrow"):
+            dataset = Dataset.from_file(data_path)
+        else:
+            dataset = load_from_disk(data_path)
+            if hasattr(dataset, "keys"):
+                split = "train_split" if "train_split" in dataset else list(dataset.keys())[0]
+                dataset = dataset[split]
+            elif isinstance(dataset, dict):
+                dataset = dataset["train"] if "train" in dataset else dataset["train_split"] if "train_split" in dataset else list(dataset.values())[0]
+        chosen_models = dataset["chosen_model"]
+        rejected_models = dataset["rejected_model"]
+        # all_chosen_scores = dataset["chosen_score"]
+        # all_rejected_scores = dataset["rejected_score"]
+
         chosen_model_counter = defaultdict(int)
         rejected_model_counter = defaultdict(int)
-        chosen_scores = []
-        rejected_scores = []
+        # chosen_scores = []
+        # rejected_scores = []
         identical_counter = 0
-        for row in tqdm(dataset):
-            chosen_model = row["chosen_model"]
-            rejected_model = row["rejected_model"]
-            if chosen_model == rejected_model:
+        for cm, rm in zip(chosen_models, rejected_models):
+            if cm == rm:
                 identical_counter += 1
                 continue
-            chosen_model_counter[chosen_model] += 1
-            rejected_model_counter[rejected_model] += 1
-            chosen_scores.append(row["chosen_score"])
-            rejected_scores.append(row["rejected_score"])
+            chosen_model_counter[cm] += 1
+            rejected_model_counter[rm] += 1
+            # chosen_scores.append(cs)
+            # rejected_scores.append(rs)
 
-        print("Average chosen score:", sum(chosen_scores) / len(chosen_scores))
-        print("Average rejected score:", sum(rejected_scores) / len(rejected_scores))
-        print(
-            "Average score difference:",
-            (sum(chosen_scores) / len(chosen_scores))
-            - (sum(rejected_scores) / len(rejected_scores)),
-        )
+        # print("Average chosen score:", sum(chosen_scores) / len(chosen_scores))
+        # print("Average rejected score:", sum(rejected_scores) / len(rejected_scores))
+        # print(
+        #     "Average score difference:",
+        #     (sum(chosen_scores) / len(chosen_scores))
+        #     - (sum(rejected_scores) / len(rejected_scores)),
+        # )
         print("Number of identical chosen and rejected models:", identical_counter)
 
         chosen_model_counter_sorted = dict(
@@ -117,6 +131,7 @@ def generate_model_frequency_histograms(
             plt.savefig(filename)
             plt.close()
 
+        os.makedirs(output_dir, exist_ok=True)
         plot_model_distributions_separate_y_axes(
             chosen_model_counter_sorted,
             rejected_model_counter_sorted,

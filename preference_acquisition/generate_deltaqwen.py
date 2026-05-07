@@ -2,10 +2,9 @@
 Generate delta-Qwen preference pairs from the combined annotated dataset.
 
 For each row, picks Qwen3-32B as chosen and Qwen3-0.6B as rejected,
-using their responses from the annotations column.
+using their responses from the model_evaluations column.
 """
 
-import json
 import os
 
 from datasets import DatasetDict, Features, Value, load_from_disk
@@ -37,20 +36,18 @@ def extract_deltaqwen(batch):
         "rejected_score": [],
     }
 
-    for prompt, prompt_id, annotations_json in zip(
-        batch["chosen"], batch["prompt_id"], batch["annotations"]
+    for prompt_msgs_raw, prompt_id, evaluations in zip(
+        batch["prompt"], batch["prompt_id"], batch["model_evaluations"]
     ):
-        annotations = json.loads(annotations_json)
-        ann_by_model = {a["model"]: a for a in annotations}
+        eval_by_model = {a["model"]: a for a in evaluations}
 
-        if CHOSEN_MODEL not in ann_by_model or REJECTED_MODEL not in ann_by_model:
+        if CHOSEN_MODEL not in eval_by_model or REJECTED_MODEL not in eval_by_model:
             continue
 
-        chosen = ann_by_model[CHOSEN_MODEL]
-        rejected = ann_by_model[REJECTED_MODEL]
+        chosen = eval_by_model[CHOSEN_MODEL]
+        rejected = eval_by_model[REJECTED_MODEL]
 
-        raw_msgs = prompt[:-1] if isinstance(prompt, list) else json.loads(prompt)[:-1]
-        prompt_msgs = [{"role": m["role"], "content": m["content"]} for m in raw_msgs]
+        prompt_msgs = [{"role": m["role"], "content": m["content"]} for m in prompt_msgs_raw]
 
         out["prompt_id"].append(prompt_id)
         out["chosen"].append(

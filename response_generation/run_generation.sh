@@ -10,9 +10,9 @@ JOBS=(
     "Qwen/Qwen3-8B 1 1 1 4 1 false sglang false"
     "Qwen/Qwen3-32B 1 1 1 4 1 false sglang false"
     "Qwen/Qwen3-30B-A3B-Instruct-2507 1 1 1 1 4 false sglang false"
-    "Qwen/Qwen3-Omni-30B-A3B-Instruct 1 1 1 1 4 false sglang false"
-    "Qwen/Qwen3-Next-80B-A3B-Instruct 1 1 1 1 4 false sglang false"
-    "Qwen/Qwen3-235B-A22B-Instruct-2507 16 8 2 1 8 true vllm false"
+    "Qwen/Qwen3-Omni-30B-A3B-Instruct 1 1 1 1 4 false vllm false"
+    "Qwen/Qwen3-Next-80B-A3B-Instruct 1 1 1 1 4 false vllm false" 
+    "Qwen/Qwen3-235B-A22B-Instruct-2507 16 8 2 1 8 true vllm false" 
     "microsoft/Phi-4-mini-instruct 1 1 1 4 1 false sglang false"
     "mistralai/Mistral-Small-24B-Instruct-2501 1 1 1 1 4 false sglang false"
     "mistralai/Mixtral-8x22B-Instruct-v0.1 2 1 2 1 8 true sglang false"
@@ -25,20 +25,20 @@ JOBS=(
     "utter-project/EuroLLM-1.7B-Instruct 1 1 1 4 1 false sglang false"
     "utter-project/EuroLLM-9B-Instruct-2512 1 1 1 4 1 false sglang false"
     "utter-project/EuroLLM-22B-Instruct-2512 1 1 1 4 1 false sglang false"
-    "Qwen/Qwen3.5-397B-A17B 32 8 4 1 16 true vllm false"
-    "mistralai/Mistral-Large-3-675B-Instruct-2512 32 8 4 1 16 true vllm true"
+    "Qwen/Qwen3.5-397B-A17B 4 1 4 1 16 true vllm false"
+    "mistralai/Mistral-Large-3-675B-Instruct-2512 4 1 4 1 16 true vllm true"
 )
 
 
 INPUT_DATASET="allenai/Dolci-Instruct-DPO"
-BASE_OUTPUT_DIR="./datasets/inference_results_final"
+BASE_OUTPUT_DIR="./response_generation/datasets/inference_results_final"
 PROMPT_COLUMN_NAME="chosen"
 REMOVE_LAST_MESSAGE=1  # Set to 1 if you want to remove the last message from the conversation history, e.g. if you take it from a "chosen" column
 JOB_TIME="12:00:00"
 
 ACCOUNT="infra01"
-RESERVATION="PA-2338-RL"
-LOGS_DIR="./logs/generation"
+RESERVATION="SD-69241-apertus-1-5-3"
+LOGS_DIR="./response_generation/logs/generation"
 
 mkdir -p $LOGS_DIR
 
@@ -66,7 +66,7 @@ for ENTRY in "${JOBS[@]}"; do
 #SBATCH --nodes=1
 
 srun --environment="./response_generation/env/alignment.toml" --container-writable --container-workdir="$PWD" \\
-    bash -c "unset SSL_CERT_FILE && python -u response_generation/run_generation.py \\
+    bash -c "unset SSL_CERT_FILE && pip install mistral_common && python -u response_generation/run_generation.py \\
     --dataset '${INPUT_DATASET}' \\
     --prompt-column-name '${PROMPT_COLUMN_NAME}' \\
     --base-output-dir '${BASE_OUTPUT_DIR}' \\

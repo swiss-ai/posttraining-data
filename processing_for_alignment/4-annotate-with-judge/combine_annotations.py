@@ -98,10 +98,7 @@ def main(args):
 
     # --- Assemble ref_completion_rewards directly in Python ---
     print("Zipping rewards into per-row lists...")
-    ref_completion_rewards = [
-        [all_rewards[comp_idx][row_idx] for comp_idx in range(n_completions)]
-        for row_idx in tqdm(range(num_rows), desc="Zipping rewards")
-    ]
+    ref_completion_rewards = [list(row) for row in tqdm(zip(*all_rewards), total=num_rows, desc="Zipping rewards")]
 
     # Drop completion-specific columns, then add the combined reward list
     columns_to_drop = [

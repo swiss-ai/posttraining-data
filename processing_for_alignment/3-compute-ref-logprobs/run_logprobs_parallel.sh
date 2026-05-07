@@ -1,30 +1,37 @@
 #!/bin/bash
 set -euo pipefail
 
-# ── Configuration ──────────────────────────────────────────────────
-DATASET_PATH="/iopsstor/scratch/cscs/dmelikidze/posttraining-data/processing_for_alignment/datasets/MaxMin-Filtered"
-OUTPUT_BASE="/iopsstor/scratch/cscs/dmelikidze/posttraining-data/processing_for_alignment/datasets/MaxMin-Filtered-Logprobs"
-MODEL_PATH="/iopsstor/scratch/cscs/dmelikidze/huggingface/hub/models--swiss-ai--Apertus-8B-Instruct-2509-SFT/snapshots/d57e4f1a3baa6315c60707346b5498b48b40a364"
-CONTAINER_ENV="./response_generation/env/alignment.toml"
-MAX_SEQ_LEN=4096
-SPLIT="train_split"
-DATASET_SIZE=259453                # Set this! (or run: python -c "from datasets import load_from_disk; print(len(load_from_disk('$DATASET_PATH')['$SPLIT']))")
+# ── Environment Setup ──────────────────────────────────────────────
+# Source the exact same setup script used by the trainer to guarantee 
+# container image, environment, and mount parity.
+export PROJECT_ROOT_AT=$HOME/projects/posttraining/run
+export ENABLE_RETRY=0
+source $PROJECT_ROOT_AT/installation/docker-arm64-cuda/CSCS-Clariden-setup/shared-submit-scripts/setup.sh
+# ───────────────────────────────────────────────────────────────────
 
-# Parallelism (adapted from swiss_alignment generate_submit.py)
-# Reference numbers for 8B with 2 completions (chosen + rejected) per row:
-#   ~2048 rows per hour per GPU
-# We need N nodes for X rows in H hours:
-#   N = X / (PARTITION_SIZE * H)
-PARTITION_SIZE=8192           # rows per node-job (8192 for 8B, 1024 for 70B)
+# ── Configuration ──────────────────────────────────────────────────
+DATASET_PATH="/iopsstor/scratch/cscs/dmelikidze/posttraining-data/processing_for_alignment/datasets/MaxMin_3600-Filtered"
+# DATASET_PATH="/iopsstor/scratch/cscs/dmelikidze/ActiveUltraFeedback/datasets/uf_qwen_235b_w_features_preference/drts_filtered"
+# OUTPUT_BASE="/iopsstor/scratch/cscs/dmelikidze/ActiveUltraFeedback/datasets/uf_qwen_235b_w_features_preference/drts_logprobs_simpo"
+OUTPUT_BASE="/iopsstor/scratch/cscs/dmelikidze/posttraining-data/processing_for_alignment/datasets/MaxMin_3600-Filtered-reflogprobs"
+MODEL_PATH="/iopsstor/scratch/cscs/dmelikidze/huggingface/hub/models--swiss-ai--Apertus-8B-Instruct-2509-SFT/snapshots/d57e4f1a3baa6315c60707346b5498b48b40a364"
+# MODEL_PATH="/iopsstor/scratch/cscs/dmelikidze/huggingface/hub/models--allenai--Llama-3.1-Tulu-3-8B-SFT/snapshots/f2a0b46b0cfda21003c6141b1ff837b7e165524d"
+# MODEL_PATH="/iopsstor/scratch/cscs/dmelikidze/ActiveUltraFeedback/models/cpo2/1748535-drts-simpo-lr5e-06-sg1.2-b2.0-seed42-loraR64-loraA16"
+MAX_SEQ_LEN=3600
+SPLIT="train_split"
+DATASET_SIZE=259230
+
+# Parallelism
+PARTITION_SIZE=16384           # rows per node-job (8192 for 8B, 1024 for 70B)
 NUM_GPUS_PER_NODE=4
 TENSOR_PARALLEL_SIZE=1        # GPUs per model instance
-SAVE_INTERVAL=2048            # checkpoint every N rows per subpartition
+SAVE_INTERVAL=4096            # checkpoint every N rows per subpartition
 
 # SLURM
-SLURM_TIME="12:00:00"
+SLURM_TIME="03:00:00"
 SLURM_PARTITION="normal"
 SLURM_ACCOUNT="infra01"
-SLURM_RESERVATION="PA-2338-RL"
+SLURM_RESERVATION="SD-69241-apertus-1-5-3"
 # ───────────────────────────────────────────────────────────────────
 
 SCRIPT_DIR="$SCRATCH/posttraining-data/processing_for_alignment/3-compute-ref-logprobs"
@@ -33,7 +40,6 @@ NUM_SUBPARTITIONS=$((NUM_GPUS_PER_NODE / TENSOR_PARALLEL_SIZE))
 
 if [ "${DATASET_SIZE}" -eq 0 ]; then
     echo "ERROR: Set DATASET_SIZE in the script before running."
-    echo "  Hint: python -c \"from datasets import load_from_disk; print(len(load_from_disk('${DATASET_PATH}')['${SPLIT}']))\""
     exit 1
 fi
 
@@ -53,13 +59,7 @@ for START in $(seq 0 ${PARTITION_SIZE} $((DATASET_SIZE - 1))); do
 
     PART_OUTPUT="${OUTPUT_BASE}/partitions/${START}-${END}"
 
-    # Each job runs NUM_SUBPARTITIONS tasks (one per GPU group).
-    # Each task picks up SLURM_PROCID from the environment automatically.
-    # Output dir per subpartition: ${PART_OUTPUT}/subpart_${SLURM_PROCID}
-    #
-    # The Python script reads SLURM_PROCID from env to determine:
-    #   - which GPU(s) to use
-    #   - which slice of the partition to process
+    # Updated sbatch wrap to mirror recursive-unattended-accelerate.sh
     JOB_ID=$(sbatch \
         --job-name="logprobs-${START}-${END}" \
         --nodes=1 \
@@ -72,18 +72,28 @@ for START in $(seq 0 ${PARTITION_SIZE} $((DATASET_SIZE - 1))); do
         --output="${LOGS_DIR}/logprobs-${START}-${END}-%t.out" \
         --error="${LOGS_DIR}/logprobs-${START}-${END}-%t.err" \
         --parsable \
-        --wrap="srun --environment=${CONTAINER_ENV} --container-writable --container-workdir=${SCRIPT_DIR} \
-    bash -c 'python -u ${SCRIPT_DIR}/compute_logprobs.py \
-    --dataset-path ${DATASET_PATH} \
-    --output-dir ${PART_OUTPUT}/subpart_\${SLURM_PROCID} \
-    --model-name-or-path ${MODEL_PATH} \
-    --max-seq-len ${MAX_SEQ_LEN} \
-    --partition-start ${START} \
-    --partition-end ${END} \
-    --num-gpus-per-node ${NUM_GPUS_PER_NODE} \
-    --tensor-parallel-size ${TENSOR_PARALLEL_SIZE} \
-    --save-interval ${SAVE_INTERVAL} \
-    --split ${SPLIT}'")
+        --wrap="srun \
+            --container-image=${CONTAINER_IMAGE} \
+            --environment=${CONTAINER_ENV_FILE} \
+            --container-mounts=${PROJECT_ROOT_AT},${HOME}/projects/posttraining/dev,${SCRATCH},${SHARED_SCRATCH},${STORE},/iopsstor,${WANDB_API_KEY_FILE_AT} \
+            --container-workdir=${PROJECT_ROOT_AT} \
+            --no-container-mount-home \
+            --no-container-remap-root \
+            --no-container-entrypoint \
+            --container-writable \
+            /opt/template-entrypoints/pre-entrypoint.sh \
+            bash -c 'python -u ${SCRIPT_DIR}/compute_logprobs.py \
+            --dataset-path ${DATASET_PATH} \
+            --output-dir ${PART_OUTPUT}/subpart_\${SLURM_PROCID} \
+            --model-name-or-path ${MODEL_PATH} \
+            --max-seq-len ${MAX_SEQ_LEN} \
+            --partition-start ${START} \
+            --partition-end ${END} \
+            --num-gpus-per-node ${NUM_GPUS_PER_NODE} \
+            --tensor-parallel-size ${TENSOR_PARALLEL_SIZE} \
+            --save-interval ${SAVE_INTERVAL} \
+            --split ${SPLIT} \
+            --debug'")
 
     JOB_IDS+=("$JOB_ID")
     echo "Submitted partition [${START}, ${END}) -> job ${JOB_ID} (${NUM_SUBPARTITIONS} GPUs)"

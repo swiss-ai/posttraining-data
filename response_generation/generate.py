@@ -6,7 +6,6 @@ import httpx
 import uvloop
 from openai import AsyncOpenAI
 from datasets import load_from_disk, load_dataset
-from transformers import AutoTokenizer
 from tqdm.asyncio import tqdm_asyncio
 
 def has_saved_response(response):
@@ -47,27 +46,48 @@ async def writer_task(queue, filepath):
             f.flush() # Ensure it's immediately written to disk
             queue.task_done()
 
-async def get_response(idx, prompt, client, model, max_length, temperature, semaphore, queue, use_reasoning=True):
+async def get_response(idx, prompt, client, model, max_length, temperature, semaphore, queue, use_reasoning=True, error_queue=None, debug_queue=None):
     """Fetches the response and immediately puts it in the write queue."""
     async with semaphore:
         try:
             # Sanitize messages to avoid Mistral tokenizer tool_calls issues
             prompt = sanitize_messages(prompt)
-            
+
+            chat_template_kwargs = {}
+            if use_reasoning:
+                chat_template_kwargs["enable_thinking"] = False
+            if prompt[-1]["role"] == "assistant":
+                chat_template_kwargs["continue_final_message"] = True
+
             kwargs = dict(
                 model=model,
                 messages=prompt,
                 max_tokens=max_length,
                 temperature=temperature,
             )
-            if use_reasoning:
-                kwargs["extra_body"] = {"chat_template_kwargs": {"enable_thinking": False}}
-            
+            if chat_template_kwargs:
+                kwargs["extra_body"] = {"chat_template_kwargs": chat_template_kwargs}
+
             res = await client.chat.completions.create(**kwargs)
             content = res.choices[0].message.content
         except Exception as e:
             print(f"Error for index {idx}: {e}")
             content = ""
+            if error_queue is not None:
+                await error_queue.put({
+                    "index": idx,
+                    "model": model,
+                    "conversation": prompt,
+                    "error": str(e),
+                })
+
+        # Log prompt + response for debugging
+        if debug_queue is not None:
+            await debug_queue.put({
+                "index": idx,
+                "prompt": prompt,
+                "response": content,
+            })
 
         # Push directly to the writer queue, dropping logprobs entirely
         await queue.put({
@@ -143,21 +163,7 @@ async def main(args):
         print("⚠️ Removing last message from each prompt as per --remove-last-message flag.")
         all_prompts = [p[:-1] if len(p) > 1 else p for p in all_prompts]
     
-    valid_indices = []
-    if args.max_tokens is not None:
-        tokenizer = AutoTokenizer.from_pretrained(args.model)
-        too_long_count = 0
-        for i, prompt in enumerate(all_prompts):
-            if i in processed_indices: 
-                continue # Skip already processed
-            text = tokenizer.apply_chat_template(prompt, tokenize=False, add_generation_prompt=True)
-            if len(tokenizer.encode(text, add_special_tokens=False)) < args.max_tokens:
-                valid_indices.append(i)
-            else:
-                too_long_count += 1
-        print(f"Filtered out {too_long_count} prompts exceeding {args.max_tokens} tokens.")
-    else:
-        valid_indices = [i for i in range(len(all_prompts)) if i not in processed_indices]
+    valid_indices = [i for i in range(len(all_prompts)) if i not in processed_indices]
 
     if not valid_indices:
         print("No valid prompts left to process.")
@@ -166,26 +172,36 @@ async def main(args):
 
     # 5. Setup Async Queue and Concurrency
     queue = asyncio.Queue()
+    error_queue = asyncio.Queue()
+    debug_queue = asyncio.Queue()
     semaphore = asyncio.Semaphore(args.concurrent)
-    
-    # Start the background writer task
+
+    # Start the background writer tasks
+    error_jsonl = os.path.join(args.output_dir, "failed_requests.jsonl")
+    debug_jsonl = os.path.join(args.output_dir, "debug_prompts_responses.jsonl")
     writer = asyncio.create_task(writer_task(queue, output_jsonl))
+    error_writer = asyncio.create_task(writer_task(error_queue, error_jsonl))
+    debug_writer = asyncio.create_task(writer_task(debug_queue, debug_jsonl))
 
     # 6. Create and Run Tasks
     print(f"🚀 Processing {len(valid_indices)} prompts...")
     use_reasoning = not args.no_reasoning_kwargs
     tasks = [
-        get_response(idx, all_prompts[idx], client, args.model, args.max_length, args.temperature, semaphore, queue, use_reasoning) 
+        get_response(idx, all_prompts[idx], client, args.model, args.max_length, args.temperature, semaphore, queue, use_reasoning, error_queue, debug_queue)
         for idx in valid_indices
     ]
-    
+
     # Use as_completed to avoid gathering huge arrays of objects into memory
     for f in tqdm_asyncio.as_completed(tasks, total=len(tasks)):
         await f
 
-    # 7. Shutdown Writer gracefully
+    # 7. Shutdown Writers gracefully
     await queue.put(None)
+    await error_queue.put(None)
+    await debug_queue.put(None)
     await writer
+    await error_writer
+    await debug_writer
 
     # Close the custom http client properly
     await http_client.aclose()
@@ -225,7 +241,6 @@ if __name__ == "__main__":
     parser.add_argument("--remove-last-message", action="store_true", help="Whether to remove the last message from the conversation history, e.g. if you take it from a 'chosen' column")
     parser.add_argument("--output-dir", type=str, required=True)
     parser.add_argument("--model", type=str, required=True)
-    parser.add_argument("--max-tokens", type=int, default=None)
     parser.add_argument("--max-length", type=int, default=4096)
     
     # Increased default concurrency to better saturate the 16 nodes

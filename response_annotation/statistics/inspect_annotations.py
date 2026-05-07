@@ -11,7 +11,13 @@ if "train" in ds:
     ds = ds["train"]
 
 print(f"Dataset: {len(ds)} rows, columns: {ds.column_names}\n")
+ss = ds["annotations"][0]
+# print(ss)
+print(type(ss))
+ss = json.loads(ss)
+print(ss[0].keys())  # Print the raw JSON string of the first row's annotations
 
+exit()
 # Inspect structure of the 'annotations' column using row 0
 annotations = json.loads(ds[0]["annotations"])
 

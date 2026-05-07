@@ -1,14 +1,14 @@
 """
 Build a combined annotated dataset from per-model annotation results.
 
-For each prompt row, adds a single 'annotations' column containing a JSON array
-of objects — one per model — with: model name, detailed annotation scores, and
-a final_score (mean of aspect expected scores).
+For each prompt row, creates:
+  - 'prompt': the conversation turns (chosen[:-1])
+  - 'model_evaluations': array of objects per model with response, annotations, and score
 
+Drops: chosen, rejected, chosen_model, rejected_model, response, annotation.
 The original row count is preserved (no stacking).
 """
 
-import json
 import os
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
@@ -19,7 +19,7 @@ from datasets import Dataset, DatasetDict, Features, Value, load_from_disk
 # Config
 # ---------------------------------------------------------------------------
 BASE_DIR = Path("/iopsstor/scratch/cscs/dmelikidze/posttraining-data/response_annotation/datasets/inference_results_final")
-OUT_DIR = Path("/iopsstor/scratch/cscs/dmelikidze/posttraining-data/response_annotation/datasets/combined_annotated")
+OUT_DIR = Path("/iopsstor/scratch/cscs/dmelikidze/posttraining-data/response_annotation/datasets/combined_annotated_new2")
 
 ASPECTS = ["helpfulness", "honesty", "instruction_following", "truthfulness"]
 NUM_PROC = min(os.cpu_count() or 4, 288)
@@ -73,9 +73,10 @@ print(f"\nAll datasets have {num_rows} rows.")
 
 # ---------------------------------------------------------------------------
 # Use one model's dataset as the base (it has the shared columns)
+# Already loaded during parallel step, just reload from disk (memory-mapped, cheap)
 # ---------------------------------------------------------------------------
 ref_name = model_dirs[0].name
-print(f"Loading base dataset from {ref_name} for shared columns ...", flush=True)
+print(f"Using base dataset from {ref_name} for shared columns ...", flush=True)
 base_ds = load_from_disk(str(model_dirs[0]))
 
 # ---------------------------------------------------------------------------
@@ -90,36 +91,39 @@ _all_responses = {name: model_data[name][2] for name in model_names}
 _model_names = model_names
 
 
-def build_annotations_column(batch, indices):
-    """For each row, build a JSON array of annotation objects across all models."""
-    results = []
-    for idx in indices:
-        row_annotations = []
+def build_new_columns(batch, indices):
+    """For each row, build prompt (chosen[:-1]) and model_evaluations array."""
+    prompts = []
+    evaluations = []
+    for i, idx in enumerate(indices):
+        prompts.append(batch["chosen"][i][:-1])
+        row_evals = []
         for name in _model_names:
-            row_annotations.append({
+            row_evals.append({
                 "model": name,
                 "response": _all_responses[name][idx],
                 "detailed_annotations": _all_annotations[name][idx],
                 "final_score": round(_all_scores[name][idx], 4),
             })
-        results.append(json.dumps(row_annotations, ensure_ascii=False))
-    return {"annotations": results}
+        evaluations.append(row_evals)
+    return {"prompt": prompts, "model_evaluations": evaluations}
 
 
-print("Building annotations column ...", flush=True)
+print("Building prompt and model_evaluations columns ...", flush=True)
 base_ds = base_ds.map(
-    build_annotations_column,
+    build_new_columns,
     batched=True,
     batch_size=2000,
     with_indices=True,
     num_proc=NUM_PROC,
-    desc="Building annotations",
+    desc="Building columns",
 )
 
-# Drop the per-model annotation column (now redundant) and any internal columns
-columns_to_remove = [c for c in base_ds.column_names if c in ("annotation", "_score")]
-if columns_to_remove:
-    base_ds = base_ds.remove_columns(columns_to_remove)
+# Drop old columns
+columns_to_remove = [c for c in base_ds.column_names
+                     if c in ("chosen", "rejected", "chosen_model", "rejected_model",
+                              "response", "annotation", "_score")]
+base_ds = base_ds.remove_columns(columns_to_remove)
 
 print(f"\nFinal dataset:")
 print(base_ds)
