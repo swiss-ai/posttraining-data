@@ -1,14 +1,15 @@
 #!/bin/bash
 ACCOUNT="infra01"
-RESERVATION="SD-69241-apertus-1-5"
+RESERVATION="SD-69241-apertus-1-5-0"
 JOB_TIME="00:30:00"
 
 BENCHMARK_DIRS=(
-    "$SCRATCH/posttraining-data/08a-judge-evaluation/benchmarks/JudgeBench-gpt"
+    # "$SCRATCH/posttraining-data/08a-judge-evaluation/benchmarks/JudgeBench-gpt"
     # "$SCRATCH/posttraining-data/08a-judge-evaluation/benchmarks/RM-Bench-train"
+    "$SCRATCH/posttraining-data/08a-judge-evaluation/benchmarks/RewardBench2-test"
 )
 JUDGE_CFG_PATHS=(
-    # "$SCRATCH/posttraining-data/08a-judge-evaluation/judges/01.py"
+    "$SCRATCH/posttraining-data/08a-judge-evaluation/judges/01.py"
     # "$SCRATCH/posttraining-data/08a-judge-evaluation/judges/02.py"
     # "$SCRATCH/posttraining-data/08a-judge-evaluation/judges/03.py"
     # "$SCRATCH/posttraining-data/08a-judge-evaluation/judges/04.py"
@@ -16,9 +17,9 @@ JUDGE_CFG_PATHS=(
     # "$SCRATCH/posttraining-data/08a-judge-evaluation/judges/05.py"
 
     # "$SCRATCH/posttraining-data/08a-judge-evaluation/judges/11.py"
-    # "$SCRATCH/posttraining-data/08a-judge-evaluation/judges/12.py" # this judge takes much longer than the others, ~1h for 1K samples
+    "$SCRATCH/posttraining-data/08a-judge-evaluation/judges/12.py" # this judge takes much longer than the others, ~1h for 1K samples
     
-    "$SCRATCH/posttraining-data/08a-judge-evaluation/judges/21.py"
+    # "$SCRATCH/posttraining-data/08a-judge-evaluation/judges/21.py"
     # "$SCRATCH/posttraining-data/08a-judge-evaluation/judges/22.py"
 )
 
