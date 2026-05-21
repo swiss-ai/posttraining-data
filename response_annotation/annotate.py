@@ -12,11 +12,11 @@ from tqdm.asyncio import tqdm_asyncio
 # Import your system prompts from the external file
 from prompts import (
     PREFERENCE_ANNOTATION_SYSTEM_PROMPT,
-    INSTRUCTION_FOLLOWING_ANNOTATION_PROMPT,
-    HONESTY_ANNOTATION_PROMPT,
-    TRUTHFULNESS_ANNOTATION_PROMPT,
+    # INSTRUCTION_FOLLOWING_ANNOTATION_PROMPT,
+    # HONESTY_ANNOTATION_PROMPT,
+    # TRUTHFULNESS_ANNOTATION_PROMPT,
     HELPFULNESS_ANNOTATION_PROMPT,
-    CHARTER_ANNOTATION_PROMPT,
+    # CHARTER_ANNOTATION_PROMPT,
 )
 
 # ==============================================================================
@@ -24,9 +24,9 @@ from prompts import (
 # ==============================================================================
 
 ASPECT2ANNOTATION_PROMPT = {
-    "instruction_following": INSTRUCTION_FOLLOWING_ANNOTATION_PROMPT,
-    "honesty": HONESTY_ANNOTATION_PROMPT,
-    "truthfulness": TRUTHFULNESS_ANNOTATION_PROMPT,
+    # "instruction_following": INSTRUCTION_FOLLOWING_ANNOTATION_PROMPT,
+    # "honesty": HONESTY_ANNOTATION_PROMPT,
+    # "truthfulness": TRUTHFULNESS_ANNOTATION_PROMPT,
     "helpfulness": HELPFULNESS_ANNOTATION_PROMPT,
     # "charter": CHARTER_ANNOTATION_PROMPT,
 }
