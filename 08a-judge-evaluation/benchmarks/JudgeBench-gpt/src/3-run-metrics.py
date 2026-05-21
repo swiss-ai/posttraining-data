@@ -1,16 +1,16 @@
 """
+Run metrics on the JudgeBench-gpt dataset.
 
-"Run metrics on the JudgeBench-gpt dataset.
+Usage (from the 08a-judge-evaluation repo root):
 
-Usage:
-python -m benchmarks.JudgeBench-gpt.src.3-run-metrics \
-    --input-dir benchmarks/JudgeBench-gpt/3-rereformatted/01
+    python -m benchmarks.JudgeBench-gpt.src.3-run-metrics
+    python -m benchmarks.JudgeBench-gpt.src.3-run-metrics --judge 01
 """
 
 from argparse import ArgumentParser
 from datasets import load_from_disk
 import os
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import json
 
 ################################################################################
@@ -29,10 +29,7 @@ def flip_judgment(decision: str) -> str:
     return decision
 
 
-def compute_final_metrics(pairs: List[Dict[str, Any]], reverse_order: bool, include_fn=lambda x: x) -> None:
-    
-    pairs = [pair for pair in pairs if include_fn(pair)]
-
+def compute_final_metrics(pairs: List[Dict[str, Any]], reverse_order: bool) -> None:
     n_pairs = len(pairs)
 
     if not reverse_order:
@@ -100,37 +97,38 @@ def compute_final_metrics(pairs: List[Dict[str, Any]], reverse_order: bool, incl
 
 if __name__ == "__main__":
     parser = ArgumentParser()
-    parser.add_argument("--input-dir", type=str)
+    parser.add_argument("--judge-name", type=str, default=None)
     args = parser.parse_args()
+    
+    benchmark_root = "benchmarks/JudgeBench-gpt/"
+    rereformatted_root = os.path.join(benchmark_root, "3-rereformatted")
+    input_paths = sorted([
+        os.path.join(rereformatted_root, x) 
+        for x in os.listdir(rereformatted_root) if x.isdigit()
+    ])
 
-    print(f"Loading dataset from {args.input_dir}")
-    input_ds = load_from_disk(args.input_dir)
+    if args.judge_name:
+        input_paths = [p for p in input_paths if os.path.basename(p) == args.judge_name]
 
-    print("Running metrics...")
-    metrics_dict = {}
-    for source in ["mmlu-pro", "livebench-reasoning", "livebench-math", "livecodebench", ""]:
-        if source == "":
-            dataset_name = "overall"
-        else:
-            dataset_name = source
-        metrics_dict[dataset_name] = compute_final_metrics(
-            input_ds, 
-            reverse_order=True, 
-            include_fn=lambda x: x["source"].startswith(source),
-        )
+    for input_path in input_paths:
+        print(f"Loading {input_path} ...")
+        input_ds = load_from_disk(input_path)
 
-    # additionally compute no-score and tie rates
-    metrics_dict["two-None rate"] = len(input_ds.filter(lambda x: x["score_A"] is None and x["score_B"] is None)) / len(input_ds) * 100
-    metrics_dict["one-None rate"] = len(input_ds.filter(lambda x: x["score_A"] is None or x["score_B"] is None)) / len(input_ds) * 100
-    metrics_dict["tie rate"] = len(input_ds.filter(lambda x: x["score_A"] == x["score_B"])) / len(input_ds) * 100
-    metrics_dict["tie rate (among zero-None)"] = len(input_ds.filter(lambda x: x["score_A"] is not None and x["score_B"] is not None and x["score_A"] == x["score_B"])) / len(input_ds) * 100
+        print("Running metrics...")
+        metrics_dict = {}
+        for source in ["mmlu-pro", "livebench-reasoning", "livebench-math", "livecodebench", ""]:
+            dataset_name = "overall" if source == "" else source
+            sub_ds = input_ds.filter(lambda x, s=source: x["source"].startswith(s))
+            none_count = len(sub_ds.filter(lambda x: x["score_A"] is None or x["score_B"] is None))
+            none_rate = none_count / len(sub_ds) if len(sub_ds) > 0 else 0.0
+            score = compute_final_metrics(sub_ds, reverse_order=True)
+            metrics_dict[dataset_name] = {"score": score, "none_rate": none_rate}
 
-    # write scores to disk
-    filename = os.path.basename(args.input_dir)
-    output_path = f"benchmarks/JudgeBench-gpt/4-results/{filename}.json"
-    os.makedirs(os.path.dirname(output_path), exist_ok=True)
-    print(f"Writing scores to {output_path}")
-    with open(output_path, "w") as f:
-        json.dump(metrics_dict, f, indent=4)
+        judge_name = os.path.basename(input_path)
+        output_path = os.path.join(benchmark_root, f"4-results/{judge_name}.json")
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        print(f"  Writing {output_path}")
+        with open(output_path, "w") as f:
+            json.dump(metrics_dict, f, indent=4)
 
-    input_ds.cleanup_cache_files()
+        input_ds.cleanup_cache_files()

@@ -15,7 +15,7 @@ import json
 import os
 import sys
 from argparse import ArgumentParser
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 import numpy as np
 from datasets import load_from_disk
@@ -49,9 +49,9 @@ def compute_accuracy(results: List[Dict[str, Any]]) -> Dict[str, float]:
         domain_avg_results = {}
         for domain in domain_results:
             domain_avg_results[domain] = {
-                "percentage_comparisons_skipped": domain_results[domain]["percentage_comparisons_skipped"],
+                "none_rate": domain_results[domain]["none_rate"],
                 "acc": np.mean(list(
-                    val for key, val in domain_results[domain].items() if key not in ["percentage_comparisons_skipped", "acc"]
+                    val for key, val in domain_results[domain].items() if key not in ["none_rate", "acc"]
         ))}
             print(domain, domain_avg_results[domain])
         domain_hard_normal_easy_acc = {
@@ -80,21 +80,23 @@ def compute_accuracy(results: List[Dict[str, Any]]) -> Dict[str, float]:
     # and the columns represent the scores of rejected responses
     MATRIX_SIZE = 3 # the column and row size of the matrix
     acc_matrix = np.zeros((MATRIX_SIZE, MATRIX_SIZE))
+    count_matrix = np.zeros((MATRIX_SIZE, MATRIX_SIZE))
     total_n_comparisons = 0
-    n_skipped_comparisons = 0
+    n_random_comparisons = 0
     for result in results:
         for i in range(len(result["score_chosen"])):
             for j in range(len(result["score_rejected"])):
                 total_n_comparisons += 1
                 if result["score_chosen"][i] is None or result["score_rejected"][j] is None:
-                    n_skipped_comparisons += 1
-                    continue
+                    n_random_comparisons += 1
 
-                if result["score_chosen"][i] > result["score_rejected"][j]:
+                count_matrix[i][j] += 1
+                if result["noNone_score_chosen"][i] > result["noNone_score_rejected"][j]:
                     acc_matrix[i][j] += 1
-    
-    # compute the accuracy by dividing the number of correct comparisons by the total number of comparisons
-    acc_matrix /= len(results)
+
+    # divide each cell by the number of non-None comparisons for that cell (exclude rather than penalise)
+    with np.errstate(invalid="ignore"):
+        acc_matrix = np.where(count_matrix > 0, acc_matrix / count_matrix, 0.0)
     # compute the hard,normal,easy accuracy
     # hard accuracy: the average of the upper-right triangle of the matrix
     # namely chosen responses with less fancy style compared to rejected responses with more fancy style
@@ -112,105 +114,43 @@ def compute_accuracy(results: List[Dict[str, Any]]) -> Dict[str, float]:
         "hard_acc": hard_acc,
         "normal_acc": normal_acc,
         "easy_acc": easy_acc,
-        "percentage_comparisons_skipped": 100 * n_skipped_comparisons / total_n_comparisons,
+        "none_rate": 100 * n_random_comparisons / total_n_comparisons,
     }
 ################################################################################
 
 
-def _judge_eval_root() -> str:
-    # This file: benchmarks/RM-Bench-train/src/3-run-metrics.py → 4 levels up to repo root
-    p = os.path.abspath(__file__)
-    for _ in range(4):
-        p = os.path.dirname(p)
-    return p
-
-
-def _to_jsonable(obj: Any) -> Any:
-    if isinstance(obj, dict):
-        return {k: _to_jsonable(v) for k, v in obj.items()}
-    if isinstance(obj, (list, tuple)):
-        return [_to_jsonable(x) for x in obj]
-    if isinstance(obj, (np.floating, np.integer)):
-        return float(obj)
-    if isinstance(obj, np.ndarray):
-        return obj.tolist()
-    return obj
-
-
-def _load_judge_datasets(
-    rereformatted_root: str, judge: Optional[str]
-) -> List[str]:
-    if not os.path.isdir(rereformatted_root):
-        raise FileNotFoundError(f"Not a directory: {rereformatted_root}")
-    subdirs = sorted(
-        d
-        for d in os.listdir(rereformatted_root)
-        if os.path.isdir(os.path.join(rereformatted_root, d))
-    )
-    if judge is not None:
-        if judge not in subdirs:
-            raise FileNotFoundError(
-                f"No rereformatted dataset at {rereformatted_root}/{judge}"
-            )
-        return [judge]
-    if not subdirs:
-        raise FileNotFoundError(f"No subdirectories under {rereformatted_root}")
-    return subdirs
-
-
 if __name__ == "__main__":
-    judge_eval = _judge_eval_root()
-    default_root = os.path.join(
-        judge_eval, "benchmarks", "RM-Bench-train", "3-rereformatted"
-    )
-    default_out_dir = os.path.join(
-        judge_eval, "benchmarks", "RM-Bench-train", "4-results"
-    )
-
     parser = ArgumentParser()
-    parser.add_argument(
-        "--rereformatted-root",
-        type=str,
-        default=default_root,
-        help="Directory containing one saved dataset per judge (e.g. 01/, 02/).",
-    )
-    parser.add_argument(
-        "--judge",
-        type=str,
-        default=None,
-        help="Only run metrics for this judge subfolder (e.g. 01).",
-    )
-    parser.add_argument(
-        "--output-dir",
-        type=str,
-        default=default_out_dir,
-        help="JSON metrics are written to <output-dir>/<judge>.json",
-    )
+    parser.add_argument("--judge-name", type=str, default=None)
     args = parser.parse_args()
 
-    judges = _load_judge_datasets(args.rereformatted_root, args.judge)
+    benchmark_root = "benchmarks/RM-Bench-train/"
+    rereformatted_root = os.path.join(benchmark_root, "3-rereformatted")
 
-    os.makedirs(args.output_dir, exist_ok=True)
-    for name in judges:
-        input_path = os.path.join(args.rereformatted_root, name)
+    input_paths = sorted([
+        os.path.join(rereformatted_root, x)
+        for x in os.listdir(rereformatted_root) if x.isdigit()
+    ])
+
+    if args.judge_name:
+        input_paths = [p for p in input_paths if os.path.basename(p) == args.judge_name]
+
+    for input_path in input_paths:
+        judge_name = os.path.basename(input_path)
         print(f"Loading {input_path} ...")
         input_ds = load_from_disk(input_path)
         results = input_ds.to_list()
         if not results:
-            print(f"  skip (empty): {name}")
+            print(f"  skip (empty): {judge_name}")
             input_ds.cleanup_cache_files()
             continue
-        for row in results:
-            if "score_chosen" not in row or "score_rejected" not in row:
-                raise KeyError(
-                    "Each row must have score_chosen and score_rejected (RM-Bench format)."
-                )
 
         print(f"  Computing accuracy ({len(results)} prompts) ...")
         metrics: Dict[str, Any] = compute_accuracy(results)
-        metrics = _to_jsonable(metrics)
-        out_path = os.path.join(args.output_dir, f"{name}.json")
-        print(f"  Writing {out_path}")
-        with open(out_path, "w", encoding="utf-8") as f:
+
+        output_path = os.path.join(benchmark_root, f"4-results/{judge_name}.json")
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        print(f"  Writing {output_path}")
+        with open(output_path, "w", encoding="utf-8") as f:
             json.dump(metrics, f, indent=2)
         input_ds.cleanup_cache_files()

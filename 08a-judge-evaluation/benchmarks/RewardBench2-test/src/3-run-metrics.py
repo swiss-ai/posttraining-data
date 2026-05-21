@@ -28,8 +28,7 @@ from datasets import Dataset, load_from_disk
 
 ################################################################################
 # Adapted from rewardbench/utils.py (compute_prompt_stats, process_single_model)
-# Changes: None scores are skipped in correct/incorrect lists; prompts where
-# data is insufficient are excluded from the aggregate rather than crashing.
+# Changes: uses noNone_scores instead of scores, where Nones are replaced by random scores
 
 def _compute_prompt_stats(
     samples: List[Tuple[bool, float]],
@@ -57,7 +56,7 @@ def _compute_prompt_stats(
 
 def _process_ties(ties_ds: Dataset) -> Tuple[Dataset, float]:
     """
-    Equivalent to rewardbench.utils.process_single_model, with None-score handling.
+    Equivalent to rewardbench.utils.process_single_model.
     Expects columns: id (format "type:N"), scores (list), num_correct.
     """
     grouped: Dict[Tuple[str, int], List[Tuple[bool, Any]]] = defaultdict(list)
@@ -65,7 +64,7 @@ def _process_ties(ties_ds: Dataset) -> Tuple[Dataset, float]:
     for sample in ties_ds:
         sample_type, prompt_id_str = sample["id"].split(":", 1)
         prompt_id = int(prompt_id_str)
-        for i, raw_score in enumerate(sample["scores"]):
+        for i, raw_score in enumerate(sample["noNone_scores"]):
             score = raw_score[0] if isinstance(raw_score, list) else raw_score
             grouped[(sample_type, prompt_id)].append((i < sample["num_correct"], score))
 
@@ -121,13 +120,6 @@ def _process_ties(ties_ds: Dataset) -> Tuple[Dataset, float]:
 ################################################################################
 
 
-def _judge_eval_root() -> str:
-    p = os.path.abspath(__file__)
-    for _ in range(4):
-        p = os.path.dirname(p)
-    return p
-
-
 def _to_jsonable(obj: Any) -> Any:
     if isinstance(obj, dict):
         return {k: _to_jsonable(v) for k, v in obj.items()}
@@ -140,35 +132,23 @@ def _to_jsonable(obj: Any) -> Any:
     return obj
 
 
-def _load_judges(rereformatted_root: str, judge: Optional[str]) -> List[str]:
-    if not os.path.isdir(rereformatted_root):
-        raise FileNotFoundError(f"Not a directory: {rereformatted_root}")
-    subdirs = sorted(d for d in os.listdir(rereformatted_root) if os.path.isdir(os.path.join(rereformatted_root, d)))
-    if judge is not None:
-        if judge not in subdirs:
-            raise FileNotFoundError(f"No rereformatted dataset at {rereformatted_root}/{judge}")
-        return [judge]
-    if not subdirs:
-        raise FileNotFoundError(f"No subdirectories under {rereformatted_root}")
-    return subdirs
-
-
 if __name__ == "__main__":
-    root = _judge_eval_root()
-    default_rerefore = os.path.join(root, "benchmarks", "RewardBench2-test", "3-rereformatted")
-    default_out_dir = os.path.join(root, "benchmarks", "RewardBench2-test", "4-results")
-
     parser = ArgumentParser()
-    parser.add_argument("--rereformatted-root", type=str, default=default_rerefore)
-    parser.add_argument("--judge", type=str, default=None)
-    parser.add_argument("--output-dir", type=str, default=default_out_dir)
+    parser.add_argument("--judge-name", type=str, default=None)
     args = parser.parse_args()
+    
+    benchmark_root = "benchmarks/RewardBench2-test/"
+    rereformatted_root = os.path.join(benchmark_root, "3-rereformatted")
 
-    judges = _load_judges(args.rereformatted_root, args.judge)
-    os.makedirs(args.output_dir, exist_ok=True)
+    input_paths = sorted([
+        os.path.join(rereformatted_root, x) 
+        for x in os.listdir(rereformatted_root) if x.isdigit()
+    ])
 
-    for name in judges:
-        input_path = os.path.join(args.rereformatted_root, name)
+    if args.judge_name:
+        input_paths = [p for p in input_paths if os.path.basename(p) == args.judge_name]
+
+    for input_path in input_paths:
         print(f"Loading {input_path} ...")
         ds = load_from_disk(input_path)
 
@@ -180,14 +160,13 @@ if __name__ == "__main__":
 
         for subset in subsets:            
             sub_ds = non_ties_ds.filter(lambda x: x["subset"] == subset)
-            strict_sub_ds = sub_ds.filter(lambda x: all(score is not None for score in x["scores"]))
-            none_rate = (len(sub_ds) - len(strict_sub_ds)) / len(sub_ds)
+            none_rate = 100 * sum(any(score is None for score in x['scores']) for x in sub_ds ) / len(sub_ds)
 
             results = []
-            for x in strict_sub_ds:
-                max_score = max(x["scores"])
-                if x["scores"][0] == max_score:
-                    results.append(1 / sum(score == max_score for score in x["scores"]))
+            for x in sub_ds:
+                max_score = max(x["noNone_scores"])
+                if x["noNone_scores"][0] == max_score:
+                    results.append(1 / sum(score == max_score for score in x["noNone_scores"]))
                 else:
                     results.append(0)
 
@@ -198,11 +177,10 @@ if __name__ == "__main__":
         # ── Ties subset ───────────────────────────────────────────────────────
         # step 2 already outputs an "id" column; _process_ties uses id, scores, num_correct
         ties_ds = ds.filter(lambda x: x["subset"] == "Ties")
-        strict_ties_ds = ties_ds.filter(lambda x: all(score is not None for score in x["scores"]))
-        none_rate = (len(ties_ds) - len(strict_ties_ds)) / len(ties_ds)
+        none_rate = 100 * sum(any(score is None for score in x['scores']) for x in ties_ds) / len(ties_ds)
 
-        if len(strict_ties_ds) > 0:
-            _, ties_score = _process_ties(strict_ties_ds)
+        if len(ties_ds) > 0:
+            _, ties_score = _process_ties(ties_ds)
             metrics["Ties"] = {
                 "score": ties_score * 100,
                 "none_rate": none_rate,
@@ -215,9 +193,10 @@ if __name__ == "__main__":
             "none_rate": float(np.mean([d["none_rate"] for d in metrics.values()])),
         }
 
-        out_path = os.path.join(args.output_dir, f"{name}.json")
-        print(f"  Writing {out_path}")
-        with open(out_path, "w", encoding="utf-8") as f:
-            json.dump(_to_jsonable(metrics), f, indent=2)
+        judge_name = os.path.basename(input_path)
+        output_path = os.path.join(benchmark_root, f"4-results/{judge_name}.json")
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        with open(output_path, "w", encoding="utf-8") as f:
+            json.dump(metrics, f, indent=2)
 
         ds.cleanup_cache_files()
