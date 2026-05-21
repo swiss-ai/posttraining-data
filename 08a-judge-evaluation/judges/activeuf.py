@@ -4,7 +4,7 @@ import math
 # ActiveUF Prompts and Settings
 ################################################################################
 
-model = "Qwen/Qwen3-235B-A22B-Instruct-2507"
+model = "/capstor/store/cscs/swissai/infra01/hf_models/models/Qwen/Qwen3-235B-A22B-Instruct-2507"
 slurm_nodes = 4
 workers = 2
 nodes_per_worker = 2
