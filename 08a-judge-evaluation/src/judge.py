@@ -29,7 +29,61 @@ async def write(queue, filepath):
             print(json.dumps(item), file=f_out)
             f_out.flush()
             queue.task_done()
-    
+
+
+async def generate_own_answers(dataset, judge_cfg, client, semaphore, own_responses_path):
+    """Generate the judge's own answers for all unique prompts, or load from file if it exists."""
+
+    if os.path.exists(own_responses_path):
+        print(f"Loading own answers from {own_responses_path}")
+        own_answers = {}
+        with open(own_responses_path) as f:
+            for line in f:
+                if line.strip():
+                    x = json.loads(line)
+                    own_answers[x["prompt_str"]] = x["own_answer"]
+        return own_answers
+
+    unique_prompt_strs = list({stringify_prompt(s["prompt"]) for s in dataset})
+    print(f"Generating own answers for {len(unique_prompt_strs)} unique prompts...")
+
+    own_answer_system = getattr(judge_cfg, "own_answer_system_prompt", None)
+    own_answer_max_tokens = getattr(judge_cfg, "max_tokens_own_answer", judge_cfg.max_tokens)
+
+    own_answers = {}
+    queue = asyncio.Queue()
+    writer_task = asyncio.create_task(write(queue, own_responses_path))
+
+    async def generate_one(prompt_str):
+        messages = []
+        if own_answer_system:
+            messages.append({"role": "system", "content": own_answer_system})
+        messages.append({"role": "user", "content": prompt_str})
+        async with semaphore:
+            try:
+                response = await client.chat.completions.create(
+                    model=judge_cfg.model,
+                    messages=messages,
+                    max_tokens=own_answer_max_tokens,
+                    temperature=judge_cfg.temperature,
+                    extra_body={"chat_template_kwargs": {"enable_thinking": False}},
+                )
+                own_answer = response.choices[0].message.content
+            except Exception as e:
+                print(f"Error generating own answer: {e}")
+                own_answer = ""
+        own_answers[prompt_str] = own_answer
+        await queue.put({"prompt_str": prompt_str, "own_answer": own_answer})
+
+    tasks = [asyncio.create_task(generate_one(ps)) for ps in unique_prompt_strs]
+    for f in tqdm_asyncio.as_completed(tasks, total=len(tasks)):
+        await f
+    await queue.put(None)
+    await writer_task
+
+    return own_answers
+
+
 async def main(args):
     # Import judge args
     judge_cfg = load_module(args.judge_cfg_path)
@@ -45,22 +99,40 @@ async def main(args):
         judge_cfg.concurrent,
     )
 
+    semaphore = asyncio.Semaphore(max(1, judge_cfg.concurrent))
+
+    # Phase 1: generate own answers for unique prompts if the judge config requires it
+    own_answers = None
+    if getattr(judge_cfg, "compute_own_answer", False):
+        own_responses_path = os.path.join(args.output_dir, "own_responses.jsonl")
+        own_answers = await generate_own_answers(dataset, judge_cfg, client, semaphore, own_responses_path)
+
     # Create queue and writer
     queue = asyncio.Queue()
     writer = asyncio.create_task(write(queue, judge_responses_path))
 
     # Init judging tasks
-    semaphore = asyncio.Semaphore(max(1, judge_cfg.concurrent))
     async def judge_one_sample(sample_idx, sample):
-        prompt = stringify_prompt(sample["prompt"])
-        filled_user_prompt_for_judge = judge_cfg.user_prompt_for_judge.format(
-            prompt=prompt,
-            response=sample["response"],
-        )
-        messages = [
-            {"role": "system", "content": judge_cfg.system_prompt_for_judge},
-            {"role": "user", "content": filled_user_prompt_for_judge},
-        ]
+        prompt_str = stringify_prompt(sample["prompt"])
+
+        if own_answers is not None:
+            # Multi-turn: judge already answered in turn 1; turn 2 asks it to rate the candidate
+            messages = [
+                {"role": "system", "content": judge_cfg.system_prompt_for_judge},
+                {"role": "user", "content": prompt_str},
+                {"role": "assistant", "content": own_answers.get(prompt_str, "")},
+                {"role": "user", "content": judge_cfg.user_prompt_for_judge.format(response=sample["response"])},
+            ]
+        else:
+            filled_user_prompt_for_judge = judge_cfg.user_prompt_for_judge.format(
+                prompt=prompt_str,
+                response=sample["response"],
+            )
+            messages = [
+                {"role": "system", "content": judge_cfg.system_prompt_for_judge},
+                {"role": "user", "content": filled_user_prompt_for_judge},
+            ]
+
         async with semaphore:
             try:
                 response = await client.chat.completions.create(
