@@ -8,7 +8,6 @@ Example (from the ``08a-judge-evaluation`` repo root)::
     python -m benchmarks.RM-Bench-train.src.4-compile-results
 """
 
-import argparse
 import glob
 import json
 import os
@@ -22,7 +21,7 @@ DOMAINS = ("chat", "math", "code", "safety")
 
 
 def _row_from_metrics_json(filepath: str, judge_number: str) -> Dict[str, Any]:
-    """Flatten nested per-domain metrics (acc + percentage_skipped) into dataframe columns."""
+    """Flatten nested per-domain metrics (acc + none rate) into dataframe columns."""
     with open(filepath, "r", encoding="utf-8") as f:
         data = json.load(f)
 
@@ -35,11 +34,11 @@ def _row_from_metrics_json(filepath: str, judge_number: str) -> Dict[str, Any]:
         raw = data.get(domain)
         if isinstance(raw, dict):
             row[domain] = raw.get("acc")
-            pct = raw.get("percentage_comparisons_skipped")
-            row[f"{domain}_skipped_pct"] = pct if pct is not None else float("nan")
+            nr = raw.get("none_rate")
+            row[f"{domain}_none_rate"] = nr if nr is not None else float("nan")
         elif raw is not None:
             row[domain] = raw
-            row[f"{domain}_skipped_pct"] = float("nan")
+            row[f"{domain}_none_rate"] = float("nan")
 
     for k, v in data.items():
         if k in DOMAINS:
@@ -80,54 +79,36 @@ def _bold_best_per_numeric_column(df: pd.DataFrame, best_type: str = "max") -> p
     return display_df
 
 
-def _append_skipped_pct_to_domains(
+def _append_none_rate_to_domains(
     display_df: pd.DataFrame, source_df: pd.DataFrame
 ) -> pd.DataFrame:
-    """After bolding scores, suffix each domain cell with skipped % when present."""
+    """After bolding scores, suffix each domain cell with none rate when present."""
     out = display_df.copy()
     for domain in DOMAINS:
         if domain not in out.columns:
             continue
-        sk_col = f"{domain}_skipped_pct"
+        sk_col = f"{domain}_none_rate"
         if sk_col not in source_df.columns:
             continue
         for i in range(len(out)):
             acc_str = out.at[i, domain]
             skip_val = source_df.at[i, sk_col]
             if acc_str != "" and not pd.isna(skip_val) and skip_val > 0:
-                out.at[i, domain] = f"{acc_str} ({float(skip_val):.1f}% skipped)"
+                out.at[i, domain] = f"{acc_str} ({float(skip_val):.1f}% random scored)"
     return out
 
 
-def _judge_eval_root() -> str:
-    p = os.path.abspath(__file__)
-    for _ in range(4):
-        p = os.path.dirname(p)
-    return p
-
-
-def _default_results_dir() -> str:
-    return os.path.join(_judge_eval_root(), "benchmarks", "RM-Bench-train", "4-results")
-
-
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--results-dir",
-        type=str,
-        default=_default_results_dir(),
-        help="Directory containing one <judge>.json per run (default: …/4-results).",
-    )
-    args = parser.parse_args()
-    folder = args.results_dir
+    benchmark_root = "benchmarks/RM-Bench-train/"
+    results_root = os.path.join(benchmark_root, "4-results")
 
     rows: List[Dict[str, Any]] = []
-    for filepath in sorted(glob.glob(os.path.join(folder, "*.json"))):
+    for filepath in sorted(glob.glob(os.path.join(results_root, "*.json"))):
         judge_number = os.path.splitext(os.path.basename(filepath))[0]
         rows.append(_row_from_metrics_json(filepath, judge_number))
 
     if not rows:
-        print(f"No JSON files under {folder}")
+        print(f"No JSON files under {results_root}")
         raise SystemExit(1)
 
     df = pd.DataFrame(rows)
@@ -147,7 +128,7 @@ if __name__ == "__main__":
     with open(out_path, "w", encoding="utf-8") as f_out:
         f_out.write("### RM-Bench — domain average accuracy\n\n")
         d1 = _bold_best_per_numeric_column(df[domain_use].copy(), best_type="max")
-        d1 = _append_skipped_pct_to_domains(d1.reset_index(drop=True), df.reset_index(drop=True))
+        d1 = _append_none_rate_to_domains(d1.reset_index(drop=True), df.reset_index(drop=True))
         print(d1.to_markdown(index=False), file=f_out)
         f_out.write("\n\n")
 

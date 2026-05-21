@@ -1,73 +1,109 @@
 """
-Example run command: 
-python -m benchmarks.JudgeBench-gpt.src.4-compile-results
+Compile per-judge JSON metrics from step 3 into a markdown table.
+Reads benchmarks/JudgeBench-gpt/4-results/*.json and writes
+benchmarks/JudgeBench-gpt/overall.md.
+
+Example (from the 08a-judge-evaluation repo root):
+
+    python -m benchmarks.JudgeBench-gpt.src.4-compile-results
 """
 
-import os
 import glob
 import json
+import os
+from typing import Any, Dict, List
+
 import pandas as pd
 
 from src.utils import JUDGE_MAPPING
 
+SCORE_COLS = ["mmlu-pro", "livebench-reasoning", "livebench-math", "livecodebench", "overall"]
 
-def _bold_best_per_numeric_column(df: pd.DataFrame, best_type: str = "max") -> pd.DataFrame:
-    display_df = df.copy()
-    numeric_cols = display_df.select_dtypes(include=["number"]).columns
 
-    for col in numeric_cols:
-        s = display_df[col]
-        if s.isna().all():
-            continue
-
-        if best_type == "min":
-            best_val = s.min()
+def _flatten_metrics(data: Dict[str, Any]) -> tuple[Dict[str, float], Dict[str, float]]:
+    """Split nested {subset: {score, none_rate}} into two flat dicts."""
+    scores: Dict[str, float] = {}
+    none_rates: Dict[str, float] = {}
+    for key, val in data.items():
+        if isinstance(val, dict):
+            if "score" in val:
+                scores[key] = val["score"]
+            if "none_rate" in val:
+                none_rates[key] = val["none_rate"]
         else:
-            best_val = s.max()
+            scores[key] = float(val)
+    return scores, none_rates
 
-        def fmt(x: object) -> str:
-            if pd.isna(x):
+
+def _build_display(
+    df_scores: pd.DataFrame, df_none: pd.DataFrame, meta_cols: List[str]
+) -> pd.DataFrame:
+    """
+    Produce a string DataFrame where each score cell reads:
+      "75.14"                  when none_rate == 0
+      "75.14 (5% unscored)"    when none_rate > 0
+    The best score per column is bolded.
+    """
+    display = df_scores[meta_cols].copy()
+    for col in SCORE_COLS:
+        if col not in df_scores.columns:
+            continue
+        scores = df_scores[col]
+        nones = df_none[col] if col in df_none.columns else pd.Series([0.0] * len(scores))
+        best_val = scores.max()
+
+        def _cell(score: object, none_rate: object) -> str:
+            if pd.isna(score):
                 return ""
-            # values are expected to be already rounded to 2 decimals
-            return f"{float(x):.2f}"
+            s = f"{float(score):.2f}"
+            nr = float(none_rate) if not pd.isna(none_rate) else 0.0
+            if nr > 0:
+                s += f" ({nr * 100:.0f}% random scored)"
+            if not pd.isna(best_val) and abs(float(score) - float(best_val)) <= 1e-9:
+                s = f"**{s}**"
+            return s
 
-        def bold_if_best(x: object) -> str:
-            if pd.isna(x):
-                return ""
-            # float-safe equality after rounding
-            if abs(float(x) - float(best_val)) <= 1e-9:
-                return f"**{fmt(x)}**"
-            return fmt(x)
+        display[col] = [_cell(sc, nr) for sc, nr in zip(scores, nones)]
 
-        display_df[col] = display_df[col].apply(bold_if_best)
-
-    return display_df
+    return display
 
 
 if __name__ == "__main__":
     folder = "benchmarks/JudgeBench-gpt/4-results"
 
-    rows = []
+    meta_cols = ["Judge #", "Description"]
+    score_rows: List[Dict[str, Any]] = []
+    none_rate_rows: List[Dict[str, Any]] = []
 
-    filepaths = sorted(glob.glob(os.path.join(folder, "*.json")))
-    for filepath in filepaths:
+    for filepath in sorted(glob.glob(os.path.join(folder, "*.json"))):
+        judge_number = os.path.splitext(os.path.basename(filepath))[0]
         with open(filepath, "r") as f:
             data = json.load(f)
+        meta = {"Judge #": judge_number, "Description": JUDGE_MAPPING.get(judge_number, "—")}
+        scores, none_rates = _flatten_metrics(data)
+        score_rows.append({**meta, **scores})
+        none_rate_rows.append({**meta, **none_rates})
 
-        # Add filename as first column
-        judge_number = os.path.splitext(os.path.basename(filepath))[0]
-        row = {"Judge #": judge_number, "Description": JUDGE_MAPPING[judge_number]}
-        row.update(data)
-        rows.append(row)
+    if not score_rows:
+        print(f"No JSON files under {folder}")
+        raise SystemExit(1)
 
-    # Create DataFrame
-    df = pd.DataFrame(rows)
-    df = df.round(2)
+    def _build_df(rows: List[Dict[str, Any]]) -> pd.DataFrame:
+        df = pd.DataFrame(rows).round(4)
+        if "Judge #" in df.columns:
+            df = df.sort_values("Judge #")
+        data_cols = [c for c in df.columns if c not in meta_cols]
+        ordered = [c for c in data_cols if c != "overall"] + (["overall"] if "overall" in data_cols else [])
+        return df[meta_cols + ordered]
 
-    # Also print a markdown table with the best value per numeric column bolded.
-    with open("benchmarks/JudgeBench-gpt/overall.md", "w") as f_out:
-        display_df = _bold_best_per_numeric_column(df[["Judge #", "Description", "mmlu-pro", "livebench-reasoning", "livebench-math", "livecodebench", "overall"]], best_type="max")
-        print(display_df.to_markdown(index=False), file=f_out)
-        print("", file=f_out)
-        display_df = _bold_best_per_numeric_column(df[["Judge #", "Description", "two-None rate", "one-None rate", "tie rate", "tie rate (among zero-None)"]], best_type="min")
-        print(display_df.to_markdown(index=False), file=f_out)
+    df_scores = _build_df(score_rows)
+    df_none = _build_df(none_rate_rows)
+
+    out_path = "benchmarks/JudgeBench-gpt/overall.md"
+    with open(out_path, "w") as f_out:
+        f_out.write("### JudgeBench — accuracy (higher is better; bracketed % = none rate)\n\n")
+        display = _build_display(df_scores, df_none, meta_cols)
+        print(display.to_markdown(index=False), file=f_out)
+        f_out.write("\n")
+
+    print(f"Wrote {out_path}")

@@ -43,7 +43,7 @@ def _build_combined_display(
             s = f"{float(score):.2f}"
             nr = float(none_rate) if not pd.isna(none_rate) else 0.0
             if nr > 0:
-                s += f" ({nr * 100:.0f}% dropped)"
+                s += f" ({nr:.0f}% random scored)"
             if not pd.isna(best_val) and abs(float(score) - float(best_val)) <= 1e-9:
                 s = f"**{s}**"
             return s
@@ -51,18 +51,6 @@ def _build_combined_display(
         display[col] = [_cell(sc, nr) for sc, nr in zip(scores, nones)]
 
     return display
-
-
-def _judge_eval_root() -> str:
-    p = os.path.abspath(__file__)
-    for _ in range(4):
-        p = os.path.dirname(p)
-    return p
-
-
-def _default_results_dir() -> str:
-    return os.path.join(_judge_eval_root(), "benchmarks", "RewardBench2-test", "4-results")
-
 
 def _flatten_metrics(data: Dict[str, Any]) -> tuple[Dict[str, float], Dict[str, float]]:
     """Split nested {subset: {score, none_rate}} into two flat dicts."""
@@ -80,7 +68,7 @@ def _flatten_metrics(data: Dict[str, Any]) -> tuple[Dict[str, float], Dict[str, 
 
 
 if __name__ == "__main__":
-    folder = _default_results_dir()
+    folder = "benchmarks/RewardBench2-test/4-results"
     score_rows: List[Dict[str, Any]] = []
     none_rate_rows: List[Dict[str, Any]] = []
 
