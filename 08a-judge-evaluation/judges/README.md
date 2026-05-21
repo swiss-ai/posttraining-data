@@ -14,7 +14,8 @@
 | 12 | ArenaHard Judge | Qwen3-235B-A22B | 1-5, Discrete |
 | 21 | Helpfulness | Qwen3.6-27B | 1-5, ActiveUF-style logprobs |
 | 22 | Helpfulness | Qwen3.5-35B-A3B-FP8 | 1-5, ActiveUF-style logprobs |
-| 21 | ArenaHard Judge | Qwen3.6-27B | 1-5, Discrete |
+| 23 | ArenaHard Judge | Qwen3.6-27B | 1-5, Discrete |
+| 24 | ArenaHard Judge | Qwen3.6-27B | 1-5, ActiveUF-style logprobs |
 
 
 ## Adding a new judge
