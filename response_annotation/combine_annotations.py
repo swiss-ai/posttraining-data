@@ -18,10 +18,10 @@ from datasets import Dataset, DatasetDict, Features, Value, load_from_disk
 # ---------------------------------------------------------------------------
 # Config
 # ---------------------------------------------------------------------------
-BASE_DIR = Path("/iopsstor/scratch/cscs/dmelikidze/posttraining-data/response_annotation/datasets/inference_results_final")
-OUT_DIR = Path("/iopsstor/scratch/cscs/dmelikidze/posttraining-data/response_annotation/datasets/combined_annotated_new2")
+BASE_DIR = Path("/capstor/store/cscs/swissai/infra01/datasets/alignment/annotations/Dolci-Instruct-DPO-Qwen3.6-27B")
+OUT_DIR = Path("/capstor/store/cscs/swissai/infra01/datasets/alignment/annotations/Dolci-Instruct-DPO-Qwen3.6-27B-combined")
 
-ASPECTS = ["helpfulness", "honesty", "instruction_following", "truthfulness"]
+ASPECTS = ["helpfulness"]#, "honesty", "instruction_following", "truthfulness"]
 NUM_PROC = min(os.cpu_count() or 4, 288)
 
 print(f"Using {NUM_PROC} processes.")
