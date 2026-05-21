@@ -1,13 +1,15 @@
 """
-Reformats the output of the judge into paired rows for RM-Bench evaluation metrics. 
+Reformats the output of the judge into paired rows for RM-Bench evaluation metrics.
 
-Usage:
+Usage (from the 08a-judge-evaluation repo root):
 
-python -m benchmarks.RM-Bench-train.src.2-reformat-post-judging \
-    --judge-args-path judges/01.py
+    python -m benchmarks.RM-Bench-train.src.2-reformat-post-judging
+    python -m benchmarks.RM-Bench-train.src.2-reformat-post-judging --judge-name 01
 """
 
+import concurrent.futures
 import os
+import random
 from argparse import ArgumentParser
 
 import datasets
@@ -18,29 +20,25 @@ from tqdm import tqdm
 
 from src.utils import load_module
 
-if __name__ == "__main__":
-    parser = ArgumentParser()
-    parser.add_argument("--judge-args-path", type=str, required=True)
-    args = parser.parse_args()
 
-    # Load judge args
-    judge_args = load_module(args.judge_args_path)
+def process_judge(input_path: str, benchmark_root: str) -> None:
+    judge_name = os.path.basename(input_path)
+    judge_args_path = f"judges/{judge_name}.py"
+    if not os.path.exists(judge_args_path):
+        print(f"Skipping {judge_args_path}: file not found")
+        return
 
-    # Determine input/output dirs based on judge name
-    judge_name = os.path.basename(args.judge_args_path).rstrip(".py")
-    input_dir = f"benchmarks/RM-Bench-train/2-judged/{judge_name}"
-    output_dir = f"benchmarks/RM-Bench-train/3-rereformatted/{judge_name}"
+    judge_args = load_module(judge_args_path)
 
-    print(f"Loading dataset from {input_dir}")
-    input_ds = load_from_disk(input_dir)
+    output_dir = os.path.join(benchmark_root, f"3-rereformatted/{judge_name}")
 
-    print("Reformatting dataset...")
+    input_ds = load_from_disk(input_path)
     output_ds = []
-    
+
     original_prompt_ids = set(
         x.split("_")[0] for x in input_ds["prompt_id"]
     )
-    for original_prompt_id in tqdm(original_prompt_ids):
+    for original_prompt_id in tqdm(original_prompt_ids, desc=judge_name):
         subset = input_ds.filter(lambda x: x["prompt_id"].startswith(original_prompt_id))
         temp = {
             "id": original_prompt_id,
@@ -50,6 +48,8 @@ if __name__ == "__main__":
             "rejected": [],
             "score_chosen": [],
             "score_rejected": [],
+            "noNone_score_chosen": [],
+            "noNone_score_rejected": [],
         }
 
         for key in ["concise", "plain", "markdown"]:
@@ -57,17 +57,47 @@ if __name__ == "__main__":
             score = judge_args.get_score_from_distribution(x["score_distribution"])
             temp["chosen"].append(x["response"])
             temp["score_chosen"].append(score)
+            if score is not None:
+                temp["noNone_score_chosen"].append(score)
+            else:
+                temp["noNone_score_chosen"].append(float(random.sample(judge_args.scoring_range, 1)[0]))
 
             x = subset.filter(lambda x: x["prompt_id"] == f"{original_prompt_id}_rejected_{key}")[0]
             score = judge_args.get_score_from_distribution(x["score_distribution"])
             temp["rejected"].append(x["response"])
             temp["score_rejected"].append(score)
+            if score is not None:
+                temp["noNone_score_rejected"].append(score)
+            else:
+                temp["noNone_score_rejected"].append(float(random.sample(judge_args.scoring_range, 1)[0]))
 
         output_ds.append(temp)
-    
+
     output_ds = Dataset.from_list(output_ds)
     input_ds.cleanup_cache_files()
 
     print(f"Saving dataset to {output_dir}")
-    os.makedirs(os.path.dirname(output_dir), exist_ok=True)
+    os.makedirs(output_dir, exist_ok=True)
     output_ds.save_to_disk(output_dir)
+
+
+if __name__ == "__main__":
+    parser = ArgumentParser()
+    parser.add_argument("--judge-name", type=str, default=None)
+    args = parser.parse_args()
+
+    benchmark_root = "benchmarks/RM-Bench-train/"
+    judged_root = os.path.join(benchmark_root, "2-judged")
+
+    input_paths = sorted([
+        os.path.join(judged_root, x)
+        for x in os.listdir(judged_root) if x.isdigit()
+    ])
+
+    if args.judge_name:
+        input_paths = [p for p in input_paths if os.path.basename(p) == args.judge_name]
+
+    with concurrent.futures.ProcessPoolExecutor() as executor:
+        futures = {executor.submit(process_judge, p, benchmark_root): p for p in input_paths}
+        for future in concurrent.futures.as_completed(futures):
+            future.result()
