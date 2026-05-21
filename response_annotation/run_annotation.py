@@ -15,6 +15,7 @@ def main():
     parser.add_argument("--job-time", type=str, default="12:00:00")
     parser.add_argument("--logs-dir", type=str, default="./logs/annotation")
     parser.add_argument("--slurm-nodes", type=int, default=1)
+    parser.add_argument("--slurm-exclude", type=str, default="", help="Comma-separated list of nodes to exclude")
     parser.add_argument("--workers", type=int, default=1, help="Number of sglang workers")
     parser.add_argument("--nodes-per-worker", type=int, default=1)
     parser.add_argument("--dp-size", type=int, default=1)
@@ -29,6 +30,7 @@ def main():
     submit_cmd = [
         "python", f"{scratch}/model-launch/legacy/serving/submit_job.py",
         "--slurm-nodes", str(args.slurm_nodes),
+        "--slurm-exclude", args.slurm_exclude,
         "--slurm-time", args.job_time,
         "--serving-framework", args.framework,
         "--worker-port", "8080",
