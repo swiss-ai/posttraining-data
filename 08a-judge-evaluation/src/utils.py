@@ -20,7 +20,7 @@ JUDGE_MAPPING = {
 
     "21": "01, but with Qwen3.6-27B",
     "22": "01, but with Qwen3.5-35B-A3B-FP8",
-
+    "23": "12, but with Qwen3.6-27B",
 }
 
 
