@@ -10,7 +10,7 @@ CACHE = Path("/capstor/store/cscs/swissai/infra01/medical_text/hf_hub_cache")
 SNAP = CACHE / "datasets--nvidia--HelpSteer2/snapshots/990b2711a36180dd19d9c94b8627844866f8982a"
 DST = Path("/capstor/store/cscs/swissai/infra01/medical_text/pre-processed/helpsteer2.parquet")
 
-SPLITS = ["train.jsonl.gz", "validation.jsonl.gz"]
+SPLITS = ["train.jsonl.gz"]
 
 
 def convert():

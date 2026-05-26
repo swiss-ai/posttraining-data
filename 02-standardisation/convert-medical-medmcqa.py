@@ -17,10 +17,10 @@ def format_options(row):
 
 
 def convert():
-    splits = sorted(SNAP.glob("*.parquet"))
-    print(f"Found {len(splits)} split files: {[f.name for f in splits]}")
+    splits = sorted(SNAP.glob("train-*.parquet"))
+    print(f"Found {len(splits)} train split files: {[f.name for f in splits]}")
     df = pd.concat([pd.read_parquet(f) for f in splits], ignore_index=True)
-    print(f"Loaded {len(df)} rows")
+    print(f"Loaded {len(df)} rows (train only)")
 
     cop_to_letter = {0: "A", 1: "B", 2: "C", 3: "D"}
 
