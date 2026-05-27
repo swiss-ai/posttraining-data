@@ -14,7 +14,9 @@ The pipeline consists of the following self-contained stages:
 7. **07-dataset-aggregation**: Combines multiple datasets into training mixtures → produces HF Dataset ready for training
 8. **08-judge-evaluation**: Evaluates datasets with LLM judges.
 
-A few additional running scripts and miscellaneous commands are also provided in `examples`. 
+Additional directories:
+- **tool_data**: Tool-calling data utilities — validates linearised datasets (regarding tool use), filters flagged samples, injects tool definitions into non-tool-calling samples, and cross-checks results. See `tool_data/README.md`.
+- **examples**: A few additional running scripts and miscellaneous commands.
 
 ## Setup
 
