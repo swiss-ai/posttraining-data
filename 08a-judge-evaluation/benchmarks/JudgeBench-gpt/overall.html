@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>JudgeBench results</title>
+<style>
+    body { font-family: system-ui, sans-serif; font-size: 13px; padding: 1em 2em; color: #000; }
+    h3 { margin-bottom: 0.4em; }
+    table { border-collapse: collapse; white-space: nowrap; }
+    th { background: #2d3748; color: #edf2f7; padding: 6px 10px; text-align: left; }
+    th.num { text-align: right; }
+    td { padding: 5px 10px; border: 1px solid #e2e8f0; }
+    td.num { text-align: right; font-variant-numeric: tabular-nums; }
+    td.best { font-weight: 700; }
+    sup { font-size: 9px; color: #000; margin-left: 2px; }
+    </style>
+</head>
+<body>
+<h3>JudgeBench — accuracy (higher is better)</h3>
+<p style="font-size:11px;color:#000">
+  Colour scale is per-column, centred on the column median:
+  <span style="background:#4caf73;padding:1px 6px;border-radius:3px">green = column max</span>
+  &nbsp;<span style="background:#ffffff;border:1px solid #ccc;padding:1px 6px;border-radius:3px">white = column median</span>
+  &nbsp;<span style="background:#e05555;padding:1px 6px;border-radius:3px">red = column min</span>.
+  Superscript = none-rate %.  <strong>Bold</strong> = column best.
+</p>
+<table>
+<thead><tr><th>Judge #</th><th>Description</th><th class="num">mmlu-pro</th><th class="num">livebench-reasoning</th><th class="num">livebench-math</th><th class="num">livecodebench</th><th class="num">overall</th></tr></thead>
+<tbody>
+<tr><td>00</td><td>Mean of scores from judges 01-04</td><td class="num" style="background:#ffffff">72.73</td><td class="num" style="background:#e05555">67.35</td><td class="num" style="background:#ffffff">85.71</td><td class="num" style="background:#f4c6c6">80.95</td><td class="num" style="background:#f9e2e2">74.29</td></tr><tr><td>01</td><td>Helpfulness</td><td class="num" style="background:#f0f8f3">73.38</td><td class="num" style="background:#ffffff">69.39</td><td class="num" style="background:#efaaaa">83.93</td><td class="num" style="background:#ffffff">83.33</td><td class="num" style="background:#f1f8f4">75.14</td></tr><tr><td>02</td><td>Instruction Following</td><td class="num" style="background:#efaaaa">71.43</td><td class="num" style="background:#e1f1e7">71.43</td><td class="num" style="background:#efaaaa">83.93</td><td class="num" style="background:#e05555">76.19</td><td class="num" style="background:#f4c6c6">74.00</td></tr><tr><td>03</td><td>Honesty</td><td class="num" style="background:#e05555">70.13</td><td class="num" style="background:#e05555">67.35</td><td class="num" style="background:#ffffff">85.71</td><td class="num" style="background:#ea8d8d">78.57</td><td class="num" style="background:#e05555">72.86</td></tr><tr><td>04</td><td>Truthfulness</td><td class="num" style="background:#efaaaa">71.43</td><td class="num" style="background:#ffffff">69.39</td><td class="num" style="background:#e05555">82.14</td><td class="num" style="background:#f4c6c6">80.95</td><td class="num" style="background:#efaaaa">73.71</td></tr><tr><td>11</td><td>General quality</td><td class="num" style="background:#ffffff">72.73</td><td class="num" style="background:#e05555">67.35</td><td class="num" style="background:#ffffff">85.71</td><td class="num" style="background:#ffffff">83.33</td><td class="num" style="background:#ffffff">74.57</td></tr><tr><td>12</td><td>ArenaHard Judge</td><td class="num" style="background:#78c396">78.57<sup>8%</sup></td><td class="num  best" style="background:#4caf73">81.63<sup>24%</sup></td><td class="num  best" style="background:#4caf73">89.29<sup>12%</sup></td><td class="num" style="background:#c3e4d0">85.71<sup>17%</sup></td><td class="num  best" style="background:#4caf73">82.00<sup>15%</sup></td></tr><tr><td>21</td><td>01, but with Qwen3.6-27B</td><td class="num  best" style="background:#4caf73">80.52</td><td class="num" style="background:#a5d7b9">75.51</td><td class="num  best" style="background:#4caf73">89.29</td><td class="num  best" style="background:#4caf73">90.48</td><td class="num" style="background:#52b278">81.71</td></tr><tr><td>22</td><td>01, but with Qwen3.5-35B-A3B-FP8</td><td class="num" style="background:#c3e4d0">75.32</td><td class="num" style="background:#e1f1e7">71.43</td><td class="num" style="background:#efaaaa">83.93</td><td class="num" style="background:#c3e4d0">85.71</td><td class="num" style="background:#c7e6d3">76.86</td></tr>
+</tbody>
+</table>
+</body>
+</html>

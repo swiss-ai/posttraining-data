@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>RewardBench-2 results</title>
+<style>
+    body { font-family: system-ui, sans-serif; font-size: 13px; padding: 1em 2em; color: #000; }
+    h3 { margin-bottom: 0.4em; }
+    table { border-collapse: collapse; white-space: nowrap; }
+    th { background: #2d3748; color: #edf2f7; padding: 6px 10px; text-align: left; }
+    th.num { text-align: right; }
+    td { padding: 5px 10px; border: 1px solid #e2e8f0; }
+    td.num { text-align: right; font-variant-numeric: tabular-nums; }
+    td.best { font-weight: 700; }
+    sup { font-size: 9px; color: #000; margin-left: 2px; }
+    </style>
+</head>
+<body>
+<h3>RewardBench-2 — accuracy (higher is better)</h3>
+<p style="font-size:11px;color:#000">
+  Colour scale is per-column, centred on the column median:
+  <span style="background:#4caf73;padding:1px 6px;border-radius:3px">green = column max</span>
+  &nbsp;<span style="background:#ffffff;border:1px solid #ccc;padding:1px 6px;border-radius:3px">white = column median</span>
+  &nbsp;<span style="background:#e05555;padding:1px 6px;border-radius:3px">red = column min</span>.
+</p>
+<p style="font-size:11px;color:#000">
+  Superscript = % Prompts with ≥1 None-scored response.  <strong>Bold</strong> = column best.
+</p>
+<table>
+<thead><tr><th>Judge #</th><th>Description</th><th class="num">Factuality</th><th class="num">Focus</th><th class="num">Math</th><th class="num">Precise IF</th><th class="num">Safety</th><th class="num">Ties</th><th class="num">overall</th></tr></thead>
+<tbody>
+<tr><td>01</td><td>Helpfulness</td><td class="num" style="background:#a5d6b8">80.42</td><td class="num  best" style="background:#4caf73">87.47</td><td class="num" style="background:#fbe9e9">74.86</td><td class="num" style="background:#ffffff">43.12</td><td class="num" style="background:#a7d7ba">94.67</td><td class="num" style="background:#fdf9f9">76.03</td><td class="num" style="background:#daeee2">76.10</td></tr><tr><td>02</td><td>Instruction Following</td><td class="num" style="background:#bbe0ca">79.79</td><td class="num" style="background:#59b47d">86.87</td><td class="num" style="background:#ecf6f0">76.50</td><td class="num" style="background:#e46d6d">40.62</td><td class="num" style="background:#a7d7ba">94.67</td><td class="num" style="background:#fdf9f9">76.08</td><td class="num" style="background:#fefdfd">75.76</td></tr><tr><td>03</td><td>Honesty</td><td class="num  best" style="background:#4caf73">82.95</td><td class="num" style="background:#ffffff">79.19</td><td class="num" style="background:#e77f7f">72.13</td><td class="num" style="background:#bee2cc">46.25</td><td class="num  best" style="background:#4caf73">97.33</td><td class="num" style="background:#edf7f1">78.14</td><td class="num" style="background:#e9f5ee">76.00</td></tr><tr><td>04</td><td>Truthfulness</td><td class="num" style="background:#71bf90">81.89</td><td class="num" style="background:#f1b2b2">76.16</td><td class="num" style="background:#e77f7f">72.13</td><td class="num" style="background:#f8dada">42.50</td><td class="num" style="background:#79c396">96.00</td><td class="num" style="background:#56b37b">86.47</td><td class="num" style="background:#ffffff">75.86</td></tr><tr><td>12</td><td>ArenaHard Judge</td><td class="num" style="background:#f0aeae">73.18</td><td class="num" style="background:#efa7a7">75.71</td><td class="num" style="background:#77c295">83.24<sup>2%</sup></td><td class="num" style="background:#e05555">40.21</td><td class="num" style="background:#ffffff">92.11</td><td class="num" style="background:#f8d9d9">69.76</td><td class="num" style="background:#f4c5c5">72.37<sup>0%</sup></td></tr><tr><td>21</td><td>01, but with Qwen3.6-27B</td><td class="num" style="background:#ffffff">77.89</td><td class="num" style="background:#cee9d9">81.41</td><td class="num" style="background:#ffffff">75.41</td><td class="num" style="background:#cbe7d6">45.62</td><td class="num" style="background:#fcf3f3">91.78</td><td class="num  best" style="background:#4caf73">87.06</td><td class="num" style="background:#97d0ad">76.53</td></tr><tr><td>22</td><td>01, but with Qwen3.5-35B-A3B-FP8</td><td class="num" style="background:#e05555">68.00</td><td class="num" style="background:#f4c7c7">76.97</td><td class="num" style="background:#e05555">71.04</td><td class="num" style="background:#eb9191">41.25</td><td class="num" style="background:#fbebeb">91.56</td><td class="num" style="background:#e05555">44.02</td><td class="num" style="background:#e05555">65.47</td></tr><tr><td>23</td><td>12, but with Qwen3.6-27B</td><td class="num" style="background:#e26060">68.69<sup>5%</sup></td><td class="num" style="background:#e05555">72.42</td><td class="num" style="background:#4fb076">85.56<sup>2%</sup></td><td class="num  best" style="background:#4caf73">51.77<sup>8%</sup></td><td class="num" style="background:#e88585">88.70<sup>0%</sup></td><td class="num" style="background:#ffffff">77.16</td><td class="num" style="background:#f9e1e1">74.05<sup>2%</sup></td></tr><tr><td>24</td><td>23, but precomputes own answer and reuses, and with activeuf scoring</td><td class="num" style="background:#f5c8c8">74.74</td><td class="num" style="background:#bde1cb">82.22</td><td class="num  best" style="background:#4caf73">85.79</td><td class="num" style="background:#56b37b">51.25</td><td class="num" style="background:#e05555">87.33</td><td class="num" style="background:#bde1cb">80.77</td><td class="num  best" style="background:#4caf73">77.02</td></tr>
+</tbody>
+</table>
+</body>
+</html>
