@@ -22,20 +22,17 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import pandas as pd
 
-from src.utils import JUDGE_MAPPING
-
 DOMAINS = ("chat", "math", "code", "safety")
-DOMAIN_COLS = ["Judge #", "Description", "chat", "math", "code", "safety", "total_avg_acc"]
-STYLE_COLS = ["Judge #", "Description", "hard_acc", "normal_acc", "easy_acc"]
+DOMAIN_COLS = ["Judge", "chat", "math", "code", "safety", "total_avg_acc"]
+STYLE_COLS = ["Judge", "hard_acc", "normal_acc", "easy_acc"]
 
 
-def _row_from_json(filepath: str, judge_number: str) -> Dict[str, Any]:
+def _row_from_json(filepath: str, judge_name: str) -> Dict[str, Any]:
     with open(filepath, "r", encoding="utf-8") as f:
         data = json.load(f)
 
     row: Dict[str, Any] = {
-        "Judge #": judge_number,
-        "Description": JUDGE_MAPPING.get(judge_number, "—"),
+        "Judge": judge_name,
     }
     for domain in DOMAINS:
         raw = data.get(domain)
@@ -137,21 +134,21 @@ if __name__ == "__main__":
     rows: List[Dict[str, Any]] = []
 
     for filepath in sorted(glob.glob(os.path.join(results_root, "*.json"))):
-        judge_number = os.path.splitext(os.path.basename(filepath))[0]
-        rows.append(_row_from_json(filepath, judge_number))
+        judge_name = os.path.splitext(os.path.basename(filepath))[0]
+        rows.append(_row_from_json(filepath, judge_name))
 
     if not rows:
         print(f"No JSON files under {results_root}")
         raise SystemExit(1)
 
     df = pd.DataFrame(rows)
-    if "Judge #" in df.columns:
-        df = df.sort_values("Judge #").reset_index(drop=True)
+    if "Judge" in df.columns:
+        df = df.sort_values("Judge").reset_index(drop=True)
 
     none_rate_map = {d: f"{d}_none_rate" for d in DOMAINS}
 
-    domain_table = _build_table(df, DOMAIN_COLS, ["Judge #", "Description"], none_rate_map)
-    style_table = _build_table(df, STYLE_COLS, ["Judge #", "Description"], none_rate_cols=None)
+    domain_table = _build_table(df, DOMAIN_COLS, ["Judge"], none_rate_map)
+    style_table = _build_table(df, STYLE_COLS, ["Judge"], none_rate_cols=None)
 
     css = """
     body { font-family: system-ui, sans-serif; font-size: 13px; padding: 1em 2em; color: #000; }

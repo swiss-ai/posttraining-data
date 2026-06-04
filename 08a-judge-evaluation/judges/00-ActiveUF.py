@@ -13,7 +13,7 @@ import copy
 from datasets import load_from_disk
 from src.utils import load_module
 
-judge_name = "00"
+name = "00-ActiveUF"
 component_judge_names = ["01", "02", "03", "04"]
 
 def get_score_from_distribution(score_distribution: dict[str, float]) -> float:
@@ -50,4 +50,4 @@ if __name__ == "__main__":
     output_ds = copy.deepcopy(component_ds)
     output_ds = output_ds.remove_columns("score_distribution")
     output_ds = output_ds.add_column("score_distribution", score_distributions)
-    output_ds.save_to_disk(f"benchmarks/{args.benchmark}/2-judged/{judge_name}")
+    output_ds.save_to_disk(f"benchmarks/{args.benchmark}/2-judged/00")

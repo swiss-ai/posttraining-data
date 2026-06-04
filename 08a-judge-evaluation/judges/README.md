@@ -2,21 +2,23 @@
 
 ## Overview
 
-| Judge | Description | Model | Scoring |
-|-------|--------|-------|---------|
-| 00 | ActiveUF | Qwen3-235B-A22B | 1-5, Mean of scores from judges 01-04 |
-| 01 | Helpfulness | Qwen3-235B-A22B | 1-5, ActiveUF-style logprobs |
-| 02 | Instruction Following | Qwen3-235B-A22B | 1-5, ActiveUF-style logprobs |
-| 03 | Honesty | Qwen3-235B-A22B | 1-5, ActiveUF-style logprobs |
-| 04 | Truthfulness  | Qwen3-235B-A22B | 1-5, ActiveUF-style logprobs |
-| 05 | Swiss AI Charter compliance | Qwen3-235B-A22B | 1-5, ActiveUF-style logprobs |
-| 11 | General quality | Qwen3-235B-A22B | 1-5, ActiveUF-style logprobs |
-| 12 | ArenaHard Judge | Qwen3-235B-A22B | 1-5, Discrete |
-| 21 | Helpfulness | Qwen3.6-27B | 1-5, ActiveUF-style logprobs |
-| 22 | Helpfulness | Qwen3.5-35B-A3B-FP8 | 1-5, ActiveUF-style logprobs |
-| 23 | ArenaHard Judge | Qwen3.6-27B | 1-5, Discrete |
-| 24 | ArenaHard Judge | Qwen3.6-27B | 1-5, ActiveUF-style logprobs |
-
+| #  | Name | LLM | Scoring Methodology |
+|----|--------|-------|---------|
+| 00 | 00-ActiveUF | Qwen3-235B-A22B | Mean of scores from judges 01-04 |
+| 01 | 01-ActiveUF-Helpfulness | Qwen3-235B-A22B | Logprobs-based scoring |
+| 02 | 02-ActiveUF-Instruction_Following | Qwen3-235B-A22B | Logprobs-based scoring |
+| 03 | 03-ActiveUF-Honesty | Qwen3-235B-A22B | Logprobs-based scoring |
+| 04 | 04-ActiveUF-Truthfulness  | Qwen3-235B-A22B | Logprobs-based scoring |
+||
+| 10 | 10-General_Quality | Qwen3-235B-A22B | Logprobs-based scoring |
+| 11 | 11-SwissAI_Charter | Qwen3-235B-A22B | Logprobs-based scoring |
+||
+| 20 | 20-Qwen3.5_35B-Helpfulness | Qwen3.5-35B-A3B-FP8 | Logprobs-based scoring |
+| 21 | 21-Qwen3.6_27B-Helpfulness | Qwen3.6-27B | Logprobs-based scoring |
+||
+| 30 | 30-ArenaHard-regex | Qwen3-235B-A22B | Regex-based score extraction, with random as fallback |
+| 31 | 31-Qwen3.6_27B-ArenaHard-regex | Qwen3.6-27B | Regex-based score extraction, with random as fallback |
+| 32 | 32-Qwen3.6_27B-ArenaHard | Qwen3.6-27B | Logprobs-based scoring |
 
 ## Adding a new judge
 

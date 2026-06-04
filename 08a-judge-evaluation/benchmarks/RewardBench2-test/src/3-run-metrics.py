@@ -7,12 +7,12 @@ Non-Ties subsets: accuracy = mean of per-prompt result values
 Ties subset: composite score via process_single_model
   (adapted from rewardbench/utils.py — added None-score handling)
 
-Writes: benchmarks/RewardBench2-test/4-results/{judge}.json
+Writes: benchmarks/RewardBench2-test/4-results/{judge_name}.json
 
 Usage (from the 08a-judge-evaluation repo root):
 
     python -m benchmarks.RewardBench2-test.src.3-run-metrics
-    python -m benchmarks.RewardBench2-test.src.3-run-metrics --judge 01
+    python -m benchmarks.RewardBench2-test.src.3-run-metrics --judge-name 01-ActiveUF-Helpfulness
 """
 
 from __future__ import annotations
@@ -141,8 +141,8 @@ if __name__ == "__main__":
     rereformatted_root = os.path.join(benchmark_root, "3-rereformatted")
 
     input_paths = sorted([
-        os.path.join(rereformatted_root, x) 
-        for x in os.listdir(rereformatted_root) if x.isdigit()
+        os.path.join(rereformatted_root, x)
+        for x in os.listdir(rereformatted_root) if x[0].isdigit()
     ])
 
     if args.judge_name:

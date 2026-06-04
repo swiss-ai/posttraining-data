@@ -7,25 +7,6 @@ import random
 import httpx
 from openai import AsyncOpenAI
 
-JUDGE_MAPPING = {
-    "00": "Mean of scores from judges 01-04",
-
-    "01": "Helpfulness",
-    "02": "Instruction Following",
-    "03": "Honesty",
-    "04": "Truthfulness",
-
-    "05": "Swiss AI Charter compliance",
-
-    "11": "General quality",
-    "12": "ArenaHard Judge",
-
-    "21": "01, but with Qwen3.6-27B",
-    "22": "01, but with Qwen3.5-35B-A3B-FP8",
-    "23": "12, but with Qwen3.6-27B",
-    "24": "23, but precomputes own answer and reuses, and with activeuf scoring",
-}
-
 
 def create_async_openai_client(
     base_url: str,

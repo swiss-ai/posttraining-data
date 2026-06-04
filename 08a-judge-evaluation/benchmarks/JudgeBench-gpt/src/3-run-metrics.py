@@ -4,7 +4,7 @@ Run metrics on the JudgeBench-gpt dataset.
 Usage (from the 08a-judge-evaluation repo root):
 
     python -m benchmarks.JudgeBench-gpt.src.3-run-metrics
-    python -m benchmarks.JudgeBench-gpt.src.3-run-metrics --judge 01
+    python -m benchmarks.JudgeBench-gpt.src.3-run-metrics --judge-name 01-ActiveUF-Helpfulness
 """
 
 from argparse import ArgumentParser
@@ -104,7 +104,7 @@ if __name__ == "__main__":
     rereformatted_root = os.path.join(benchmark_root, "3-rereformatted")
     input_paths = sorted([
         os.path.join(rereformatted_root, x) 
-        for x in os.listdir(rereformatted_root) if x.isdigit()
+        for x in os.listdir(rereformatted_root) if x[0].isdigit()
     ])
 
     if args.judge_name:

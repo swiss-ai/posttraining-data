@@ -1,6 +1,6 @@
 from judges import activeuf
 
-name = "11"
+name = "10-General-Quality"
 model = activeuf.model
 
 slurm_nodes = activeuf.slurm_nodes

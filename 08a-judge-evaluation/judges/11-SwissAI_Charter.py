@@ -1,6 +1,6 @@
 from judges import activeuf
 
-name = "05"
+name = "11-SwissAI_Charter"
 model = activeuf.model
 
 slurm_nodes = activeuf.slurm_nodes

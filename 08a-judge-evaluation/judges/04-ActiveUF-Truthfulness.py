@@ -1,6 +1,6 @@
 from judges import activeuf
 
-name = "04"
+name = "04-ActiveUF-Truthfulness"
 model = activeuf.model
 
 slurm_nodes = activeuf.slurm_nodes

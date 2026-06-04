@@ -17,7 +17,7 @@ Output dataset (3-rereformatted/{judge_name}):
 Usage (from the 08a-judge-evaluation repo root):
 
     python -m benchmarks.RewardBench2-test.src.2-reformat-post-judging
-    python -m benchmarks.RewardBench2-test.src.2-reformat-post-judging --judge-name 01
+    python -m benchmarks.RewardBench2-test.src.2-reformat-post-judging --judge-name 01-ActiveUF-Helpfulness
 """
 
 import os
@@ -43,8 +43,8 @@ if __name__ == "__main__":
     judged_root = os.path.join(benchmark_root, "2-judged")
 
     input_paths = sorted([
-        os.path.join(judged_root, x) 
-        for x in os.listdir(judged_root) if x.isdigit()
+        os.path.join(judged_root, x)
+        for x in os.listdir(judged_root) if x[0].isdigit()
     ])
 
     if args.judge_name:

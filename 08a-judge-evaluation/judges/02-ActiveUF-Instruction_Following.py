@@ -1,6 +1,6 @@
 from judges import activeuf
 
-name = "02"
+name = "02-ActiveUF-Instruction_Following"
 model = activeuf.model
 
 slurm_nodes = activeuf.slurm_nodes

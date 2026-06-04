@@ -4,7 +4,7 @@ Reformats the output of the judge into paired rows for RM-Bench evaluation metri
 Usage (from the 08a-judge-evaluation repo root):
 
     python -m benchmarks.RM-Bench-train.src.2-reformat-post-judging
-    python -m benchmarks.RM-Bench-train.src.2-reformat-post-judging --judge-name 01
+    python -m benchmarks.RM-Bench-train.src.2-reformat-post-judging --judge-name 01-ActiveUF-Helpfulness
 """
 
 import concurrent.futures
@@ -91,7 +91,7 @@ if __name__ == "__main__":
 
     input_paths = sorted([
         os.path.join(judged_root, x)
-        for x in os.listdir(judged_root) if x.isdigit()
+        for x in os.listdir(judged_root) if x[0].isdigit()
     ])
 
     if args.judge_name:

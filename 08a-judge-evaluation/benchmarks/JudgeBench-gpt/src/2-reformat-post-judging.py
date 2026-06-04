@@ -12,7 +12,7 @@ The output dataset:
 Usage:
 
     python -m benchmarks.JudgeBench-gpt.src.2-reformat-post-judging
-    python -m benchmarks.JudgeBench-gpt.src.2-reformat-post-judging --judge-args-path judges/01.py
+    python -m benchmarks.JudgeBench-gpt.src.2-reformat-post-judging --judge-name 01-ActiveUF-Helpfulness
 """
 
 import os
@@ -36,7 +36,7 @@ if __name__ == "__main__":
     if args.judge_name:
         judge_names = [args.judge_name]
     else:
-        judge_names = sorted([x for x in os.listdir(judged_root) if x.isdigit()])
+        judge_names = sorted([x for x in os.listdir(judged_root) if x[0].isdigit()])
     for judge_name in judge_names:
         judge_args_path = f"judges/{judge_name}.py"
         if not os.path.exists(judge_args_path):

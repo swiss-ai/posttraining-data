@@ -1,14 +1,14 @@
 from judges import activeuf
 
-name = "21"
-model = "/capstor/store/cscs/swissai/infra01/hf_models/models/Qwen/Qwen3.6-27B"
+name = "01-ActiveUF-Helpfulness"
+model = activeuf.model
 
-slurm_nodes = 1
-workers = 1
-nodes_per_worker = 1
-dp_size = 1
-tp_size = 4
-framework = "vllm"
+slurm_nodes = activeuf.slurm_nodes
+workers = activeuf.workers
+nodes_per_worker = activeuf.nodes_per_worker
+dp_size = activeuf.dp_size
+tp_size = activeuf.tp_size
+framework = activeuf.framework
 concurrent = activeuf.concurrent
 disable_ocf = activeuf.disable_ocf
 

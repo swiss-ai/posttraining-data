@@ -18,7 +18,6 @@ from typing import Any, Dict, List, Tuple  # Tuple used in col_stats type
 
 import pandas as pd
 
-from src.utils import JUDGE_MAPPING
 
 
 def _flatten_metrics(data: Dict[str, Any]) -> Tuple[Dict[str, float], Dict[str, float]]:
@@ -85,11 +84,10 @@ def _build_html(
 
     rows_html = []
     for _, row in df_scores.iterrows():
-        judge = row["Judge #"]
-        desc = row["Description"]
-        none_row = df_none[df_none["Judge #"] == judge].iloc[0] if judge in df_none["Judge #"].values else None
+        judge = row["Judge"]
+        none_row = df_none[df_none["Judge"] == judge].iloc[0] if judge in df_none["Judge"].values else None
 
-        cells = [f"<td>{judge}</td>", f"<td>{desc}</td>"]
+        cells = [f"<td>{judge}</td>"]
         for col in data_cols:
             score = row[col]
             if pd.isna(score):
@@ -153,10 +151,10 @@ if __name__ == "__main__":
     none_rate_rows: List[Dict[str, Any]] = []
 
     for filepath in sorted(glob.glob(os.path.join(folder, "*.json"))):
-        judge_number = os.path.splitext(os.path.basename(filepath))[0]
+        judge_name = os.path.splitext(os.path.basename(filepath))[0]
         with open(filepath, "r", encoding="utf-8") as f:
             data = json.load(f)
-        meta = {"Judge #": judge_number, "Description": JUDGE_MAPPING.get(judge_number, "—")}
+        meta = {"Judge": judge_name}
         scores, none_rates = _flatten_metrics(data)
         score_rows.append({**meta, **scores})
         none_rate_rows.append({**meta, **none_rates})
@@ -165,12 +163,12 @@ if __name__ == "__main__":
         print(f"No JSON files under {folder}")
         raise SystemExit(1)
 
-    meta_cols = ["Judge #", "Description"]
+    meta_cols = ["Judge"]
 
     def _build_df(rows: List[Dict[str, Any]]) -> pd.DataFrame:
         df = pd.DataFrame(rows).round(4)
-        if "Judge #" in df.columns:
-            df = df.sort_values("Judge #")
+        if "Judge" in df.columns:
+            df = df.sort_values("Judge")
         data_cols = [c for c in df.columns if c not in meta_cols]
         ordered = [c for c in data_cols if c != "overall"] + (["overall"] if "overall" in data_cols else [])
         return df[meta_cols + ordered]

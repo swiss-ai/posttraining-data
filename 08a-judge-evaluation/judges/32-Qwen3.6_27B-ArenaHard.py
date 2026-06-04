@@ -1,6 +1,6 @@
 from judges import activeuf
 
-name = "24"
+name = "32-Qwen3.6_27B-ArenaHard"
 model = "/capstor/store/cscs/swissai/infra01/hf_models/models/Qwen/Qwen3.6-27B"
 
 slurm_nodes = 1
