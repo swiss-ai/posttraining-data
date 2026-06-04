@@ -12,7 +12,8 @@ The pipeline consists of the following self-contained stages:
 5. **05-annotations**: Adds LLM-based classifications and language detection → produces HF DatasetDict
 6. **06-field-based-filtering**: General field analysis and filtering → produces HF DatasetDict
 7. **07-dataset-aggregation**: Combines multiple datasets into training mixtures → produces HF Dataset ready for training
-8. **08-judge-evaluation**: Evaluates datasets with LLM judges.
+8. **08-judge-evaluation**: Evaluates LLM judges on internal or synthetically generated datasets.
+   **08a-judge-evaluation**: Evaluates LLM judges on external benchmarks.
 
 A few additional running scripts and miscellaneous commands are also provided in `examples`. 
 

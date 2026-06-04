@@ -2,6 +2,19 @@
 
 A system for evaluating LLM judges against reward-bench-style datasets. Given a benchmark of (prompt, response\_A, response\_B, label) pairs, each judge scores both responses independently; accuracy is how often the higher-scored response matches the label.
 
+## Relationship to `08-judge-evaluation`
+
+`08-judge-evaluation` and `08a-judge-evaluation` serve different evaluation goals:
+
+| | `08-judge-evaluation` | `08a-judge-evaluation` (this directory) |
+|---|---|---|
+| **Benchmark source** | Synthetic, internally-generated preference data (completions degraded from best→worst) | External, public reward-bench-style datasets (JudgeBench, RewardBench2, RM-Bench) |
+| **Evaluation task** | Ranking/scoring/pairwise across 9 quality tiers | Binary preference accuracy: does the judge pick the human-labelled winner? |
+| **Primary purpose** | Exploratory — iterate on judge prompts and scoring methods against known-quality synthetic pairs | Standardised benchmarking — measure judges against published leaderboard datasets |
+| **Infrastructure** | Standalone Python scripts with a shared `lib.py` framework | SLURM-orchestrated server + judging jobs; fixed four-step pipeline per benchmark |
+
+Use `08-judge-evaluation` when you want to compare judge configurations against a synthetic quality signal you control. Use `08a-judge-evaluation` (this directory) when you want to measure a judge's absolute accuracy on established external benchmarks.
+
 ## Directory structure
 
 ```
