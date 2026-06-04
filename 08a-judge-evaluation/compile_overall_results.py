@@ -120,12 +120,12 @@ if __name__ == "__main__":
 </body>
 </html>
 """
-    Path("overall.html").write_text(html_out, encoding="utf-8")
-    print("Wrote overall.html")
+    Path("results/overall.html").write_text(html_out, encoding="utf-8")
+    print("Wrote results/overall.html")
 
     # ── overall.ipynb ─────────────────────────────────────────────────────────
     notebook = build_notebook(loaded)
-    Path("overall.ipynb").write_text(
+    Path("results/overall.ipynb").write_text(
         json.dumps(notebook, indent=1, ensure_ascii=False), encoding="utf-8"
     )
-    print("Wrote overall.ipynb")
+    print("Wrote results/overall.ipynb")
