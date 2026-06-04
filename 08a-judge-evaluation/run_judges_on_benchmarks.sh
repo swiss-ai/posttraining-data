@@ -9,19 +9,21 @@ BENCHMARK_DIRS=(
     "$SCRATCH/posttraining-data/08a-judge-evaluation/benchmarks/RewardBench2-test"
 )
 JUDGE_CFG_PATHS=(
-    # "$SCRATCH/posttraining-data/08a-judge-evaluation/judges/01.py"
-    # "$SCRATCH/posttraining-data/08a-judge-evaluation/judges/02.py"
-    # "$SCRATCH/posttraining-data/08a-judge-evaluation/judges/03.py"
-    # "$SCRATCH/posttraining-data/08a-judge-evaluation/judges/04.py"
+    #"$SCRATCH/posttraining-data/08a-judge-evaluation/judges/00-ActiveUF.py                        
+    #"$SCRATCH/posttraining-data/08a-judge-evaluation/judges/01-ActiveUF-Helpfulness.py
+    #"$SCRATCH/posttraining-data/08a-judge-evaluation/judges/02-ActiveUF-Instruction_Following.py  
+    #"$SCRATCH/posttraining-data/08a-judge-evaluation/judges/03-ActiveUF-Honesty.py
+    #"$SCRATCH/posttraining-data/08a-judge-evaluation/judges/04-ActiveUF-Truthfulness.py
 
-    # "$SCRATCH/posttraining-data/08a-judge-evaluation/judges/05.py"
+    #"$SCRATCH/posttraining-data/08a-judge-evaluation/judges/10-General-Quality.py
+    #"$SCRATCH/posttraining-data/08a-judge-evaluation/judges/11-SwissAI_Charter.py
 
-    # "$SCRATCH/posttraining-data/08a-judge-evaluation/judges/11.py"
-    # "$SCRATCH/posttraining-data/08a-judge-evaluation/judges/12.py" # this judge takes much longer than the others, ~1h for 1K samples
+    #"$SCRATCH/posttraining-data/08a-judge-evaluation/judges/20-Qwen3.5_35B-Helpfulness.py
+    #"$SCRATCH/posttraining-data/08a-judge-evaluation/judges/21-Qwen3.6_27B-Helpfulness.py
 
-    # "$SCRATCH/posttraining-data/08a-judge-evaluation/judges/21.py"
-    # "$SCRATCH/posttraining-data/08a-judge-evaluation/judges/22.py"
-    "$SCRATCH/posttraining-data/08a-judge-evaluation/judges/23.py"
+    #"$SCRATCH/posttraining-data/08a-judge-evaluation/judges/30-ArenaHard-regex.py
+    #"$SCRATCH/posttraining-data/08a-judge-evaluation/judges/31-Qwen3.6_27B-ArenaHard-regex.py
+    #"$SCRATCH/posttraining-data/08a-judge-evaluation/judges/32-Qwen3.6_27B-ArenaHard.py
 )
 
 WORKDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
