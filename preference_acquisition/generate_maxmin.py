@@ -23,8 +23,8 @@ from transformers import AutoTokenizer
 # --------------------------------------------------------------------------- Trinity-Mini Phi-4-mini-instruct
 parser = argparse.ArgumentParser()
 parser.add_argument("--exclude_models", nargs="*", default=[], help="Model names to exclude")
-parser.add_argument("--dataset_path", default="/iopsstor/scratch/cscs/dmelikidze/posttraining-data/response_annotation/datasets/combined_annotated_new2")
-parser.add_argument("--output_path", default="/iopsstor/scratch/cscs/dmelikidze/posttraining-data/preference_acquisition/datasets/aMaxMin_4096")
+parser.add_argument("--dataset_path", default="/capstor/store/cscs/swissai/infra01/datasets/alignment/annotations/Dolci-Instruct-DPO-Qwen3.6-27B-Helpfulness-combined/")
+parser.add_argument("--output_path", default="/capstor/store/cscs/swissai/infra01/datasets/alignment/preference-datasets/Dolci-Instruct-DPO-Qwen3.6-27B-Helpfulness-MaxMin/")
 parser.add_argument("--tokenizer", default="/capstor/store/cscs/swissai/infra01/models/Alignment/ap_1p5/ap1p5-8b-sft-256k-adam-lr6e-5-constant-128n_4200-online-lr5e-6-beta0.1-bs256-lenNormfalse-maxPL2048-rollout8-images-2453762-2453767/")
 parser.add_argument("--max_tokens", type=int, default=4096)
 args = parser.parse_args()
