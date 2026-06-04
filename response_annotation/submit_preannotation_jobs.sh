@@ -12,7 +12,7 @@ DATASETS=(
     $SCRATCH/posttraining-data/response_annotation/datasets/alignment/annotations/Dolci-Instruct-DPO-Qwen3.6-27B-combined
 )
 
-BASE_OUTPUT_DIR="$SCRATCH/posttraining-data/response_annotation/datasets/alignment/preannotation"
+BASE_OUTPUT_DIR="$SCRATCH/posttraining-data/response_annotation/datasets/alignment/annotations/Dolci-Instruct-DPO-Qwen3.6-27B-with-own-answer"
 PROMPT_COLUMN_NAME="prompt"
 MAX_TOKENS=4096
 JOB_TIME="12:00:00"

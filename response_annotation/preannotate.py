@@ -207,15 +207,12 @@ async def main(args):
                 data = json.loads(line)
                 final_responses[data["index"]] = data["response"]
 
-    dataset = dataset.add_column("judge_own_response", final_responses)
-    dataset.save_to_disk(target_output_dir)
-
-    with open(os.path.join(target_output_dir, "response_model_used.txt"), "w") as f:
+    with open(os.path.join(target_output_dir, "judge_model_used.txt"), "w") as f:
         f.write(args.model)
 
 
 if __name__ == "__main__":
-    print("🚀 Starting preannotation response generation...")
+    print("🚀 Starting preannotation (asking judge for its own response)...")
     uvloop.install()
 
     parser = argparse.ArgumentParser()
