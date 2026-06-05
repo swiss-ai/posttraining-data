@@ -104,7 +104,7 @@ from datetime import datetime
 from typing import Dict, List, Any, Literal
 from transformers.utils.chat_template_utils import render_jinja_template
 
-from datasets import Dataset, DatasetDict, load_from_disk
+from datasets import Dataset, DatasetDict, Features, Value, load_from_disk
 
 # Answers tool
 ANSWERS_TOOL_NAME = "display_answers"
@@ -128,6 +128,34 @@ ANSWERS_TOOL_OUTPUT = '"Answers displayed"'
 # Empty elements to keep the structure of the messages
 EMPTY_CALLS = [{"name": "", "arguments": ""}]
 EMPTY_OUTPUTS = [{"name": "", "output": ""}]
+
+# Default empty content — all fields must be present in every message so that
+# HuggingFace Datasets infers a single consistent Arrow schema across all
+# parallel workers (num_proc > 1). Workers that process shards without
+# assistant messages would otherwise infer a schema without "blocks", causing a
+# type-mismatch when merging with workers that do have assistant messages.
+_EMPTY_PARTS: List[Dict[str, str]] = []
+_EMPTY_BLOCKS: List[Dict[str, Any]] = []
+
+
+def make_content(
+    text: str = "",
+    tools: str = "",
+    has_thinking: bool = False,
+    formatted_tools: str = "",
+    parts: "List[Dict[str, str]] | None" = None,
+    blocks: "List[Dict[str, Any]] | None" = None,
+) -> Dict[str, Any]:
+    """Return a normalised content dict with all fields always present."""
+    return {
+        "text": text,
+        "tools": tools,
+        "has_thinking": has_thinking,
+        "formatted_tools": formatted_tools,
+        "parts": parts if parts is not None else _EMPTY_PARTS,
+        "blocks": blocks if blocks is not None else _EMPTY_BLOCKS,
+    }
+
 
 # Jinja template used to format the tools
 TOOLS_TEMPLATE = '{%- macro render_typescript_type(param_spec, required_params, is_nullable=false) -%}\n    {%- if param_spec.type == "array" -%}\n        {%- if param_spec[\'items\'] -%}\n            {%- if param_spec[\'items\'][\'type\'] == "string" -%}\n                {{- "string[]" }}\n            {%- elif param_spec[\'items\'][\'type\'] == "number" -%}\n                {{- "number[]" }}\n            {%- elif param_spec[\'items\'][\'type\'] == "integer" -%}\n                {{- "number[]" }}\n            {%- elif param_spec[\'items\'][\'type\'] == "boolean" -%}\n                {{- "boolean[]" }}\n            {%- else -%}\n                {%- set inner_type = render_typescript_type(param_spec[\'items\'], required_params) -%}\n                {%- if inner_type == "object | object" or inner_type|length > 50 -%}\n                    {{- "any[]" }}\n                {%- else -%}\n                    {{- inner_type + "[]" }}\n                {%- endif -%}\n            {%- endif -%}\n            {%- if param_spec.nullable -%}\n                {{- " | null" }}\n            {%- endif -%}\n        {%- else -%}\n            {{- "any[]" }}\n            {%- if param_spec.nullable -%}\n                {{- " | null" }}\n            {%- endif -%}\n        {%- endif -%}\n    {%- elif param_spec.type is defined and param_spec.type is iterable and param_spec.type is not string and param_spec.type is not mapping and param_spec.type[0] is defined -%}\n        {#- Handle array of types like ["object", "object"] from Union[dict, list] #}\n        {%- if param_spec.type | length > 1 -%}\n            {{- param_spec.type | join(" | ") }}\n        {%- else -%}\n            {{- param_spec.type[0] }}\n        {%- endif -%}\n    {%- elif param_spec.oneOf -%}\n        {#- Handle oneOf schemas - check for complex unions and fallback to any #}\n        {%- set has_object_variants = false -%}\n        {%- for variant in param_spec.oneOf -%}\n            {%- if variant.type == "object" -%}\n                {%- set has_object_variants = true -%}\n            {%- endif -%}\n        {%- endfor -%}\n        {%- if has_object_variants and param_spec.oneOf|length > 1 -%}\n            {{- "any" }}\n        {%- else -%}\n            {%- for variant in param_spec.oneOf -%}\n                {{- render_typescript_type(variant, required_params) -}}\n                {%- if variant.description %}\n                    {{- "// " + variant.description }}\n                {%- endif -%}\n                {%- if variant.default is defined %}\n                    {{ "// default: " + variant.default|tojson }}\n                {%- endif -%}\n                {%- if not loop.last %}\n                    {{- " | " }}\n                {% endif -%}\n            {%- endfor -%}\n        {%- endif -%}\n    {%- elif param_spec.type == "string" -%}\n        {%- if param_spec.enum -%}\n            {{- \'"\' + param_spec.enum|join(\'" | "\') + \'"\' -}}\n        {%- else -%}\n            {{- "string" }}\n            {%- if param_spec.nullable %}\n                {{- " | null" }}\n            {%- endif -%}\n        {%- endif -%}\n    {%- elif param_spec.type == "number" -%}\n        {{- "number" }}\n    {%- elif param_spec.type == "integer" -%}\n        {{- "number" }}\n    {%- elif param_spec.type == "boolean" -%}\n        {{- "boolean" }}\n    {%- elif param_spec.type == "object" -%}\n        {%- if param_spec.properties -%}\n            {{- "{\\n" }}\n            {%- for prop_name, prop_spec in param_spec.properties.items() -%}\n                {{- prop_name -}}\n                {%- if prop_name not in (param_spec.required or []) -%}\n                    {{- "?" }}\n                {%- endif -%}\n                {{- ": " }}\n                {{ render_typescript_type(prop_spec, param_spec.required or []) }}\n                {%- if not loop.last -%}\n                    {{-", " }}\n                {%- endif -%}\n            {%- endfor -%}\n            {{- "}" }}\n        {%- else -%}\n            {{- "object" }}\n        {%- endif -%}\n    {%- else -%}\n        {{- "any" }}\n    {%- endif -%}\n{%- endmacro -%}\n\n{%- macro render_tools(tools) -%}\n    {%- for tool in tools %}\n        {{- "// " + tool.description + "\\n" }}\n        {{- "type "+ tool.name + " = " }}\n        {%- if tool.parameters and tool.parameters.properties %}\n            {{- "(_: {\\n" }}\n            {%- for param_name, param_spec in tool.parameters.properties.items() %}\n                {%- if param_spec.description %}\n                    {{- "// " + param_spec.description + "\\n" }}\n                {%- endif %}\n                {{- param_name }}\n                {%- if param_name not in (tool.parameters.required or []) -%}\n                    {{- "?" }}\n                {%- endif -%}\n                {{- ": " }}\n                {{- render_typescript_type(param_spec, tool.parameters.required or []) }}\n                {%- if param_spec.default is defined -%}\n                    {%- if param_spec.enum %}\n                        {{- ", // default: " + param_spec.default }}\n                    {%- elif param_spec.oneOf %}\n                        {{- "// default: " + param_spec.default }}\n                    {%- else %}\n                        {{- ", // default: " + param_spec.default|tojson }}\n                    {%- endif -%}\n                {%- endif -%}\n                {%- if not loop.last %}\n                    {{- ",\\n" }}\n                {%- else %}\n                    {{- "\\n" }}\n                {%- endif -%}\n            {%- endfor %}\n            {{- "}) => any;" }}\n        {%- else -%}\n            {{- "() => any;" }}\n        {%- endif -%}\n        {%- if not loop.last -%}\n            {{- "\\n" }}\n        {%- endif -%}\n    {%- endfor %}\n{%- endmacro -%}\n{{ render_tools(messages) }}\n'
@@ -236,16 +264,12 @@ def linearise_sample_for_sft(sample: Dict[str, Any]) -> List[Dict[str, Any]]:
 
     if "system_prompt" in sample and sample["system_prompt"]:
         output_messages.append(
-            {"role": "system", "content": {"text": sample["system_prompt"]["content"]}}
+            {"role": "system", "content": make_content(text=sample["system_prompt"]["content"])}
         )
 
     developer_message = {
         "role": "developer",
-        "content": {
-            "tools": "",
-            "has_thinking": False,
-            "formatted_tools": "",
-        },
+        "content": make_content(tools="", has_thinking=False, formatted_tools=""),
     }
 
     if "available_functions" in sample and sample["available_functions"]:
@@ -306,11 +330,9 @@ def linearise_sample_for_sft(sample: Dict[str, Any]) -> List[Dict[str, Any]]:
         output_messages.append(
             {
                 "role": "user",
-                "content": {
-                    "parts": [
-                        {"type": "text", "text": sample["initial_prompt"]["content"]}
-                    ]
-                },
+                "content": make_content(
+                    parts=[{"type": "text", "text": sample["initial_prompt"]["content"]}]
+                ),
             }
         )
 
@@ -324,9 +346,9 @@ def linearise_sample_for_sft(sample: Dict[str, Any]) -> List[Dict[str, Any]]:
                 output_messages.append(
                     {
                         "role": "user",
-                        "content": {
-                            "parts": [{"type": "text", "text": part["content"]}]
-                        },
+                        "content": make_content(
+                            parts=[{"type": "text", "text": part["content"]}]
+                        ),
                     }
                 )
 
@@ -481,7 +503,7 @@ def linearise_sample_for_sft(sample: Dict[str, Any]) -> List[Dict[str, Any]]:
                 )
 
             output_messages.append(
-                {"role": "assistant", "content": {"blocks": assistant_blocks}}
+                {"role": "assistant", "content": make_content(blocks=assistant_blocks)}
             )
 
     return output_messages
@@ -513,6 +535,36 @@ def process_dataset(dataset: Dataset, training_type: str) -> Dataset:
         "created_timestamp",
     ]
 
+    # Use Python list notation [{'field': ...}] — NOT Sequence({'field': ...}).
+    # The difference matters for Arrow schema:
+    #   list[{...}]     → pa.list_<pa.struct<...>>  (array-of-structs, correct)
+    #   Sequence({...}) → pa.struct<field: pa.list_<...>> (columnar, wrong)
+    # With an explicit schema, empty lists blocks=[] / parts=[] are written as
+    # typed-empty lists, not list<null>, so all shards share the same schema.
+    output_features = Features(
+        {col: dataset.features[col] for col in columns_to_keep if col in dataset.features}
+    )
+    output_features["messages"] = [
+        {
+            "role": Value("string"),
+            "content": {
+                "text": Value("string"),
+                "tools": Value("string"),
+                "has_thinking": Value("bool"),
+                "formatted_tools": Value("string"),
+                "parts": [{"type": Value("string"), "text": Value("string")}],
+                "blocks": [
+                    {
+                        "type": Value("string"),
+                        "text": Value("string"),
+                        "calls": [{"name": Value("string"), "arguments": Value("string")}],
+                        "outputs": [{"name": Value("string"), "output": Value("string")}],
+                    }
+                ],
+            },
+        }
+    ]
+
     def format_sample(sample):
         """Format a single sample and keep only required columns."""
         formatted_messages = format_fn(sample)
@@ -532,6 +584,7 @@ def process_dataset(dataset: Dataset, training_type: str) -> Dataset:
         remove_columns=[
             col for col in dataset.column_names if col not in columns_to_keep
         ],
+        features=output_features,
     )
 
     print(f"Conversion complete: {len(formatted_dataset)} samples processed")

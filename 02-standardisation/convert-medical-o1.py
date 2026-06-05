@@ -1,53 +1,61 @@
 """
-convert_LEXam_open.py
-───────────────────────
-Convert the LEXam-Benchmark/LEXam dataset (open_question subset) from HuggingFace into the unified chat-tool schema.
+Convert FreedomIntelligence/medical-o1 data into the unified chat format.
 
-The LEXam Open Questions dataset contains multiple-choice questions structured as:
-    - question: The multiple-choice question
-    - answer: Reference answer provided by legal domain experts
-    - course: Title of the law course from which the question was derived
-    - language: Language of the question (en or de)
-    - area: Legal area covered by the question (criminal, public, private, or interdisciplinary)
-    - jurisdiction: Legal jurisdiction of the question (Swiss, international, or generic)
-    - year: Year when the exam was administered (2016 to 2022)
-    - id: Unique identifier for the question
+The converter joins:
+  - FreedomIntelligence/medical-o1-reasoning-SFT: Question, Complex_CoT, Response
+  - FreedomIntelligence/medical-o1-verifiable-problem: Open-ended Verifiable Question,
+    Ground-True Answer
 
-
-This converter:
-1. Converts the question and answer into a clear prompt format
-2. Includes metadata about the question
+Rows are kept only when a ground-truth answer is available.
 """
 
-
-
-import enum
-import re
 import sys
 import json
 import argparse
-import random
+import hashlib
 from datetime import datetime, UTC
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from pathlib import Path
 from datasets import Dataset, DatasetDict, load_dataset, concatenate_datasets
 
 SRC = "medical-o1-reasoning-SFT"
 
+
+def stable_conversation_id(question: str) -> str:
+    digest = hashlib.sha256(question.encode("utf-8")).hexdigest()[:16]
+    return f"medical_o1_reasoning_sft_{digest}"
+
 def extract_meta(sample: Dict[str, Any]) -> Dict[str, Any]:
-    '''Extract extra information (e.g. language, course etc.) to provide as metadata'''
+    """Extract source fields that are not the prompt/answer payload."""
     extra = {}
     for key in sample:
-        if key not in ['question', 'answer']:
+        if key not in [
+            "Question",
+            "Complex_CoT",
+            "Response",
+            "Open-ended Verifiable Question",
+            "Ground-True Answer",
+        ]:
             extra[key] = sample[key]
     return extra
+
+
+def make_part(part_type: str, content: str = "", answers: Optional[List[str]] = None) -> Dict[str, Any]:
+    part = {
+        "type": part_type,
+        "content": content,
+        "metadata": {},
+    }
+    if answers is not None:
+        part["answers"] = answers
+    return part
 
 def convert_sample(sample: Dict[str, Any]) -> Dict[str, Any]:
     """Convert a single sample to the new format."""
     
     # Start with existing fields
     converted: Dict[str, Any] = {
-        "conversation_id": "",
+        "conversation_id": stable_conversation_id(str(sample.get("Question") or "")),
         "dataset_source": SRC,
         "original_metadata": {},
         "created_timestamp": datetime.now(UTC).isoformat(),
@@ -59,9 +67,10 @@ def convert_sample(sample: Dict[str, Any]) -> Dict[str, Any]:
         "metadata": {},
     }
     
-    # Extracts parts.
-    question = sample['question']
-    answer = sample['answer']
+    question = str(sample.get("Question") or "").strip()
+    reasoning = str(sample.get("Complex_CoT") or "").strip()
+    answer = str(sample.get("Response") or "").strip()
+    ground_truth = str(sample.get("Ground-True Answer") or "").strip()
     extra_info = extract_meta(sample)
     
     # Process initial_prompt
@@ -74,20 +83,12 @@ def convert_sample(sample: Dict[str, Any]) -> Dict[str, Any]:
     # No available functions in this dataset
     converted["available_functions"] = []
 
-    parts: list[Dict] = [
-        {
-            "type": "response",
-            "content": answer,
-            "metadata": 
-                {}
-        }
-    ]
-
-    # if answer is not None:
-    #     parts.append({
-    #         "type": "verifiable-responses",
-    #         "answers": [],
-    #     })
+    parts: list[Dict] = []
+    if reasoning:
+        parts.append(make_part("thought", reasoning))
+    parts.append(make_part("response", answer))
+    if ground_truth:
+        parts.append(make_part("verifiable-responses", answers=[ground_truth]))
     
     # Process conversation branches    
     converted["conversation_branches"] = [
@@ -149,8 +150,9 @@ def save_dataset_and_metadata(dataset_dict: DatasetDict, output_path: Path, args
         metadata["source_dataset"] = SRC
     if "conversion_details" not in metadata:
         metadata["conversion_details"] = {
-            "conversation_type": "LEXam_open",
+            "conversation_type": "medical_reasoning_verifiable",
             "added_fields": ["system_prompt", "conversation_branches"],
+            "edited_fields": ["Complex_CoT preserved as assistant thought part"],
             "format": "new_chat_format_with_parts"
         }
     
@@ -168,6 +170,7 @@ def cli():
     p.add_argument("-o", "--output", required=True, help="Output directory path")
     p.add_argument("--num-proc", type=int, default=8, help="Number of processes for dataset operations")
     p.add_argument("--limit", type=int, default=None, help="Limit number of samples to process")
+    p.add_argument("--overwrite", action="store_true", default=False, help="Overwrite output without prompting")
     return p.parse_args()
 
 def main():
@@ -175,7 +178,7 @@ def main():
     output_path = Path(args.output)
     
     # Check if output exists
-    if output_path.exists():
+    if output_path.exists() and not args.overwrite:
         response = input(f"{output_path} exists. Overwrite? [y/N]: ")
         if response.lower() != "y":
             sys.exit(0)
@@ -206,13 +209,11 @@ def main():
     
     data = data.filter(filter_fn)
 
-    print(data)
-    exit()
     print(f"Loaded {len(data)} samples")
     
     # Apply limit if specified
     if args.limit and args.limit > 0:
-        data = data[:args.limit]
+        data = data.select(range(min(args.limit, len(data))))
         print(f"Limited to {len(data)} samples")
     
     # Convert samples

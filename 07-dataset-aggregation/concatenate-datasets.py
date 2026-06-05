@@ -265,7 +265,7 @@ def normalize_dataset_schema(dataset: Dataset, dataset_name: str = "unknown") ->
     
     # Apply deep normalization
     print(f"  Normalizing schema (deep clean + metadata serialization)...")
-    dataset = dataset.map(normalize_example, desc=f"  Normalizing", num_proc=16)
+    dataset = dataset.map(normalize_example, desc=f"  Normalizing", num_proc=1)
     
     # Select only official columns (in case map added extras somehow)
     columns_to_keep = [col for col in dataset.column_names if col in OFFICIAL_COLUMNS]
@@ -396,6 +396,7 @@ def save_dataset_and_metadata(dataset: Dataset, output_path: Path,
         "saved_as": "DatasetDict" if args.as_datasetdict else "Dataset",
         "schema_normalized": not args.no_normalize,
         "strict_mode": args.strict,
+        "shuffle_flags": args.shuffle,
         "official_columns": sorted(OFFICIAL_COLUMNS),
         "input_datasets": input_stats,
         "output_statistics": output_stats,
@@ -447,18 +448,21 @@ def cli():
 Examples:
   # Concatenate two datasets (default: normalizes schemas)
   %(prog)s /path/to/dataset1 /path/to/dataset2 -o /path/to/output
-  
+
   # Concatenate with more processes
   %(prog)s dataset1 dataset2 dataset3 -o output --num-proc 16
-  
+
   # Save as DatasetDict with "train" split
   %(prog)s dataset1 dataset2 -o output --as-datasetdict
-  
+
   # Skip schema normalization (requires identical schemas)
   %(prog)s dataset1 dataset2 -o output --no-normalize
-  
+
   # Strict mode: fail if schemas don"t match exactly
   %(prog)s dataset1 dataset2 -o output --strict
+
+  # Shuffle specific datasets before sampling
+  %(prog)s dataset1 dataset2 dataset3 dataset4 -o output --shuffle "true,false,false,true"
 
 Schema Normalization:
   By default, extra columns beyond the official schema are moved into
@@ -475,7 +479,9 @@ Schema Normalization:
     p.add_argument("--num-proc", type=int, default=8, help="Number of processes for dataset operations")
     p.add_argument("--sample-range", type=str, default="all",
                    help="Range of samples for datasets. Can be single (all) or comma-separated list matching inputs (e.g. 'all,0:100,200:300'). Use 'all' instead of '-1' to avoid CLI parsing issues.")
-    p.add_argument("--as-datasetdict", action="store_true", 
+    p.add_argument("--shuffle", type=str, default=None,
+                   help="Comma-separated true/false values for each dataset (e.g. 'true,false,false,true'). If true, shuffle the dataset before sampling.")
+    p.add_argument("--as-datasetdict", action="store_true",
                    help="Save as DatasetDict with 'train' split (default: save as Dataset)")
     p.add_argument("--no-normalize", action="store_true",
                    help="Skip schema normalization (requires identical schemas)")
@@ -547,11 +553,25 @@ def main():
         print("Please provide either a single range (applies to all) or one range per dataset (comma-separated).")
         sys.exit(1)
 
+    # Parse shuffle flags
+    if args.shuffle:
+        shuffle_flags = [s.strip().lower() == 'true' for s in args.shuffle.split(',')]
+        if len(shuffle_flags) == 1:
+            shuffle_flags = shuffle_flags * len(input_paths)
+        if len(shuffle_flags) != len(input_paths):
+            print(f"Error: Number of shuffle flags ({len(shuffle_flags)}) provided via --shuffle does not match number of input datasets ({len(input_paths)}).")
+            print("Please provide either a single value (applies to all) or one value per dataset (comma-separated).")
+            sys.exit(1)
+    else:
+        shuffle_flags = [False] * len(input_paths)
+
     print(f"Will concatenate {len(input_paths)} datasets:")
     for i, path in enumerate(input_paths):
         range_str = sample_ranges[i]
+        shuffle_str = shuffle_flags[i]
         range_info = f" (range: {range_str})" if range_str not in ["-1", "all"] else ""
-        print(f"  - {path}{range_info}")
+        shuffle_info = " (shuffle)" if shuffle_str else ""
+        print(f"  - {path}{range_info}{shuffle_info}")
     
     # Check if output exists
     if output_path.exists():
@@ -574,7 +594,13 @@ def main():
         try:
             dataset = load_dataset_safely(path, normalize=normalize)
             original_len = len(dataset)
-            
+
+            # Apply shuffle if specified (before range selection)
+            should_shuffle = shuffle_flags[i-1]
+            if should_shuffle:
+                dataset = dataset.shuffle()
+                print(f"  Shuffled dataset")
+
             # Apply range if specified
             current_range = sample_ranges[i-1]
             if current_range not in ["-1", "all"]:
@@ -590,6 +616,7 @@ def main():
                 "num_samples": len(dataset),
                 "original_num_samples": original_len,
                 "range_applied": current_range if current_range not in ["-1", "all"] else None,
+                "shuffled": should_shuffle,
                 "columns": dataset.column_names,
                 "normalized": normalize
             }

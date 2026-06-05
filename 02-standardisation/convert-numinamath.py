@@ -11,7 +11,8 @@ RED = "\033[91m"
 GREEN = "\033[92m"
 RESET = "\033[0m"
 
-SRC = "AI-MO/NuminaMath-1.5"
+# SRC = "AI-MO/NuminaMath-1.5"
+SRC="annakosovskaia/NuminaMath-1.5-RL-Verifiable-cleaned"
 
 disable_progress_bars()
 
@@ -639,7 +640,7 @@ def parse_sample(row: Dict[str, Any]) -> Dict[str, Any]:
                 "original_problem": original_problem,
             },
         },
-        "messages": [], # messages,
+        "messages": messages,
     }
 
 

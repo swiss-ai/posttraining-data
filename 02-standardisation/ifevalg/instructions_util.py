@@ -1651,7 +1651,14 @@ def count_words(text):
 
 @functools.cache
 def _get_sentence_tokenizer():
-    return nltk.data.load("nltk:tokenizers/punkt/english.pickle")
+    try:
+        return nltk.data.load("nltk:tokenizers/punkt/english.pickle")
+    except LookupError:
+        class RegexSentenceTokenizer:
+            def tokenize(self, text):
+                return split_into_sentences(text)
+
+        return RegexSentenceTokenizer()
 
 
 def count_sentences(text):
