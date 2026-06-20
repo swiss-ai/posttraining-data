@@ -70,7 +70,7 @@ def extract_verifiable_answer(answer: str) -> Optional[str]:
 
     return verifiable_answer
 
-def convert_sample(sample: Dict[str, Any]) -> Dict[str, Any]:
+def convert_sample(sample: Dict[str, Any], idx: int) -> Dict[str, Any]:
     """Convert a single sample to the new format."""
     
     # Extracts original metadata.
@@ -78,7 +78,7 @@ def convert_sample(sample: Dict[str, Any]) -> Dict[str, Any]:
     
     # Start with existing fields
     converted: Dict[str, Any] = {
-        "conversation_id": "",
+        "conversation_id": f"{SRC}_{idx}",
         "dataset_source": SRC,
         "original_metadata": {
             "dataset": original_metadata["dataset"],
@@ -260,7 +260,7 @@ def main():
     for i, sample in enumerate(data):
         if i % 1000 == 0:
             print(f"Processing sample {i}/{len(data)}")
-        converted_samples.append(convert_sample(sample))
+        converted_samples.append(convert_sample(sample, i))
     
     # Create Dataset and DatasetDict
     print("Creating DatasetDict...")    

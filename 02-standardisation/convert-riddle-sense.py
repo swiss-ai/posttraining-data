@@ -94,12 +94,12 @@ def generate_response(answer: str) -> str:
         gen_response = gen_response.format(label=random.choice(mixed_label), answer=answer)
     return gen_response
 
-def convert_sample(sample: Dict[str, Any]) -> Dict[str, Any]:
+def convert_sample(sample: Dict[str, Any], idx: int) -> Dict[str, Any]:
     """Convert a single sample to the new format."""
     
     # Start with existing fields
     converted: Dict[str, Any] = {
-        "conversation_id": "",
+        "conversation_id": f"{SRC}_{idx}",
         "dataset_source": SRC,
         "original_metadata": {},
         "created_timestamp": datetime.now(UTC).isoformat(),
@@ -285,7 +285,7 @@ def main():
     for i, sample in enumerate(data):
         if i % 1000 == 0:
             print(f"Processing sample {i}/{len(data)}")
-        converted_samples.append(convert_sample(sample))
+        converted_samples.append(convert_sample(sample, i))
     
     # Create Dataset and DatasetDict
     print("Creating DatasetDict...")    

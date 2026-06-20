@@ -59,12 +59,15 @@ def convert_africa_sft_format(row: Dict[str, Any], dataset_source: str, row_inde
     - original_metadata: string with metadata
     - dataset_source: string
     """
-    # Parse conversation_branches from string to list
-    conversation_branches_str = row.get("conversation_branches", "[]")
-    try:
-        branches = ast.literal_eval(conversation_branches_str)
-    except (ValueError, SyntaxError) as e:
-        raise ValueError(f"Failed to parse conversation_branches: {e}")
+    # Parse conversation_branches from string to list if needed.
+    conversation_branches_value = row.get("conversation_branches", [])
+    if isinstance(conversation_branches_value, str):
+        try:
+            branches = ast.literal_eval(conversation_branches_value)
+        except (ValueError, SyntaxError) as e:
+            raise ValueError(f"Failed to parse conversation_branches: {e}")
+    else:
+        branches = conversation_branches_value
     
     if not branches or not branches[0].get("messages"):
         raise ValueError("No valid messages found in conversation_branches")
@@ -161,42 +164,33 @@ def convert_africa_sft_format(row: Dict[str, Any], dataset_source: str, row_inde
 
 def convert_dataset(dataset: Dataset, dataset_source: str) -> Dataset:
     """Convert dataset with validation."""
-    def convert_with_validation(example, idx):
+    print(f"Converting and validating {len(dataset):,} samples...")
+    converted_rows = []
+    skipped = 0
+
+    for idx, example in enumerate(dataset):
         try:
             converted = convert_africa_sft_format(example, dataset_source, idx)
             
             if converted is None:
-                return None
+                skipped += 1
+                continue
             
             if not isinstance(converted, dict):
                 print(f"Warning: Converter returned non-dict for sample {idx}: {type(converted)}")
-                return None
+                skipped += 1
+                continue
             
-            return converted
+            converted_rows.append(converted)
             
         except Exception as e:
             print(f"Warning: Failed to convert sample {idx}: {e}")
-            return None
+            skipped += 1
     
-    print(f"Converting and validating {len(dataset):,} samples...")
-    
-    # Use dataset.map with enumeration for index
-    converted = dataset.map(
-        convert_with_validation,
-        with_indices=True,
-        desc="Converting",
-        remove_columns=dataset.column_names
-    )
-    
-    # Filter out None results (invalid/failed conversions)
-    initial_count = len(converted)
-    converted = converted.filter(lambda x: x is not None)
-    final_count = len(converted)
-    
-    if initial_count > final_count:
-        print(f"Filtered out {initial_count - final_count:,} invalid samples ({final_count:,} remain)")
-    
-    return converted
+    if skipped:
+        print(f"Filtered out {skipped:,} invalid samples ({len(converted_rows):,} remain)")
+
+    return Dataset.from_list(converted_rows)
 
 
 def load_existing_metadata(input_path: Path) -> Optional[Dict[str, Any]]:

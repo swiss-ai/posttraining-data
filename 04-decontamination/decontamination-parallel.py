@@ -28,9 +28,12 @@ import time
 import gc
 import pickle
 import hashlib
+import tempfile
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, Any, Optional
+
+from benchmark_filters import filter_benchmark_names
 
 """
 Parallel decontamination script for processing benchmark subsets.
@@ -240,8 +243,8 @@ def load_cached_benchmark_ngrams(cache_path):
         try:
             with open(cache_path, 'rb') as f:
                 return pickle.load(f)
-        except (pickle.PickleError, IOError) as e:
-            print(f"Warning: Failed to load cache from {cache_path}: {e}")
+        except (pickle.PickleError, EOFError, IOError) as e:
+            print(f"Warning: Failed to load cache from {cache_path}: {e}. Recomputing.")
     return None
 
 def save_benchmark_ngrams_to_cache(ngrams, lookup_table, cache_path):
@@ -251,11 +254,16 @@ def save_benchmark_ngrams_to_cache(ngrams, lookup_table, cache_path):
             'ngrams': ngrams,
             'lookup_table': lookup_table
         }
-        with open(cache_path, 'wb') as f:
+        cache_dir = os.path.dirname(cache_path) or "."
+        with tempfile.NamedTemporaryFile(mode='wb', dir=cache_dir, delete=False) as f:
             pickle.dump(cache_data, f)
+            temp_path = f.name
+        os.replace(temp_path, cache_path)
         print(f"  Cached n-grams to {cache_path}")
     except (pickle.PickleError, IOError) as e:
         print(f"Warning: Failed to save cache to {cache_path}: {e}")
+        if 'temp_path' in locals() and os.path.exists(temp_path):
+            os.remove(temp_path)
 
 def compute_benchmark_ngrams(eval_dataset, tokenizer, ngram_length, num_proc):
     """Compute n-grams for a benchmark dataset."""
@@ -294,8 +302,10 @@ def main(args):
     eval_data = load_from_disk(args.decontamination_prompts)
     
     # Get complete list of available benchmarks
-    all_available_benchmarks = list(eval_data.keys())
-    print(f"Total available benchmarks: {len(all_available_benchmarks)}")
+    all_available_benchmarks, excluded_benchmarks = filter_benchmark_names(list(eval_data.keys()))
+    print(f"Total available benchmarks after exclusions: {len(all_available_benchmarks)}")
+    if excluded_benchmarks:
+        print(f"Excluded {len(excluded_benchmarks)} benchmark(s): {', '.join(sorted(excluded_benchmarks))}")
     
     # Determine benchmark subset to process
     if args.benchmark_name is not None:
@@ -318,6 +328,9 @@ def main(args):
             print(f"Processing benchmark subset [{args.benchmark_start}:{args.benchmark_end}]: {len(benchmark_list)} benchmarks")
         else:
             print(f"Using all {len(benchmark_list)} available benchmarks")
+    benchmark_list, excluded_requested_benchmarks = filter_benchmark_names(benchmark_list)
+    if excluded_requested_benchmarks:
+        print(f"Excluded {len(excluded_requested_benchmarks)} requested benchmark(s): {', '.join(sorted(excluded_requested_benchmarks))}")
     
     # Validate benchmarks exist
     missing_benchmarks = [b for b in benchmark_list if b not in all_available_benchmarks]

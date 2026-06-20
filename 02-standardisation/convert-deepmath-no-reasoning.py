@@ -9,79 +9,57 @@ from datasets import Dataset, DatasetDict, load_dataset
 SRC = "DeepMath-103K"
 
 def convert_sample(sample: Dict[str, Any]) -> Dict[str, Any]:
-    """Convert a single sample to the new format."""
-    
-    # Start with existing fields
-    converted: Dict[str, Any] = {
+    """Convert a single sample to the new format, keeping only the answer (no thought)."""
+
+    # Solutions have format: {thinking}</think>{answer} — no opening <think> tag.
+    # Pick the solution whose thinking block is shortest (proxy for most concise reasoning),
+    # then take only the answer part after </think>.
+    thinkings_and_indices = [
+        (0, sample["r1_solution_1"].split("</think>")[0]),
+        (1, sample["r1_solution_2"].split("</think>")[0]),
+        (2, sample["r1_solution_3"].split("</think>")[0]),
+    ]
+    index = min(thinkings_and_indices, key=lambda x: len(x[1]))[0]
+    answer = sample[f"r1_solution_{index + 1}"].split("</think>")[1].strip()
+
+    parts: list[Dict] = [
+        {
+            "type": "response",
+            "content": answer,
+            "metadata": {},
+        },
+        {
+            "type": "verifiable-responses",
+            "answers": [sample["final_answer"]],
+        },
+    ]
+
+    return {
         "conversation_id": "",
         "dataset_source": SRC,
         "original_metadata": {},
         "created_timestamp": datetime.now(UTC).isoformat(),
-    }
-    
-    # System prompt is always the same, we don't want it
-    converted["system_prompt"] = {
-        "content": "",
-        "metadata": {},
-    }
-    
-    # Process initial_prompt
-    converted["initial_prompt"] = {
-        "role": "user",
-        "content": sample["question"],
-        "metadata": {}
-    }
-
-    thinking1 = sample["r1_solution_1"].split("</think>")[0].strip()
-    thinking2 = sample["r1_solution_2"].split("</think>")[0].strip()
-    thinking3 = sample["r1_solution_3"].split("</think>")[0].strip()
-
-    thinkings_and_indices = [(0, thinking1), (1, thinking2), (2, thinking3)]
-    shortest_thinking_and_index = min(thinkings_and_indices, key=lambda x: len(x[1]))
-
-    thinking = shortest_thinking_and_index[1]
-    index = shortest_thinking_and_index[0]
-
-    answer = sample[f"r1_solution_{index+1}"].split("</think>")[1].strip()
-
-    # No available functions in this dataset
-    converted["available_functions"] = []
-
-    parts: list[Dict] = [
-        {
-            "type": "thought",
-            "content": thinking,
-            "metadata": {}
+        "system_prompt": {"content": "", "metadata": {}},
+        "initial_prompt": {
+            "role": "user",
+            "content": sample["question"],
+            "metadata": {},
         },
-        {
-            "type": "response",
-            "content": answer,
-            "metadata": {}
-        }
-    ]
+        "available_functions": [],
+        "conversation_branches": [
+            {
+                "messages": [
+                    {
+                        "role": "assistant",
+                        "parts": parts,
+                    },
+                ],
+            },
+        ],
+    }
 
-    if answer is not None:
-        parts.append({
-            "type": "verifiable-responses",
-            "answers": [sample["final_answer"]],
-        })
-    
-    # Process conversation branches    
-    converted["conversation_branches"] = [
-        {
-            "messages": [
-                {
-                    "role": "assistant",
-                    "parts": parts,
-                },
-            ],
-        },
-    ]
-    
-    return converted
 
 def load_existing_metadata(output_path: Path) -> Optional[Dict[str, Any]]:
-    """Load existing dataset metadata if it exists."""
     meta_file = output_path / "dataset_metadata.json"
     if meta_file.exists():
         try:
@@ -92,56 +70,48 @@ def load_existing_metadata(output_path: Path) -> Optional[Dict[str, Any]]:
     return None
 
 def save_dataset_and_metadata(dataset_dict: DatasetDict, output_path: Path, args: argparse.Namespace):
-    """Save converted dataset with processing metadata."""
-    # Create output directory
     output_path.mkdir(parents=True, exist_ok=True)
-    
-    # Save dataset
     dataset_dict.save_to_disk(str(output_path))
-    
-    # Load existing metadata or create new
+
     metadata = load_existing_metadata(output_path) or {}
-    
-    # Create processing entry
+
     processing_entry = {
-        "operation": f"convert_{SRC}",
-        "script": f"convert_{SRC}.py",
+        "operation": f"convert_{SRC}_no_reasoning",
+        "script": f"convert-{SRC}-no-reasoning.py",
         "timestamp": datetime.now(UTC).isoformat(),
         "input_path": args.input,
         "output_path": str(output_path),
         "num_processes": args.num_proc,
         "limit": args.limit,
-        "description": f"Converted {SRC} dataset from JSON to unified chat format"
+        "description": f"Converted {SRC} dataset to unified chat format (no reasoning traces)",
     }
-    
-    # Add to processing log
+
     if "processing_log" not in metadata:
         metadata["processing_log"] = []
     metadata["processing_log"].append(processing_entry)
-    
-    # Add format metadata if not already present
+
     if "format" not in metadata:
         metadata["format"] = "chat_format_v1"
     if "source_dataset" not in metadata:
         metadata["source_dataset"] = SRC
     if "conversion_details" not in metadata:
         metadata["conversion_details"] = {
-            "conversation_type": "mathematical_problem_solving",
+            "conversation_type": "math_reasoning",
             "added_fields": ["system_prompt", "conversation_branches"],
-            "format": "new_chat_format_with_parts"
+            "edited_fields": ["r1_solution (thinking stripped, only answer after </think> kept)"],
+            "format": "new_chat_format_with_parts",
         }
-    
-    # Save metadata
+
     metadata_file = output_path / "dataset_metadata.json"
     with open(metadata_file, 'w') as f:
         json.dump(metadata, f, indent=2)
-    
+
     print(f"Dataset saved to {output_path}")
     print(f"Metadata saved to {metadata_file}")
 
 def cli():
-    p = argparse.ArgumentParser(description=f"Convert {SRC} dataset to unified chat format")
-    p.add_argument("-i", "--input", default=None, help="Input file path. If None, will be loaded from the Hub.")
+    p = argparse.ArgumentParser(description=f"Convert {SRC} dataset to unified chat format (no reasoning)")
+    p.add_argument("-i", "--input", default=None, help="Unused; dataset is always loaded from HuggingFace Hub.")
     p.add_argument("-o", "--output", required=True, help="Output directory path")
     p.add_argument("--num-proc", type=int, default=8, help="Number of processes for dataset operations")
     p.add_argument("--limit", type=int, default=None, help="Limit number of samples to process")
@@ -150,43 +120,31 @@ def cli():
 def main():
     args = cli()
     output_path = Path(args.output)
-    
-    # Check if output exists
+
     if output_path.exists():
         response = input(f"{output_path} exists. Overwrite? [y/N]: ")
         if response.lower() != "y":
             sys.exit(0)
-    
-    if args.input is None:
-        data = load_dataset("zwhe99/DeepMath-103K", split="train")
-    else:
-        raise ValueError("Input file is not supported for this dataset.")
 
+    data = load_dataset("zwhe99/DeepMath-103K", split="train")
     print(f"Loaded {len(data)} samples")
-    
-    # Apply limit if specified
+
     if args.limit and args.limit > 0:
-        data = data[:args.limit]
+        data = data.select(range(min(args.limit, len(data))))
         print(f"Limited to {len(data)} samples")
-    
-    # Convert samples
+
     print("Converting samples to new format...")
     converted_samples = []
     for i, sample in enumerate(data):
         if i % 1000 == 0:
             print(f"Processing sample {i}/{len(data)}")
         converted_samples.append(convert_sample(sample))
-    
-    # Create Dataset and DatasetDict
-    print("Creating DatasetDict...")    
-    dataset = Dataset.from_list(converted_samples)
-    dataset_dict = DatasetDict({"train": dataset})
-    
+
+    print("Creating DatasetDict...")
+    dataset_dict = DatasetDict({"train": Dataset.from_list(converted_samples)})
+
     print(f"Converted {len(converted_samples)} samples")
-    
-    # Save dataset and metadata
     save_dataset_and_metadata(dataset_dict, output_path, args)
-    
     print("Conversion complete!")
 
 if __name__ == "__main__":
