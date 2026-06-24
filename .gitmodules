@@ -1,0 +1,9 @@
+[submodule "08a-judge-evaluation/submodules/JudgeBench"]
+	path = 08a-judge-evaluation/submodules/JudgeBench
+	url = https://github.com/ScalerLab/JudgeBench.git
+[submodule "08a-judge-evaluation/submodules/RM-Bench"]
+	path = 08a-judge-evaluation/submodules/RM-Bench
+	url = https://github.com/THU-KEG/RM-Bench.git
+[submodule "reward-bench"]
+	path = 08a-judge-evaluation/submodules/reward-bench
+	url = https://github.com/allenai/reward-bench.git
