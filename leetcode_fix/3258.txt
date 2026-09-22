@@ -1,0 +1,99 @@
+You are given a binary string s and an integer k.
+A binary string satisfies the k-constraint if either of the following conditions holds:
+
+The number of 0's in the string is at most k.
+The number of 1's in the string is at most k.
+
+Return an integer denoting the number of substrings of s that satisfy the k-constraint.
+ 
+Example 1:
+
+Input: s = "10101", k = 1
+Output: 12
+Explanation:
+Every substring of s except the substrings "1010", "10101", and "0101" satisfies the k-constraint.
+
+Example 2:
+
+Input: s = "1010101", k = 2
+Output: 25
+Explanation:
+Every substring of s except the substrings with a length greater than 5 satisfies the k-constraint.
+
+Example 3:
+
+Input: s = "11111", k = 1
+Output: 15
+Explanation:
+All substrings of s satisfy the k-constraint.
+
+ 
+Constraints:
+
+1 <= s.length <= 50 
+1 <= k <= s.length
+s[i] is either '0' or '1'.
+
+
+
+<SEPARATOR>
+
+```python
+class Solution:
+    def countKConstraintSubstrings(self, s: str, k: int) -> int:
+        def count_valid_substrings_with_char_limit(s: str, limit: int, target_char: str) -> int:
+            left = 0
+            count = 0
+            current_char_count = 0
+            n = len(s)
+            
+            for right in range(n):
+                if s[right] == target_char:
+                    current_char_count += 1
+                
+                while current_char_count > limit:
+                    if s[left] == target_char:
+                        current_char_count -= 1
+                    left += 1
+                
+                count += right - left + 1
+            
+            return count
+        
+        count_with_0_limit = count_valid_substrings_with_char_limit(s, k, '0')
+        count_with_1_limit = count_valid_substrings_with_char_limit(s, k, '1')
+        
+        # Total valid substrings = (valid with 0 limit) + (valid with 1 limit) - (valid with both limits)
+        # To find the overlap, we need to count substrings with both '0' and '1' counts within k
+        count_with_both_limits = count_valid_substrings_with_char_limit(s, k, '0') + count_valid_substrings_with_char_limit(s, k, '1')
+        # The above line is incorrect for overlap, we need to recount valid substrings with both constraints
+        # We need to recount valid substrings with both constraints using a different approach
+        
+        # Correct overlap calculation using a single pass with two pointers
+        left = 0
+        zero_count = 0
+        one_count = 0
+        overlap_count = 0
+        n = len(s)
+        
+        for right in range(n):
+            if s[right] == '0':
+                zero_count += 1
+            if s[right] == '1':
+                one_count += 1
+            
+            while zero_count > k or one_count > k:
+                if s[left] == '0':
+                    zero_count -= 1
+                if s[left] == '1':
+                    one_count -= 1
+                left += 1
+            
+            overlap_count += right - left + 1
+        
+        total_valid_substrings = count_with_0_limit + count_with_1_limit - overlap_count
+        
+        return total_valid_substrings
+```
+
+This solution uses a sliding window approach to count valid substrings for both '0' and '1' constraints separately, and then properly counts the overlap using a two-pointer technique so substrings matching both are not double-counted.

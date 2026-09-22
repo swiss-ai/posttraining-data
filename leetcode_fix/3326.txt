@@ -1,0 +1,89 @@
+You are given an integer array nums.
+Any positive divisor of a natural number x that is strictly less than x is called a proper divisor of x. For example, 2 is a proper divisor of 4, while 6 is not a proper divisor of 6.
+You are allowed to perform an operation any number of times on nums, where in each operation you select any one element from nums and divide it by its greatest proper divisor.
+Return the minimum number of operations required to make the array non-decreasing.
+If it is not possible to make the array non-decreasing using any number of operations, return -1.
+ 
+Example 1:
+
+Input: nums = [25,7]
+Output: 1
+Explanation:
+Using a single operation, 25 gets divided by 5 and nums becomes [5, 7].
+
+Example 2:
+
+Input: nums = [7,7,6]
+Output: -1
+
+Example 3:
+
+Input: nums = [1,1,1,1]
+Output: 0
+
+ 
+Constraints:
+
+1 <= nums.length <= 105
+1 <= nums[i] <= 106
+
+
+
+<SEPARATOR>
+
+To solve this problem, we need to repeatedly divide each element by its greatest proper divisor until the array becomes non-decreasing. If it's not possible to achieve a non-decreasing array, we return -1.
+
+### Steps to Solve the Problem:
+
+1. **Understand the Greatest Proper Divisor (GPD):**
+   - The greatest proper divisor of a number `x` is the largest divisor of `x` that is strictly less than `x`.
+   - For example, for `x = 25`, the divisors are `[1, 5, 25]`, so the greatest proper divisor is `5`.
+
+2. **Check for Non-Decreasing Array:**
+   - An array is non-decreasing if each element is less than or equal to the next element.
+
+3. **Iterate and Divide:**
+   - Start from the end of the array and move towards the beginning.
+   - For each element, if it is greater than the next element, try to make it smaller by dividing it by its GPD.
+   - Keep track of the number of operations performed.
+   - If at any point, an element cannot be made smaller to satisfy the non-decreasing condition, return -1.
+
+4. **Edge Cases:**
+   - If the array is already non-decreasing, return 0.
+   - If an element cannot be reduced further, return -1.
+
+### Implementation:
+
+Let's implement this logic in the provided Python class:
+
+```python
+from typing import List
+
+class Solution:
+    def minOperations(self, nums: List[int]) -> int:
+        def greatest_proper_divisor(x):
+            if x == 1:
+                return 1
+            for i in range(x // 2, 0, -1):
+                if x % i == 0:
+                    return i
+            return 1
+        
+        n = len(nums)
+        operations = 0
+        
+        # Traverse the array from the second last element to the first
+        for i in range(n - 2, -1, -1):
+            while nums[i] > nums[i + 1]:
+                gpd = greatest_proper_divisor(nums[i])
+                if gpd == 1 or gpd == nums[i]:
+                    return -1  # If GPD is 1 or equal to the number itself, we can't reduce further
+                nums[i] //= gpd
+                operations += 1
+        
+        return operations
+```
+
+### Explanation:
+- **greatest_proper_divisor(x):** This function finds the greatest proper divisor of `x`.
+- **Main Logic:** We iterate from the second last element to the first. For each element, if it is greater than the next element, we divide it by its GPD and increase the operation count. If we can't reduce the element further, we return -1.

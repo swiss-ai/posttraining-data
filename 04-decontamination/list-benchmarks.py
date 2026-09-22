@@ -7,10 +7,23 @@ splitting benchmarks across parallel jobs.
 """
 
 import argparse
+import importlib.util
+from pathlib import Path
 from datasets import load_from_disk
 
-# Import the benchmark list from gather_decontamination_prompts
-from gather_decontamination_prompts import BENCHMARK_DATASETS
+from benchmark_filters import filter_benchmark_names
+
+
+def load_benchmark_datasets():
+    """Load BENCHMARK_DATASETS from the sibling hyphenated gather script."""
+    script_path = Path(__file__).with_name("gather-decontamination-prompts.py")
+    spec = importlib.util.spec_from_file_location("gather_decontamination_prompts", script_path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.BENCHMARK_DATASETS
+
+
+BENCHMARK_DATASETS = load_benchmark_datasets()
 
 
 def get_benchmark_names():
@@ -100,8 +113,9 @@ Examples:
         benchmark_names = get_benchmark_names()
         source = "estimated from configuration"
     
-    # Filter out placeholders and sort
+    # Filter out placeholders and skipped benchmarks, then sort.
     actual_benchmarks = [name for name in benchmark_names if not name.endswith("__*")]
+    actual_benchmarks, excluded_benchmarks = filter_benchmark_names(actual_benchmarks)
     actual_benchmarks.sort()
     
     if args.count_only:
@@ -111,6 +125,8 @@ Examples:
             print(f"Would create {num_chunks} parallel jobs with chunk size {args.chunk_size}")
     else:
         print(f"# {len(actual_benchmarks)} benchmarks {source}")
+        if excluded_benchmarks:
+            print(f"# Excluded {len(excluded_benchmarks)} benchmark(s): {', '.join(sorted(excluded_benchmarks))}")
         print(f"# Chunk size {args.chunk_size} would create {(len(actual_benchmarks) + args.chunk_size - 1) // args.chunk_size} parallel jobs")
         print()
         for benchmark in actual_benchmarks:

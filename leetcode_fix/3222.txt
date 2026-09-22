@@ -1,0 +1,63 @@
+You are given two positive integers x and y, denoting the number of coins with values 75 and 10 respectively.
+Alice and Bob are playing a game. Each turn, starting with Alice, the player must pick up coins with a total value 115. If the player is unable to do so, they lose the game.
+Return the name of the player who wins the game if both players play optimally.
+ 
+Example 1:
+
+Input: x = 2, y = 7
+Output: "Alice"
+Explanation:
+The game ends in a single turn:
+
+Alice picks 1 coin with a value of 75 and 4 coins with a value of 10.
+
+
+Example 2:
+
+Input: x = 4, y = 11
+Output: "Bob"
+Explanation:
+The game ends in 2 turns:
+
+Alice picks 1 coin with a value of 75 and 4 coins with a value of 10.
+Bob picks 1 coin with a value of 75 and 4 coins with a value of 10.
+
+
+ 
+Constraints:
+
+1 <= x, y <= 100
+
+
+
+<SEPARATOR>
+
+To solve this problem, we need to determine the winner of the game given the number of coins with values 75 and 10. The key observation here is that each turn, a player must pick coins that sum up to 115. The possible combinations to make 115 are:
+
+- 1 coin of 75 and 4 coins of 10 (75 + 4*10 = 115)
+
+Given that each player plays optimally, we need to simulate the game to see who will eventually be unable to make a move.
+
+Here's the step-by-step approach:
+1. We start with the given number of coins.
+2. In each turn, we check if the current player can make a move (i.e., if there is at least 1 coin of 75 and 4 coins of 10).
+3. If the player can make a move, they do so and it's the next player's turn.
+4. If the player cannot make a move, they lose.
+
+The game will end when a player cannot make the required move. We need to determine if Alice (the first player) or Bob (the second player) will be the one who cannot make a move.
+
+Let's implement this logic in the provided `Solution` class:
+
+```python
+class Solution:
+    def winningPlayer(self, x: int, y: int) -> str:
+        turn = 0  # 0 for Alice, 1 for Bob
+        while x >= 1 and y >= 4:
+            x -= 1
+            y -= 4
+            turn = 1 - turn  # Switch turn
+        
+        # If turn is 0, it means Bob made the last valid move, so Alice loses
+        # If turn is 1, it means Alice made the last valid move, so Bob loses
+        return "Alice" if turn == 1 else "Bob"
+```

@@ -26,7 +26,7 @@ from typing import Dict, Any, Optional
 from datasets import Dataset, DatasetDict, load_from_disk
 
 # Hardcoded input path as specified
-INPUT_PATH = "/capstor/store/cscs/swissai/infra01/posttrain_data/01_raw_hf_data/swiss-german-instruct-data-dialects-with-translation-instructions-v2"
+INPUT_PATH = "/capstor/store/cscs/swissai/infra01/reasoning/data/sft_1.1/hf_datasets/swiss-german-instruct-data-dialects-with-translation-instructions-v2"
 SRC = "swiss-german-dialects"
 
 # Dialect mapping for better readability in metadata
@@ -142,6 +142,7 @@ def process_dataset(dataset: Dataset, num_proc: int) -> Dataset:
         num_proc=num_proc,
         desc="Converting Swiss German dialects"
     )
+    converted = converted.filter(lambda x: x["original_metadata"]["source"] != "lightblue/tagengo-gpt4")
     return converted
 
 def load_existing_metadata(output_path: Path) -> Optional[Dict[str, Any]]:

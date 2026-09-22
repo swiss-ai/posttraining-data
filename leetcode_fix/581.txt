@@ -1,0 +1,87 @@
+Given an integer array nums, you need to find one continuous subarray such that if you only sort this subarray in non-decreasing order, then the whole array will be sorted in non-decreasing order.
+Return the shortest such subarray and output its length.
+ 
+Example 1:
+
+Input: nums = [2,6,4,8,10,9,15]
+Output: 5
+Explanation: You need to sort [6, 4, 8, 10, 9] in ascending order to make the whole array sorted in ascending order.
+
+Example 2:
+
+Input: nums = [1,2,3,4]
+Output: 0
+
+Example 3:
+
+Input: nums = [1]
+Output: 0
+
+ 
+Constraints:
+
+1 <= nums.length <= 104
+-105 <= nums[i] <= 105
+
+ 
+Follow up: Can you solve it in O(n) time complexity?
+
+<SEPARATOR>
+
+```python
+from typing import List
+
+class Solution:
+    def findUnsortedSubarray(self, nums: List[int]) -> int:
+        # Create a sorted version of the array to compare with
+        sorted_nums = sorted(nums)
+        
+        # Initialize variables to track the start and end of the subarray
+        start = -1
+        end = -2
+        
+        # Iterate through the array to find the first and last mismatch
+        for i in range(len(nums)):
+            if nums[i] != sorted_nums[i]:
+                if start == -1:
+                    start = i
+                end = i
+        
+        # The length of the subarray to be sorted
+        return end - start + 1
+```
+
+This solution works by comparing the original array with its sorted version. It identifies the first and last positions where the elements differ, which indicate the boundaries of the subarray that needs to be sorted. The time complexity of this solution is O(n log n) due to the sorting step.
+
+To achieve the follow-up requirement of solving it in O(n) time complexity, we can use a different approach:
+
+```python
+from typing import List
+
+class Solution:
+    def findUnsortedSubarray(self, nums: List[int]) -> int:
+        n = len(nums)
+        max_from_left = float('-inf')
+        min_from_right = float('inf')
+        
+        # Initialize variables to track the start and end of the subarray
+        start = -1
+        end = -2
+        
+        # Iterate from left to right to find the end of the subarray
+        for i in range(n):
+            max_from_left = max(max_from_left, nums[i])
+            if nums[i] < max_from_left:
+                end = i
+        
+        # Iterate from right to left to find the start of the subarray
+        for i in range(n - 1, -1, -1):
+            min_from_right = min(min_from_right, nums[i])
+            if nums[i] > min_from_right:
+                start = i
+        
+        # The length of the subarray to be sorted
+        return end - start + 1
+```
+
+This optimized solution uses two passes through the array to determine the boundaries of the subarray that needs to be sorted. It keeps track of the maximum value from the left and the minimum value from the right, updating the start and end indices accordingly. This approach ensures an O(n) time complexity.

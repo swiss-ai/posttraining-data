@@ -1,0 +1,61 @@
+Reverse bits of a given 32 bits unsigned integer.
+Note:
+
+Note that in some languages, such as Java, there is no unsigned integer type. In this case, both input and output will be given as a signed integer type. They should not affect your implementation, as the integer's internal binary representation is the same, whether it is signed or unsigned.
+In Java, the compiler represents the signed integers using 2's complement notation. Therefore, in Example 2 above, the input represents the signed integer -3 and the output represents the signed integer -1073741825.
+
+ 
+Example 1:
+
+Input: n = 00000010100101000001111010011100
+Output:    964176192 (00111001011110000010100101000000)
+Explanation: The input binary string 00000010100101000001111010011100 represents the unsigned integer 43261596, so return 964176192 which its binary representation is 00111001011110000010100101000000.
+
+Example 2:
+
+Input: n = 11111111111111111111111111111101
+Output:   3221225471 (10111111111111111111111111111111)
+Explanation: The input binary string 11111111111111111111111111111101 represents the unsigned integer 4294967293, so return 3221225471 which its binary representation is 10111111111111111111111111111111.
+
+ 
+Constraints:
+
+The input must be a binary string of length 32
+
+ 
+Follow up: If this function is called many times, how would you optimize it?
+
+
+<SEPARATOR>
+
+```python
+class Solution:
+    def reverseBits(self, n: int) -> int:
+        # Convert the integer to a binary string, remove the '0b' prefix, and pad with zeros to ensure it's 32 bits
+        binary_str = format(n, '032b')
+        # Reverse the binary string
+        reversed_binary_str = binary_str[::-1]
+        # Convert the reversed binary string back to an integer
+        reversed_int = int(reversed_binary_str, 2)
+        return reversed_int
+```
+
+This solution converts the given integer `n` to a 32-bit binary string, reverses the string, and then converts it back to an integer. The `format(n, '032b')` ensures that the binary representation is 32 bits long, padding with zeros if necessary. The slicing operation `[::-1]` is used to reverse the string. Finally, `int(reversed_binary_str, 2)` converts the reversed binary string back to an integer. 
+
+For the follow-up question, if this function is called many times, you could consider using memoization to store previously computed results for a given input, which could save time if the same inputs are encountered multiple times. However, for bit manipulation like this, the overhead of memoization might not provide significant benefits unless the input space is very constrained and inputs are highly repetitive. Another approach could be to use bitwise operations directly in a loop to avoid string manipulations, which might be faster. Here is an optimized version using bitwise operations:
+
+```python
+class Solution:
+    def reverseBits(self, n: int) -> int:
+        result = 0
+        for _ in range(32):
+            # Shift result to the left to make space for the next bit
+            result <<= 1
+            # Add the least significant bit of n to the result
+            result |= n & 1
+            # Shift n to the right to process the next bit
+            n >>= 1
+        return result
+```
+
+This version uses bitwise operations to reverse the bits without converting to and from strings, which can be more efficient.

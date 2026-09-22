@@ -1,0 +1,109 @@
+A 0-indexed array derived with length n is derived by computing the bitwise XOR (⊕) of adjacent values in a binary array original of length n.
+Specifically, for each index i in the range [0, n - 1]:
+
+If i = n - 1, then derived[i] = original[i] ⊕ original[0].
+Otherwise, derived[i] = original[i] ⊕ original[i + 1].
+
+Given an array derived, your task is to determine whether there exists a valid binary array original that could have formed derived.
+Return true if such an array exists or false otherwise.
+
+A binary array is an array containing only 0's and 1's
+
+ 
+Example 1:
+
+Input: derived = [1,1,0]
+Output: true
+Explanation: A valid original array that gives derived is [0,1,0].
+derived[0] = original[0] ⊕ original[1] = 0 ⊕ 1 = 1 
+derived[1] = original[1] ⊕ original[2] = 1 ⊕ 0 = 1
+derived[2] = original[2] ⊕ original[0] = 0 ⊕ 0 = 0
+
+Example 2:
+
+Input: derived = [1,1]
+Output: true
+Explanation: A valid original array that gives derived is [0,1].
+derived[0] = original[0] ⊕ original[1] = 1
+derived[1] = original[1] ⊕ original[0] = 1
+
+Example 3:
+
+Input: derived = [1,0]
+Output: false
+Explanation: There is no valid original array that gives derived.
+
+ 
+Constraints:
+
+n == derived.length
+1 <= n <= 105
+The values in derived are either 0's or 1's
+
+
+
+<SEPARATOR>
+
+To solve this problem, we need to determine if there exists a binary array `original` such that the given `derived` array can be obtained by computing the bitwise XOR of adjacent elements in `original`, with the last element of `original` XORed with the first element.
+
+Here's the step-by-step approach to solve the problem:
+
+1. **Understanding XOR Properties**:
+   - XOR is a binary operation that outputs true only when inputs differ.
+   - For any binary values `a` and `b`, `a ⊕ b ⊕ b = a` holds true.
+   - This property will help us to deduce the original array if it exists.
+
+2. **Key Insight**:
+   - If we start with an arbitrary value for `original[0]` (say 0), we can compute the entire `original` array.
+   - We can then check if the last element of this `original` array, when XORed with the first element, matches `derived[n-1]`.
+
+3. **Algorithm**:
+   - Start with `original[0] = 0`.
+   - Compute the rest of the `original` array using `original[i] = original[i-1] ⊕ derived[i-1]`.
+   - Check if `original[n-1] ⊕ original[0] == derived[n-1]`.
+   - If true, a valid `original` array exists. Otherwise, it does not.
+
+4. **Edge Cases**:
+   - If `n == 1`, the `derived` array must be `[0]` because the only element is XORed with itself.
+
+Here's the implementation of the above logic:
+
+```python
+from typing import List
+
+class Solution:
+    def doesValidArrayExist(self, derived: List[int]) -> bool:
+        n = len(derived)
+        
+        # Start with original[0] = 0
+        original = [0] * n
+        
+        # Compute the rest of the original array
+        for i in range(1, n):
+            original[i] = original[i - 1] ^ derived[i - 1]
+        
+        # Check if the last element XORed with the first element matches derived[n-1]
+        return original[n - 1] ^ original[0] == derived[n - 1]
+```
+
+This solution works efficiently with a time complexity of O(n) and a space complexity of O(n) due to the storage of the `original` array. However, we can further optimize the space complexity to O(1) by not storing the entire `original` array but just keeping track of the last computed value. Here is the optimized version:
+
+```python
+from typing import List
+
+class Solution:
+    def doesValidArrayExist(self, derived: List[int]) -> bool:
+        n = len(derived)
+        
+        # Start with original[0] = 0
+        last_original = 0
+        
+        # Compute the rest of the original array
+        for i in range(1, n):
+            last_original = last_original ^ derived[i - 1]
+        
+        # Check if the last element XORed with the first element matches derived[n-1]
+        return last_original ^ 0 == derived[n - 1]
+```
+
+This version uses constant space and is more efficient in terms of memory usage.

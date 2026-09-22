@@ -10,7 +10,7 @@ REPO_ROOT="$( cd "${SCRIPT_DIR}/.." && pwd )"
 
 # Default parameters
 DEFAULT_CHUNK_SIZE=20
-DEFAULT_MAX_PARALLEL=20
+DEFAULT_MAX_PARALLEL=64
 DECONTAMINATION_PROMPTS="/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/decontamination_prompts"
 
 # Check if correct number of arguments provided
@@ -31,7 +31,7 @@ fi
 INPUT_PATH="$1"
 OUTPUT_PATH="$2"
 CHUNK_SIZE=${3:-$DEFAULT_CHUNK_SIZE}
-MAX_PARALLEL=${4:-$DEFAULT_MAX_PARALLEL}
+MAX_PARALLEL=${64:-$DEFAULT_MAX_PARALLEL}
 
 # Validate input path exists
 if [ ! -d "$INPUT_PATH" ]; then
@@ -58,7 +58,8 @@ REPORTS_DIR="${OUTPUT_PATH}_parallel_reports"
 mkdir -p "$REPORTS_DIR"
 
 # Create slurm logs directory if it doesn't exist
-mkdir -p slurm_logs
+SLURM_LOG_DIR="/users/hyukhymenko/slurm_logs"
+mkdir -p "$SLURM_LOG_DIR"
 
 # Generate unique timestamp for this run
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
@@ -66,9 +67,11 @@ TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 # Get total number of benchmarks and calculate job array size
 echo "Counting available benchmarks..."
 cd "$REPO_ROOT"
-source venv/bin/activate
+source /users/hyukhymenko/miniconda3/etc/profile.d/conda.sh
+conda activate multiif-env
+export HF_HOME=/iopsstor/scratch/cscs/hyukhymenko/.cache/huggingface
 
-TOTAL_BENCHMARKS=$(python 04-decontamination/list_benchmarks.py --prompts-path "$DECONTAMINATION_PROMPTS" --count-only | head -n 1 | cut -d' ' -f1)
+TOTAL_BENCHMARKS=$(python 04-decontamination/list-benchmarks.py --prompts-path "$DECONTAMINATION_PROMPTS" --count-only | head -n 1 | cut -d' ' -f1)
 if [ -z "$TOTAL_BENCHMARKS" ] || [ "$TOTAL_BENCHMARKS" -eq 0 ]; then
     echo "Error: Could not determine number of benchmarks"
     exit 1
@@ -92,25 +95,28 @@ echo "Max parallel: $MAX_PARALLEL jobs"
 echo "======================================="
 
 # Create the parallel processing job array script
-JOB_SCRIPT="slurm_logs/parallel_decontam_${DATASET_NAME}_${TIMESTAMP}.slurm"
+JOB_SCRIPT="${SLURM_LOG_DIR}/parallel_decontam_${DATASET_NAME}_${TIMESTAMP}.slurm"
 
 cat > "$JOB_SCRIPT" << EOF
 #!/bin/bash
 
 #SBATCH -J pdecontam_${DATASET_NAME}
 #SBATCH -t 8:00:00
-#SBATCH -A a-infra01-1
-#SBATCH --output=slurm_logs/pdecontam_${DATASET_NAME}_${TIMESTAMP}_%a.out
-#SBATCH --error=slurm_logs/pdecontam_${DATASET_NAME}_${TIMESTAMP}_%a.out
+#SBATCH --account=infra01
+#SBATCH --reservation=SD-69241-apertus-1-5-0
+#SBATCH --output=${SLURM_LOG_DIR}/pdecontam_${DATASET_NAME}_${TIMESTAMP}_%a.out
+#SBATCH --error=${SLURM_LOG_DIR}/pdecontam_${DATASET_NAME}_${TIMESTAMP}_%a.out
 #SBATCH --array=0-$((NUM_JOBS-1))%${MAX_PARALLEL}
 #SBATCH --nodes 1
 #SBATCH --ntasks-per-node=1
-#SBATCH --cpus-per-task=144
+#SBATCH --cpus-per-task=72
 #SBATCH --partition=normal
+#SBATCH --exclusive
 
 # Set environment variables
 export TOKENIZERS_PARALLELISM=true
 export OMP_NUM_THREADS=1
+export HF_HOME=/iopsstor/scratch/cscs/hyukhymenko/.cache/huggingface
 
 # Set cache directory on capstor
 export DECONTAMINATION_CACHE_DIR="/capstor/store/cscs/swissai/infra01/posttrain_data/decontamination_cache"
@@ -133,21 +139,21 @@ echo "Chunk size: \$((\$BENCHMARK_END - \$BENCHMARK_START)) benchmarks"
 
 # Change to project directory
 cd ${REPO_ROOT}
-source venv/bin/activate
+source /users/hyukhymenko/miniconda3/etc/profile.d/conda.sh
+conda activate multiif-env
 
 # Run parallel decontamination for this benchmark subset
-python 04-decontamination/decontamination_parallel.py \\
+python 04-decontamination/decontamination-parallel.py \\
       "${INPUT_PATH}" \\
       --decontamination_prompts "${DECONTAMINATION_PROMPTS}" \\
-      --tokenizer_name "alehc/swissai-tokenizer" \\
+      --tokenizer_name "swiss-ai/Apertus-8B-Instruct-2509" \\
       --report_path "${REPORTS_DIR}" \\
       --cache_dir "\${DECONTAMINATION_CACHE_DIR}" \\
       --benchmark-start \$BENCHMARK_START \\
       --benchmark-end \$BENCHMARK_END \\
       --ngram_length 8 \\
       --diff_threshold 0.5 \\
-      --num_proc 8 \\
-      --show_contaminated
+      --num_proc 4
 
 # Check exit status
 if [ \$? -eq 0 ]; then
@@ -161,19 +167,20 @@ fi
 EOF
 
 # Create the merge job script (runs after all parallel jobs complete)
-MERGE_SCRIPT="slurm_logs/merge_decontam_${DATASET_NAME}_${TIMESTAMP}.slurm"
+MERGE_SCRIPT="${SLURM_LOG_DIR}/merge_decontam_${DATASET_NAME}_${TIMESTAMP}.slurm"
 
 cat > "$MERGE_SCRIPT" << EOF
 #!/bin/bash
 
 #SBATCH -J merge_${DATASET_NAME}
 #SBATCH -t 2:00:00
-#SBATCH -A a-infra01-1
-#SBATCH --output=slurm_logs/merge_${DATASET_NAME}_${TIMESTAMP}.out
-#SBATCH --error=slurm_logs/merge_${DATASET_NAME}_${TIMESTAMP}.out
+#SBATCH --account=infra01
+#SBATCH --reservation=SD-69241-apertus-1-5-0
+#SBATCH --output=${SLURM_LOG_DIR}/merge_${DATASET_NAME}_${TIMESTAMP}.out
+#SBATCH --error=${SLURM_LOG_DIR}/merge_${DATASET_NAME}_${TIMESTAMP}.out
 #SBATCH --nodes 1
 #SBATCH --ntasks-per-node=1
-#SBATCH --cpus-per-task=72
+#SBATCH --cpus-per-task=36
 #SBATCH --partition=normal
 
 echo "=== MERGING PARALLEL DECONTAMINATION RESULTS ==="
@@ -183,14 +190,16 @@ echo "Final output: ${OUTPUT_PATH}"
 
 # Change to project directory
 cd ${REPO_ROOT}
-source venv/bin/activate
+source /users/hyukhymenko/miniconda3/etc/profile.d/conda.sh
+conda activate multiif-env
+export HF_HOME=/iopsstor/scratch/cscs/hyukhymenko/.cache/huggingface
 
 # Run merge script to combine all reports and create final filtered dataset
-python 04-decontamination/merge_decontamination_reports.py \\
+python 04-decontamination/merge-decontamination-reports.py \\
       "${INPUT_PATH}" \\
       "${OUTPUT_PATH}" \\
       "${REPORTS_DIR}" \\
-      --tokenizer_name "alehc/swissai-tokenizer" \\
+      --tokenizer_name "swiss-ai/Apertus-8B-Instruct-2509" \\
       --ngram_length 8 \\
       --diff_threshold 0.5
 
@@ -224,13 +233,13 @@ if [ $? -eq 0 ]; then
         echo "Watch parallel progress:"
         echo "  watch -n 5 'ls ${REPORTS_DIR}/*.completed 2>/dev/null | wc -l; echo \"/ $NUM_JOBS jobs completed\"'"
         echo "View parallel job logs:"
-        echo "  tail -f slurm_logs/pdecontam_${DATASET_NAME}_${TIMESTAMP}_*.out"
+        echo "  tail -f ${SLURM_LOG_DIR}/pdecontam_${DATASET_NAME}_${TIMESTAMP}_*.out"
         echo "View merge job log:"
-        echo "  tail -f slurm_logs/merge_${DATASET_NAME}_${TIMESTAMP}.out"
+        echo "  tail -f ${SLURM_LOG_DIR}/merge_${DATASET_NAME}_${TIMESTAMP}.out"
     else
         echo "Error: Failed to submit merge job"
         echo "You can run the merge manually after parallel jobs complete:"
-        echo "  python 04-decontamination/merge_decontamination_reports.py $INPUT_PATH $OUTPUT_PATH $REPORTS_DIR"
+        echo "  python 04-decontamination/merge-decontamination-reports.py $INPUT_PATH $OUTPUT_PATH $REPORTS_DIR"
     fi
 else
     echo "Error: Failed to submit parallel jobs"

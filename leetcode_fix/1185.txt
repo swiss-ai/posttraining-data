@@ -1,0 +1,49 @@
+Given a date, return the corresponding day of the week for that date.
+The input is given as three integers representing the day, month and year respectively.
+Return the answer as one of the following values {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"}.
+ 
+Example 1:
+
+Input: day = 31, month = 8, year = 2019
+Output: "Saturday"
+
+Example 2:
+
+Input: day = 18, month = 7, year = 1999
+Output: "Sunday"
+
+Example 3:
+
+Input: day = 15, month = 8, year = 1993
+Output: "Sunday"
+
+ 
+Constraints:
+
+The given dates are valid dates between the years 1971 and 2100.
+
+
+
+<SEPARATOR>
+
+```python
+class Solution:
+    def dayOfTheWeek(self, day: int, month: int, year: int) -> str:
+        # Zeller's Congruence Algorithm to find the day of the week
+        if month < 3:
+            month += 12
+            year -= 1
+        
+        k = year % 100
+        j = year // 100
+        
+        f = day + 13 * (month + 1) // 5 + k + k // 4 + j // 4 + 5 * j
+        day_of_week = f % 7
+        
+        # Mapping the result to the correct day name
+        days = ["Saturday", "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
+        
+        return days[day_of_week]
+```
+
+This code uses Zeller's Congruence, an algorithm devised by Christian Zeller to calculate the day of the week for any Julian or Gregorian calendar date. The algorithm is adjusted to work correctly for the Gregorian calendar, which is used in the problem's constraints. The days of the week are mapped to their corresponding names and returned based on the computed result.

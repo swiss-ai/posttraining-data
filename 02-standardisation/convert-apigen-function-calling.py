@@ -31,10 +31,11 @@ import json
 import argparse
 import hashlib
 import copy
+import random
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, Any, List, Optional, Tuple
-from datasets import load_from_disk, DatasetDict, Dataset
+from datasets import load_dataset, DatasetDict, Dataset
 
 
 def generate_conversation_id(dataset_source: str, content: str) -> str:
@@ -295,6 +296,9 @@ def convert_apigen_sample(sample: Dict[str, Any], idx: int = 0) -> Optional[Dict
         
         # Get system prompt
         system_content = sample.get("system", "")
+
+        if random.random() < 0.9:
+            system_content = ""
         
         # Parse conversation into turns
         turn_groups = parse_conversation_turns(conversations)
@@ -483,13 +487,14 @@ Examples:
     )
     
     parser.add_argument(
-        "input_path",
+        "-i", "--input-path",
         type=str,
+        default="Salesforce/APIGen-MT-5k",
         help="Path to APIGen dataset directory (HuggingFace format)"
     )
     
     parser.add_argument(
-        "--output", "-o",
+        "-o", "--output",
         type=str,
         required=True,
         help="Output directory for converted dataset"
@@ -511,9 +516,6 @@ def main():
     
     # Validate input path
     input_path = Path(args.input_path)
-    if not input_path.exists():
-        print(f"Error: Input path does not exist: {input_path}")
-        sys.exit(1)
     
     # Setup output path - if output is a directory, append input folder name
     output_path = Path(args.output)
@@ -533,7 +535,7 @@ def main():
     
     # Load dataset
     try:
-        dataset = load_from_disk(str(input_path))
+        dataset = load_dataset(str(input_path))
     except Exception as e:
         print(f"Error loading dataset: {e}")
         sys.exit(1)

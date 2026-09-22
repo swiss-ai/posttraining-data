@@ -28,9 +28,12 @@ import time
 import gc
 import pickle
 import hashlib
+import tempfile
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, Any, Optional
+
+from benchmark_filters import filter_benchmark_names
 
 """
 Code modified from: https://github.com/huggingface/cosmopedia/blob/main/decontamination/decontaminate.py
@@ -254,8 +257,8 @@ def load_cached_benchmark_ngrams(cache_path):
         try:
             with open(cache_path, 'rb') as f:
                 return pickle.load(f)
-        except (pickle.PickleError, IOError) as e:
-            print(f"Warning: Failed to load cache from {cache_path}: {e}")
+        except (pickle.PickleError, EOFError, IOError) as e:
+            print(f"Warning: Failed to load cache from {cache_path}: {e}. Recomputing.")
     return None
 
 
@@ -266,11 +269,16 @@ def save_benchmark_ngrams_to_cache(ngrams, lookup_table, cache_path):
             'ngrams': ngrams,
             'lookup_table': lookup_table
         }
-        with open(cache_path, 'wb') as f:
+        cache_dir = os.path.dirname(cache_path) or "."
+        with tempfile.NamedTemporaryFile(mode='wb', dir=cache_dir, delete=False) as f:
             pickle.dump(cache_data, f)
+            temp_path = f.name
+        os.replace(temp_path, cache_path)
         print(f"  Cached n-grams to {cache_path}")
     except (pickle.PickleError, IOError) as e:
         print(f"Warning: Failed to save cache to {cache_path}: {e}")
+        if 'temp_path' in locals() and os.path.exists(temp_path):
+            os.remove(temp_path)
 
 
 def compute_benchmark_ngrams(eval_dataset, tokenizer, ngram_length, num_proc):
@@ -303,6 +311,9 @@ def main(args):
     else:
         benchmark_list = args.benchmark_name if isinstance(args.benchmark_name, list) else [args.benchmark_name]
         print(f"Using specified benchmark(s): {benchmark_list}")
+    benchmark_list, excluded_benchmarks = filter_benchmark_names(benchmark_list)
+    if excluded_benchmarks:
+        print(f"Excluded {len(excluded_benchmarks)} benchmark(s): {', '.join(sorted(excluded_benchmarks))}")
     print(f"Total benchmarks to process: {len(benchmark_list)}\n")
 
     # Tokenizer

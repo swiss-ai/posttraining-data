@@ -21,16 +21,16 @@ from pathlib import Path
 from datetime import datetime, UTC
 from typing import List, Dict, Any, Optional
 
-from datasets import Dataset, DatasetDict, load_from_disk
+from datasets import Dataset, DatasetDict, load_dataset
 
-SRC = "glaive-function-calling-v2"
+SRC = "glaiveai/glaive-function-calling-v2"
 
 # ───────────── regexes ───────────── #
 SYSTEM_RE    = re.compile(r"^SYSTEM:\s*(.*)",            re.I)
 USER_RE      = re.compile(r"^USER:\s*(.*)",              re.I | re.DOTALL)
-ASSIST_RE    = re.compile(r"^ASSISTANT:\s*(.*?)(?:\s*<\|endoftext\|>)?$",         re.I)
-FUNC_RESP_RE = re.compile(r"^FUNCTION RESPONSE:\s*(.*)", re.I)
-FUNC_CALL_RE = re.compile(r"<functioncall>\s*(.*)", re.I)
+ASSIST_RE    = re.compile(r"^ASSISTANT:\s*(.*?)(?:\s*<\|endoftext\|>)?$",         re.I | re.DOTALL)
+FUNC_RESP_RE = re.compile(r"^FUNCTION RESPONSE:\s*(.*)", re.I | re.DOTALL)
+FUNC_CALL_RE = re.compile(r"<functioncall>\s*(.*)", re.I | re.DOTALL)
 
 # ───────────— helpers ────────────── #
 def conv_id(seed: str) -> str:
@@ -128,9 +128,20 @@ def parse_sample(system: str, chat: str) -> Optional[Dict[str, Any]]:
         buf = []
         while i < n and not USER_RE.match(system_lines[i]):
             buf.append(system_lines[i]); i += 1
-        funcs = parse_functions("\n".join(buf))
+        try:
+            for func in "\n".join(buf).split("\n\n") if "\n".join(buf) else []:
+                loaded_func = json.loads(func)
+                funcs.append({
+                    "name": loaded_func["name"],
+                    "description": loaded_func["description"],
+                    "parameters": json.dumps(loaded_func["parameters"])
+                })
+        except json.JSONDecodeError:
+            print("\n".join(buf))
+            input()
+            return None
 
-    system_text = system_text.replace(" -", ".")
+    system_text = system_text.split(" -")[0] + "."
 
     # Remove system text 80% of the time
     if random.random() < 0.8:
@@ -189,21 +200,22 @@ def parse_sample(system: str, chat: str) -> Optional[Dict[str, Any]]:
                         # Extract function call using delimiter-based regex
                         func_call_match = FUNC_CALL_RE.search(body).group(1)
                         if func_call_match:
-                            try:
-                                name = func_call_match.split("\"name\": \"")[1].split("\"")[0]
+                            name = func_call_match.split("\"name\": \"")[1].split("\"")[0]
 
-                                if "\'" in func_call_match:
+                            if "\'" in func_call_match:
+                                try:
+                                    arguments = json.loads(func_call_match.split("\"arguments\": \'")[1].split("\'}")[0].replace("\\", ""))
+                                except:
                                     try:
-                                        arguments = json.loads(func_call_match.split("\"arguments\": \'")[1].split("\'}")[0].replace("\\", ""))
-                                    except:
-                                        print(f"Error parsing arguments: {func_call_match}")
+                                        func_call_json = json.loads(func_call_match)
+                                        name = func_call_json["name"]
+                                        arguments = func_call_json["arguments"]
+                                    except json.JSONDecodeError:
                                         return None
-                                else:
-                                    arguments = {}
+                            else:
+                                arguments = {}
                                 
-                                assistant_parts.append(make_part("function-call", name=name, args=arguments))
-                            except json.JSONDecodeError:
-                                assistant_parts.append(make_part("response", body))
+                            assistant_parts.append(make_part("function-call", name=name, args=arguments))
                         else:
                             assistant_parts.append(make_part("response", body))
                     else:
@@ -213,6 +225,10 @@ def parse_sample(system: str, chat: str) -> Optional[Dict[str, Any]]:
                 # Check for function response
                 elif (func_resp_match := FUNC_RESP_RE.match(line)):
                     response_content = func_resp_match.group(1).strip()
+                    try:
+                        json.loads(response_content)
+                    except json.JSONDecodeError:
+                        return None
                     assistant_parts.append(make_part("function-output", content=response_content))
             
             # Add assistant message if we have parts
@@ -256,6 +272,35 @@ def process_split(ds: Dataset, num_proc: int) -> Dataset:
                     with_indices=True,
                     num_proc=num_proc,
                     desc="Converting glaive-function-calling")
+
+    result = result.filter(lambda x: len(x["available_functions"]) > 0, num_proc=num_proc)
+
+    def filter_fn(x):
+        messages = x["conversation_branches"][0]["messages"]
+
+        for message in messages:
+            if message["role"] == "assistant":
+                for part in message["parts"]:
+                    if part["type"] == "response":
+                        if part["content"].startswith("I'm sorry"):
+                            return False
+        return True
+
+    result = result.filter(filter_fn, num_proc=num_proc)
+
+    def map_fn(x):
+        messages = x["conversation_branches"][0]["messages"]
+
+        for i, message in enumerate(messages):
+            if message["role"] == "assistant":
+                for part in message["parts"]:
+                    if part["type"] == "response":
+                        if part["content"].startswith("You're welcome!") and i == len(messages) - 1:
+                            x["conversation_branches"][0]["messages"] = messages[:-2]
+                            return x
+        return x
+
+    result = result.map(map_fn, num_proc=num_proc)
 
     result = result.filter(lambda x: x is not None, num_proc=num_proc)
     # Remove the original 'sample' column to clean up the schema
@@ -330,7 +375,7 @@ def save_dataset_and_metadata(dataset_dict: DatasetDict, output_path: Path,
 # ───────────— CLI / main ───────────── #
 def cli():
     p = argparse.ArgumentParser()
-    p.add_argument("input_path")
+    p.add_argument("-i", "--input-path", default=SRC)
     p.add_argument("-o", "--output", required=True)
     p.add_argument("--num-proc", type=int, default=8)
     p.add_argument("--limit", type=int, default=None)
@@ -345,7 +390,7 @@ def main():
     if out.exists() and input(f"{out} exists. overwrite? [y/N]: ").lower() != "y":
         sys.exit(0)
 
-    ds = load_from_disk(str(inp))
+    ds = load_dataset(str(inp))
     if not isinstance(ds, DatasetDict):
         ds = DatasetDict({"train": ds})
 

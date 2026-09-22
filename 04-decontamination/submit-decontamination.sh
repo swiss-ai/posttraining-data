@@ -45,17 +45,19 @@ cat > "$JOB_SCRIPT" << EOF
 
 #SBATCH -J decontam_${DATASET_NAME}
 #SBATCH -t 12:00:00
-#SBATCH -A a-infra01-1
+#SBATCH --account=infra01         
+#SBATCH --reservation=SD-69241-apertus-1-5-0
 #SBATCH --output=slurm_logs/decontam_${DATASET_NAME}_${TIMESTAMP}.out
 #SBATCH --error=slurm_logs/decontam_${DATASET_NAME}_${TIMESTAMP}.out
 #SBATCH --nodes 1
 #SBATCH --ntasks-per-node=1
-#SBATCH --cpus-per-task=288
+#SBATCH --cpus-per-task=72
 #SBATCH --partition=normal
 
 # Set environment variables
 export TOKENIZERS_PARALLELISM=true
 export OMP_NUM_THREADS=1
+export HF_HOME=/iopsstor/scratch/cscs/hyukhymenko/.cache/huggingface
 
 # Set cache directory on capstor
 export DECONTAMINATION_CACHE_DIR="/capstor/store/cscs/swissai/infra01/posttrain_data/decontamination_cache"
@@ -65,20 +67,20 @@ mkdir -p \${DECONTAMINATION_CACHE_DIR}
 
 # Change to project directory
 cd ${REPO_ROOT}
-source venv/bin/activate
+source /users/hyukhymenko/miniconda3/etc/profile.d/conda.sh
+conda activate multiif-env
 
 # Run decontamination
 python 04-decontamination/decontamination.py \\
       "${INPUT_PATH}" \\
       --output "${OUTPUT_PATH}" \\
       --decontamination_prompts "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/decontamination_prompts" \\
-      --tokenizer_name "alehc/swissai-tokenizer" \\
+      --tokenizer_name "swiss-ai/Apertus-8B-Instruct-2509" \\
       --report_path "${OUTPUT_PATH}/contamination_reports" \\
       --cache_dir "\${DECONTAMINATION_CACHE_DIR}" \\
       --ngram_length 8 \\
       --diff_threshold 0.5 \\
-      --num_proc 16 \\
-      --show_contaminated
+      --num_proc 4
 
 # Check exit status
 if [ \$? -eq 0 ]; then

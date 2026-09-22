@@ -1,0 +1,72 @@
+You are given two numeric strings num1 and num2 and two integers max_sum and min_sum. We denote an integer x to be good if:
+
+num1 <= x <= num2
+min_sum <= digit_sum(x) <= max_sum.
+
+Return the number of good integers. Since the answer may be large, return it modulo 109 + 7.
+Note that digit_sum(x) denotes the sum of the digits of x.
+ 
+Example 1:
+
+Input: num1 = "1", num2 = "12", min_sum = 1, max_sum = 8
+Output: 11
+Explanation: There are 11 integers whose sum of digits lies between 1 and 8 are 1,2,3,4,5,6,7,8,10,11, and 12. Thus, we return 11.
+
+Example 2:
+
+Input: num1 = "1", num2 = "5", min_sum = 1, max_sum = 5
+Output: 5
+Explanation: The 5 integers whose sum of digits lies between 1 and 5 are 1,2,3,4, and 5. Thus, we return 5.
+
+ 
+Constraints:
+
+1 <= num1 <= num2 <= 1022
+1 <= min_sum <= max_sum <= 400
+
+
+
+<SEPARATOR>
+
+To solve this problem, we can use a digit dynamic programming (DP) approach. The idea is to count the number of valid numbers in the range [0, num] and then use it to find the count of valid numbers in the range [num1, num2].
+
+Here's the plan:
+1. Define a helper function `count_up_to(num, min_sum, max_sum)` that counts the number of valid numbers up to `num` with digit sums between `min_sum` and `max_sum`.
+2. Use dynamic programming to count the number of valid numbers for each prefix of `num`.
+3. The transition in the DP will consider whether the current digit can be taken to be the same as the current digit in `num` or less.
+4. Finally, the result will be `count_up_to(num2, min_sum, max_sum) - count_up_to(str(int(num1) - 1), min_sum, max_sum)`.
+
+Let's implement this approach in Python.
+```python
+class Solution:
+    def count(self, num1: str, num2: str, min_sum: int, max_sum: int) -> int:
+        MOD = 10**9 + 7
+        
+        def count_up_to(num, min_sum, max_sum):
+            n = len(num)
+            dp = [[[-1] * (n + 1) for _ in range(max_sum + 1)] for _ in range(2)]
+            
+            def dfs(pos, tight, sum_digits):
+                if sum_digits > max_sum:
+                    return 0
+                if pos == n:
+                    return 1 if min_sum <= sum_digits <= max_sum else 0
+                if dp[tight][sum_digits][pos] != -1:
+                    return dp[tight][sum_digits][pos]
+                
+                limit = int(num[pos]) if tight else 9
+                count = 0
+                for d in range(limit + 1):
+                    new_tight = tight and d == limit
+                    count = (count + dfs(pos + 1, new_tight, sum_digits + d)) % MOD
+                
+                dp[tight][sum_digits][pos] = count
+                return count
+            
+            return dfs(0, 1, 0)
+        
+        count2 = count_up_to(num2, min_sum, max_sum)
+        count1_minus_1 = count_up_to(str(int(num1) - 1), min_sum, max_sum) if int(num1) > 0 else 0
+        
+        return (count2 - count1_minus_1 + MOD) % MOD
+```

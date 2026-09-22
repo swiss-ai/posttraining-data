@@ -1,0 +1,76 @@
+You are given an integer array arr.
+We split arr into some number of chunks (i.e., partitions), and individually sort each chunk. After concatenating them, the result should equal the sorted array.
+Return the largest number of chunks we can make to sort the array.
+ 
+Example 1:
+
+Input: arr = [5,4,3,2,1]
+Output: 1
+Explanation:
+Splitting into two or more chunks will not return the required result.
+For example, splitting into [5, 4], [3, 2, 1] will result in [4, 5, 1, 2, 3], which isn't sorted.
+
+Example 2:
+
+Input: arr = [2,1,3,4,4]
+Output: 4
+Explanation:
+We can split into two chunks, such as [2, 1], [3, 4, 4].
+However, splitting into [2, 1], [3], [4], [4] is the highest number of chunks possible.
+
+ 
+Constraints:
+
+1 <= arr.length <= 2000
+0 <= arr[i] <= 108
+
+
+
+<SEPARATOR>
+
+```python
+from typing import List
+
+class Solution:
+    def maxChunksToSorted(self, arr: List[int]) -> int:
+        max_so_far = float('-inf')
+        chunks = 0
+        
+        for i in range(len(arr)):
+            max_so_far = max(max_so_far, arr[i])
+            if max_so_far <= min(arr[i+1:]) if i+1 < len(arr) else True:
+                chunks += 1
+        
+        return chunks
+```
+
+This solution iterates through the array and keeps track of the maximum value encountered so far (`max_so_far`). For each position `i`, it checks if `max_so_far` is less than or equal to the minimum value in the remaining part of the array (`arr[i+1:]`). If this condition is met, it means the array can be split into a chunk up to this point. The function returns the total number of such chunks.
+
+However, the above solution has a time complexity of O(n^2) due to the `min(arr[i+1:])` operation. We can optimize it to O(n) by using an auxiliary array to store the minimum values from the end of the array to the current position. Here's the optimized solution:
+
+```python
+from typing import List
+
+class Solution:
+    def maxChunksToSorted(self, arr: List[int]) -> int:
+        n = len(arr)
+        min_from_right = [float('inf')] * n
+        min_from_right[-1] = arr[-1]
+        
+        # Fill min_from_right array
+        for i in range(n-2, -1, -1):
+            min_from_right[i] = min(min_from_right[i+1], arr[i])
+        
+        max_so_far = float('-inf')
+        chunks = 0
+        
+        for i in range(n-1):
+            max_so_far = max(max_so_far, arr[i])
+            if max_so_far <= min_from_right[i+1]:
+                chunks += 1
+        
+        # The last chunk is always possible
+        return chunks + 1
+```
+
+In this optimized version, we first create an array `min_from_right` where `min_from_right[i]` is the minimum value from `arr[i]` to the end of the array. Then, we iterate through the array and use this precomputed array to check the condition for forming chunks, achieving a time complexity of O(n).

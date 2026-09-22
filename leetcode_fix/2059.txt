@@ -1,0 +1,89 @@
+You are given a 0-indexed integer array nums containing distinct numbers, an integer start, and an integer goal. There is an integer x that is initially set to start, and you want to perform operations on x such that it is converted to goal. You can perform the following operation repeatedly on the number x:
+If 0 <= x <= 1000, then for any index i in the array (0 <= i < nums.length), you can set x to any of the following:
+
+x + nums[i]
+x - nums[i]
+x ^ nums[i] (bitwise-XOR)
+
+Note that you can use each nums[i] any number of times in any order. Operations that set x to be out of the range 0 <= x <= 1000 are valid, but no more operations can be done afterward.
+Return the minimum number of operations needed to convert x = start into goal, and -1 if it is not possible.
+ 
+Example 1:
+
+Input: nums = [2,4,12], start = 2, goal = 12
+Output: 2
+Explanation: We can go from 2 → 14 → 12 with the following 2 operations.
+- 2 + 12 = 14
+- 14 - 2 = 12
+
+Example 2:
+
+Input: nums = [3,5,7], start = 0, goal = -4
+Output: 2
+Explanation: We can go from 0 → 3 → -4 with the following 2 operations. 
+- 0 + 3 = 3
+- 3 - 7 = -4
+Note that the last operation sets x out of the range 0 <= x <= 1000, which is valid.
+
+Example 3:
+
+Input: nums = [2,8,16], start = 0, goal = 1
+Output: -1
+Explanation: There is no way to convert 0 into 1.
+
+ 
+Constraints:
+
+1 <= nums.length <= 1000
+-109 <= nums[i], goal <= 109
+0 <= start <= 1000
+start != goal
+All the integers in nums are distinct.
+
+
+
+<SEPARATOR>
+
+To solve this problem, we can use a Breadth-First Search (BFS) approach. BFS is suitable for finding the shortest path (or minimum number of operations in this case) in an unweighted graph, which in this context is the set of possible values of `x` that can be reached from `start` using the allowed operations.
+
+Here's the step-by-step plan:
+1. **Initialize a queue** to keep track of the current value of `x` and the number of operations taken to reach it.
+2. **Use a set to keep track of visited values** of `x` to avoid processing the same value multiple times.
+3. **Start BFS** from the initial value `start` with 0 operations.
+4. **For each value `x`**, compute the next possible values by applying the three operations (`x + nums[i]`, `x - nums[i]`, `x ^ nums[i]`).
+5. **Check if any of these new values** are equal to `goal`. If so, return the number of operations taken to reach it.
+6. **If a new value is within the valid range (0 to 1000)** and hasn't been visited, add it to the queue and mark it as visited.
+7. **If the queue is exhausted** without finding `goal`, return -1, indicating it's not possible to reach `goal` from `start`.
+
+Here's the implementation of the solution:
+
+```python
+from collections import deque
+from typing import List
+
+class Solution:
+    def minimumOperations(self, nums: List[int], start: int, goal: int) -> int:
+        # Initialize the queue with the starting value and 0 operations
+        queue = deque([(start, 0)])
+        # Set to keep track of visited values
+        visited = set([start])
+        
+        while queue:
+            current, ops = queue.popleft()
+            
+            # Try all possible operations with each number in nums
+            for num in nums:
+                for next_val in [current + num, current - num, current ^ num]:
+                    # Check if we have reached the goal
+                    if next_val == goal:
+                        return ops + 1
+                    # If the next value is within the valid range and not visited, add to queue
+                    if 0 <= next_val <= 1000 and next_val not in visited:
+                        visited.add(next_val)
+                        queue.append((next_val, ops + 1))
+        
+        # If we exhaust the queue without finding the goal, return -1
+        return -1
+```
+
+This code efficiently finds the minimum number of operations needed to convert `start` to `goal` using BFS, ensuring that all possible paths are explored in the shortest manner. The use of a set to track visited states prevents redundant computations and ensures the algorithm terminates correctly.

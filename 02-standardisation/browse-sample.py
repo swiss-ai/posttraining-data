@@ -13,8 +13,36 @@ import json
 import argparse
 from pathlib import Path
 from typing import Any, Dict, List, Optional
-from datasets import load_from_disk
-from datetime import datetime
+from datasets import load_from_disk, disable_progress_bars
+
+# disable_progress_bars()
+
+
+def parse_metadata(value: Any) -> Dict[str, Any]:
+    """
+    Parse metadata that might be a dict or a JSON string.
+    
+    Args:
+        value: Either a dict, a JSON string, or None
+        
+    Returns:
+        Parsed dictionary, or empty dict if parsing fails
+    """
+    if value is None:
+        return {}
+    if isinstance(value, dict):
+        return value
+    if isinstance(value, str):
+        if not value.strip():
+            return {}
+        try:
+            parsed = json.loads(value)
+            if isinstance(parsed, dict):
+                return parsed
+            return {"_value": parsed}
+        except (json.JSONDecodeError, TypeError):
+            return {"_raw": value} if value else {}
+    return {"_value": value}
 
 
 def get_nested_value(obj: Dict[str, Any], field_path: str) -> Any:
@@ -109,11 +137,14 @@ def pretty_print_sample(sample: dict, sample_idx: int = 0, total_samples: int = 
     if 'system_prompt' in sample and sample['system_prompt']:
         print(f"\n┌─ System Prompt")
         print("│")
-        for line in sample['system_prompt']['content'].split('\n'):
+        content = sample['system_prompt'].get('content', '') if isinstance(sample['system_prompt'], dict) else str(sample['system_prompt'])
+        for line in content.split('\n'):
             print(f"│  {line}")
         print("│")
-        if sample['system_prompt'].get('metadata'):
-            print(f"├─ Metadata ({len(sample['system_prompt']['metadata'])} fields):")
+        raw_metadata = sample['system_prompt'].get('metadata') if isinstance(sample['system_prompt'], dict) else None
+        metadata = parse_metadata(raw_metadata)
+        if metadata:
+            print(f"├─ Metadata ({len(metadata)} fields):")
 
             def print_nested_dict(d, indent="│    ", is_last=False):
                 items = list(d.items())
@@ -126,18 +157,23 @@ def pretty_print_sample(sample: dict, sample_idx: int = 0, total_samples: int = 
                         connector = "└─" if is_last_item else "├─"
                         print(f"{indent}{connector} {key}: {value}")
 
-            print_nested_dict(sample['system_prompt']['metadata'])
+            print_nested_dict(metadata)
         print("└─")
 
     # Initial prompt
-    if 'initial_prompt' in sample:
-        print(f"\n┌─ Initial Prompt (Role: {sample['initial_prompt']['role']})")
+    if 'initial_prompt' in sample and sample['initial_prompt']:
+        ip = sample['initial_prompt']
+        role = ip.get('role', 'user') if isinstance(ip, dict) else 'user'
+        content = ip.get('content', '') if isinstance(ip, dict) else str(ip)
+        print(f"\n┌─ Initial Prompt (Role: {role})")
         print("│")
-        for line in sample['initial_prompt']['content'].split('\n'):
+        for line in content.split('\n'):
             print(f"│  {line}")
         print("│")
-        if sample['initial_prompt'].get('metadata'):
-            print(f"├─ Metadata ({len(sample['initial_prompt']['metadata'])} fields):")
+        raw_metadata = ip.get('metadata') if isinstance(ip, dict) else None
+        metadata = parse_metadata(raw_metadata)
+        if metadata:
+            print(f"├─ Metadata ({len(metadata)} fields):")
 
             def print_nested_dict(d, indent="│    ", is_last=False):
                 items = list(d.items())
@@ -150,7 +186,7 @@ def pretty_print_sample(sample: dict, sample_idx: int = 0, total_samples: int = 
                         connector = "└─" if is_last_item else "├─"
                         print(f"{indent}{connector} {key}: {value}")
 
-            print_nested_dict(sample['initial_prompt']['metadata'])
+            print_nested_dict(metadata)
         print("└─")
 
     # Available functions (for augmented datasets)
@@ -225,9 +261,10 @@ def pretty_print_sample(sample: dict, sample_idx: int = 0, total_samples: int = 
                             print(f"{branch_line} {msg_line} │  {part_line} {part_content}")
 
                     # Print metadata if available
-                    if part.get('metadata'):
+                    part_metadata = parse_metadata(part.get('metadata'))
+                    if part_metadata:
                         print(f"{branch_line} {msg_line} │  {part_line}")
-                        print(f"{branch_line} {msg_line} │  {part_line} ├─ Metadata ({len(part['metadata'])} fields):")
+                        print(f"{branch_line} {msg_line} │  {part_line} ├─ Metadata ({len(part_metadata)} fields):")
 
                         def print_part_nested_dict(d, indent=""):
                             items = list(d.items())
@@ -244,15 +281,16 @@ def pretty_print_sample(sample: dict, sample_idx: int = 0, total_samples: int = 
                                     else:
                                         print(f"{branch_line} {msg_line} │  {part_line} │  {indent}{connector} {key}: {value}")
 
-                        print_part_nested_dict(part['metadata'])
+                        print_part_nested_dict(part_metadata)
                         print(f"{branch_line} {msg_line} │  {part_line} └─")
                 else:
                     # Fallback for unexpected format
                     print(f"{branch_line} {msg_line} │  {part_connector} {part}")
 
-            if msg.get('metadata'):
+            msg_metadata = parse_metadata(msg.get('metadata'))
+            if msg_metadata:
                 print(f"{branch_line} {msg_line} │")
-                print(f"{branch_line} {msg_line} ├─ Metadata ({len(msg['metadata'])} fields):")
+                print(f"{branch_line} {msg_line} ├─ Metadata ({len(msg_metadata)} fields):")
 
                 def print_nested_dict(d, indent="", is_last=False):
                     items = list(d.items())
@@ -265,13 +303,14 @@ def pretty_print_sample(sample: dict, sample_idx: int = 0, total_samples: int = 
                             connector = "└─" if is_last_item else "├─"
                             print(f"{branch_line} {msg_line} │  {indent}{connector} {key}: {value}")
 
-                print_nested_dict(msg['metadata'])
+                print_nested_dict(msg_metadata)
             print(f"{branch_line} {msg_line} └─")
 
     # Original metadata
-    if 'original_metadata' in sample and sample['original_metadata']:
-        print(f"\n┌─ Original Metadata ({len(sample['original_metadata'])} fields)")
-        items = list(sample['original_metadata'].items())
+    orig_metadata = parse_metadata(sample.get('original_metadata'))
+    if orig_metadata:
+        print(f"\n┌─ Original Metadata ({len(orig_metadata)} fields)")
+        items = list(orig_metadata.items())
         for i, (key, value) in enumerate(items):
             is_last = i == len(items) - 1
             connector = "└─" if is_last else "├─"
@@ -285,7 +324,8 @@ def browse_dataset(dataset_path: str, num_samples: int = 1, start_idx: int = 0,
                    raw_json: bool = False, split: str = None,
                    field_path: Optional[str] = None,
                    include_values: Optional[List[str]] = None,
-                   exclude_values: Optional[List[str]] = None):
+                   exclude_values: Optional[List[str]] = None,
+                   shuffle: bool = False):
     """Browse samples from a dataset with optional field filtering."""
     path = Path(dataset_path)
 
@@ -331,6 +371,9 @@ def browse_dataset(dataset_path: str, num_samples: int = 1, start_idx: int = 0,
 
         total_samples = len(dataset)
 
+        if shuffle:
+            dataset = dataset.shuffle()
+
         # Display filter information if filtering is active
         if field_path:
             print(f"\n┌─ Filter Settings")
@@ -344,10 +387,28 @@ def browse_dataset(dataset_path: str, num_samples: int = 1, start_idx: int = 0,
 
             # Count matching samples
             print(f"│  Counting matching samples...")
-            matching_indices = []
-            for i in range(total_samples):
-                if check_filter_match(dataset[i], field_path, include_values, exclude_values):
-                    matching_indices.append(i)
+            
+            def add_filter_match(example, idx, field_path, include_values, exclude_values):
+                return {
+                    "filter_match": check_filter_match(dict(example), field_path, include_values, exclude_values),
+                    "original_idx": idx
+                }
+            
+            filtered_dataset = dataset.map(
+                add_filter_match,
+                with_indices=True,
+                num_proc=64,
+                fn_kwargs={
+                    "field_path": field_path,
+                    "include_values": include_values,
+                    "exclude_values": exclude_values
+                }
+            ).filter(
+                lambda x: x["filter_match"],
+                num_proc=16
+            )
+            
+            matching_indices = filtered_dataset["original_idx"]
 
             total_filtered = len(matching_indices)
             print(f"└─ Matching samples: {total_filtered:,} of {total_samples:,} ({(total_filtered / total_samples) * 100:.1f}%)")
@@ -541,6 +602,11 @@ Examples:
         help="Display raw JSON instead of pretty-printed format"
     )
     parser.add_argument(
+        "--shuffle",
+        action="store_true",
+        help="Shuffle the dataset before browsing"
+    )
+    parser.add_argument(
         "--split",
         type=str,
         default=None,
@@ -584,7 +650,8 @@ def main():
         args.split,
         args.field,
         args.include,
-        args.exclude
+        args.exclude,
+        args.shuffle
     )
 
     sys.exit(0 if success else 1)

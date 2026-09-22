@@ -1,0 +1,60 @@
+The product sum of two equal-length arrays a and b is equal to the sum of a[i] * b[i] for all 0 <= i < a.length (0-indexed).\r
+\r
+\r
+	For example, if a = [1,2,3,4] and b = [5,2,3,1], the product sum would be 1*5 + 2*2 + 3*3 + 4*1 = 22.\r
+\r
+\r
+Given two arrays nums1 and nums2 of length n, return the minimum product sum if you are allowed to rearrange the order of the elements in nums1. \r
+\r
+ \r
+Example 1:\r
+\r
+\r
+Input: nums1 = [5,3,4,2], nums2 = [4,2,2,5]\r
+Output: 40\r
+Explanation: We can rearrange nums1 to become [3,5,4,2]. The product sum of [3,5,4,2] and [4,2,2,5] is 3*4 + 5*2 + 4*2 + 2*5 = 40.\r
+\r
+\r
+Example 2:\r
+\r
+\r
+Input: nums1 = [2,1,4,5,7], nums2 = [3,2,4,8,6]\r
+Output: 65\r
+Explanation: We can rearrange nums1 to become [5,7,4,1,2]. The product sum of [5,7,4,1,2] and [3,2,4,8,6] is 5*3 + 7*2 + 4*4 + 1*8 + 2*6 = 65.\r
+\r
+\r
+ \r
+Constraints:\r
+\r
+\r
+	n == nums1.length == nums2.length\r
+	1 <= n <= 105\r
+	1 <= nums1[i], nums2[i] <= 100\r
+
+
+<SEPARATOR>
+
+To solve this problem, we need to minimize the product sum of two arrays by rearranging the elements of one array. The optimal strategy is to pair the largest elements of one array with the smallest elements of the other array. This way, we minimize the contribution of the larger numbers to the product sum.
+
+Here's the step-by-step approach:
+1. Sort `nums1` in ascending order.
+2. Sort `nums2` in descending order.
+3. Compute the product sum by iterating through the arrays and multiplying corresponding elements.
+
+Let's implement this in the provided starter code:
+
+```python
+class Solution:
+    def minProductSum(self, nums1: List[int], nums2: List[int]) -> int:
+        # Sort nums1 in ascending order
+        nums1.sort()
+        # Sort nums2 in descending order
+        nums2.sort(reverse=True)
+        
+        # Compute the product sum
+        product_sum = sum(a * b for a, b in zip(nums1, nums2))
+        
+        return product_sum
+```
+
+This code will correctly compute the minimum product sum by rearranging the elements of `nums1` as described. The use of `sort` and `sort(reverse=True)` ensures that we are pairing the smallest elements of `nums1` with the largest elements of `nums2`, thereby minimizing the product sum. The time complexity of this solution is O(n log n) due to the sorting step, which is efficient given the constraints.

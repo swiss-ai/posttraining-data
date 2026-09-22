@@ -1,0 +1,56 @@
+Given a positive integer n, write a function that returns the number of set bits in its binary representation (also known as the Hamming weight).
+ 
+Example 1:
+
+Input: n = 11
+Output: 3
+Explanation:
+The input binary string 1011 has a total of three set bits.
+
+Example 2:
+
+Input: n = 128
+Output: 1
+Explanation:
+The input binary string 10000000 has a total of one set bit.
+
+Example 3:
+
+Input: n = 2147483645
+Output: 30
+Explanation:
+The input binary string 1111111111111111111111111111101 has a total of thirty set bits.
+
+ 
+Constraints:
+
+1 <= n <= 231 - 1
+
+ 
+Follow up: If this function is called many times, how would you optimize it?
+
+<SEPARATOR>
+
+```python
+class Solution:
+    def hammingWeight(self, n: int) -> int:
+        # Convert the integer to its binary representation and count the '1's
+        return bin(n).count('1')
+```
+
+This solution converts the integer `n` to its binary representation using Python's built-in `bin()` function, which returns a string prefixed with '0b'. The `count('1')` method is then used to count the number of '1's in this binary string, which corresponds to the number of set bits (Hamming weight).
+
+### Follow-up Optimization:
+If this function is called many times, one way to optimize it is to use bit manipulation. This avoids the overhead of string conversion and counting. Here's an optimized version using bit manipulation:
+
+```python
+class Solution:
+    def hammingWeight(self, n: int) -> int:
+        count = 0
+        while n:
+            count += n & 1  # Increment count if the least significant bit is 1
+            n >>= 1         # Right shift n by 1 to check the next bit
+        return count
+```
+
+This version uses a loop to repeatedly check the least significant bit of `n` (using `n & 1`), increments the count if it is 1, and then right shifts `n` by one bit (`n >>= 1`) to process the next bit. This continues until `n` becomes zero. This method is efficient and works directly with the integer representation.

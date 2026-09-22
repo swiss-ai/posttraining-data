@@ -21,21 +21,6 @@ except ImportError:
     sys.exit(1)
 
 
-def check_datasets_version():
-    """Check if datasets version is exactly 3.3.2"""
-    required_version = "3.3.2"
-    current_version = datasets.__version__
-
-    if current_version != required_version:
-        print(f"WARNING: datasets version {current_version} detected.")
-        print(f"Required version: {required_version}")
-        print("This version may not be compatible with current docker images.")
-        print("Please downgrade with: pip install datasets==3.3.2")
-        sys.exit(1)
-
-    print(f"✓ datasets version {current_version} is compatible")
-
-
 def download_dataset(dataset_name, download_folder, subset=None, split=None):
     """Download a dataset from HuggingFace Hub"""
     try:
@@ -148,9 +133,6 @@ def main():
     )
 
     args = parser.parse_args()
-
-    # Check datasets version compatibility
-    check_datasets_version()
 
     # Download the dataset
     download_dataset(

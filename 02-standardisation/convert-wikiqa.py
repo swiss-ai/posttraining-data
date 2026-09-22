@@ -11,9 +11,11 @@ import json
 import os
 import copy
 import argparse
+import random
+from collections import defaultdict
 from pathlib import Path
 from datetime import datetime
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Tuple
 import pyarrow as pa
 import pandas as pd
 from datasets import Dataset, DatasetDict
@@ -250,6 +252,72 @@ def validate_converted_sample(sample: Dict[str, Any]) -> bool:
     return True
 
 
+def sample_by_language(samples: List[Dict[str, Any]], max_samples_per_language: int = 10000) -> Tuple[List[Dict[str, Any]], Dict[str, Dict[str, int]]]:
+    """
+    Randomly sample samples per language_code, capping at max_samples_per_language.
+    
+    Args:
+        samples: List of sample dictionaries
+        max_samples_per_language: Maximum number of samples to keep per language
+        
+    Returns:
+        Tuple of (sampled_samples, language_stats)
+    """
+    # Group samples by language_code
+    samples_by_language = defaultdict(list)
+    samples_without_language = []
+    
+    for sample in samples:
+        language_code = sample.get("language_code")
+        if language_code is None or language_code == "":
+            samples_without_language.append(sample)
+        else:
+            samples_by_language[language_code].append(sample)
+    
+    # Randomly sample within each language
+    sampled_samples = []
+    language_stats = {}
+    
+    print(f"\nSampling up to {max_samples_per_language:,} samples per language...")
+    print(f"Samples without language_code: {len(samples_without_language):,}")
+    
+    for language_code, lang_samples in sorted(samples_by_language.items()):
+        original_count = len(lang_samples)
+        
+        if original_count > max_samples_per_language:
+            # Randomly sample
+            sampled = random.sample(lang_samples, max_samples_per_language)
+            sampled_samples.extend(sampled)
+            language_stats[language_code] = {
+                "original": original_count,
+                "sampled": max_samples_per_language,
+                "dropped": original_count - max_samples_per_language
+            }
+            print(f"  {language_code}: {original_count:,} -> {max_samples_per_language:,} (dropped {original_count - max_samples_per_language:,})")
+        else:
+            # Keep all samples
+            sampled_samples.extend(lang_samples)
+            language_stats[language_code] = {
+                "original": original_count,
+                "sampled": original_count,
+                "dropped": 0
+            }
+            print(f"  {language_code}: {original_count:,} -> {original_count:,} (kept all)")
+    
+    # Add samples without language_code (keep all)
+    sampled_samples.extend(samples_without_language)
+    if samples_without_language:
+        language_stats["unknown"] = {
+            "original": len(samples_without_language),
+            "sampled": len(samples_without_language),
+            "dropped": 0
+        }
+    
+    print(f"\nTotal samples after sampling: {len(sampled_samples):,} (from {len(samples):,} original)")
+    
+    return sampled_samples, language_stats
+
+
 def process_wikiqa_dataset(input_path: str, output_path: str, dataset_name: str = "WikiQA"):
     """Process the entire WikiQA dataset."""
     
@@ -259,7 +327,11 @@ def process_wikiqa_dataset(input_path: str, output_path: str, dataset_name: str 
     print("="*60)
     
     # Load samples from Arrow files
-    samples = load_wikiqa_from_arrow(input_path)
+    original_samples = load_wikiqa_from_arrow(input_path)
+    original_count = len(original_samples)
+    
+    # Sample by language (cap at 10,000 per language)
+    samples, language_stats = sample_by_language(original_samples, max_samples_per_language=8000)
     
     # Convert samples
     print(f"\nConverting {len(samples):,} samples to new format...")
@@ -316,6 +388,8 @@ def process_wikiqa_dataset(input_path: str, output_path: str, dataset_name: str 
         "total_samples": len(converted_samples),
         "failed_conversions": failed_count,
         "languages_detected": sorted(list(languages)),
+        "language_sampling": language_stats,
+        "max_samples_per_language": 10000,
         "processing_log": [
             {
                 "operation": "wikiqa_format_conversion",
@@ -324,10 +398,13 @@ def process_wikiqa_dataset(input_path: str, output_path: str, dataset_name: str 
                 "input_path": input_path,
                 "output_path": str(output_path),
                 "conversion_type": "wikiqa_to_new_chat_with_parts",
-                "samples_input": len(samples),
+                "samples_input": original_count,
+                "samples_after_sampling": len(samples),
                 "samples_output": len(converted_samples),
                 "samples_failed": failed_count,
-                "preservation": "original_metadata_preserved"
+                "preservation": "original_metadata_preserved",
+                "language_sampling_applied": True,
+                "max_samples_per_language": 10000
             }
         ]
     }
@@ -339,7 +416,8 @@ def process_wikiqa_dataset(input_path: str, output_path: str, dataset_name: str 
     # Final summary
     print(f"\n{'='*60}")
     print(f"✓ WikiQA conversion completed successfully")
-    print(f"Original samples: {len(samples):,}")
+    print(f"Original samples: {original_count:,}")
+    print(f"Samples after language sampling: {len(samples):,}")
     print(f"Converted samples: {len(converted_samples):,}")
     print(f"Failed conversions: {failed_count}")
     if languages:

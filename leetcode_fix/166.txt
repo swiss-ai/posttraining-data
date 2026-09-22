@@ -1,0 +1,79 @@
+Given two integers representing the numerator and denominator of a fraction, return the fraction in string format.
+If the fractional part is repeating, enclose the repeating part in parentheses.
+If multiple answers are possible, return any of them.
+It is guaranteed that the length of the answer string is less than 104 for all the given inputs.
+ 
+Example 1:
+
+Input: numerator = 1, denominator = 2
+Output: "0.5"
+
+Example 2:
+
+Input: numerator = 2, denominator = 1
+Output: "2"
+
+Example 3:
+
+Input: numerator = 4, denominator = 333
+Output: "0.(012)"
+
+ 
+Constraints:
+
+-231 <= numerator, denominator <= 231 - 1
+denominator != 0
+
+
+
+<SEPARATOR>
+
+```python
+class Solution:
+    def fractionToDecimal(self, numerator: int, denominator: int) -> str:
+        if numerator == 0:
+            return "0"
+        
+        # Determine the sign of the result
+        sign = '-' if (numerator < 0) ^ (denominator < 0) else ''
+        
+        # Work with absolute values to simplify the process
+        numerator, denominator = abs(numerator), abs(denominator)
+        
+        # Calculate the integer part
+        integer_part = numerator // denominator
+        remainder = numerator % denominator
+        
+        # If there is no remainder, return the integer part with the sign
+        if remainder == 0:
+            return sign + str(integer_part)
+        
+        # Dictionary to store the seen remainders and their corresponding position in the result
+        seen_remainders = {}
+        fractional_part = []
+        position = 0
+        
+        # Calculate the fractional part
+        while remainder != 0:
+            # If the remainder is seen before, we have a repeating part
+            if remainder in seen_remainders:
+                start = seen_remainders[remainder]
+                non_repeating = ''.join(fractional_part[:start])
+                repeating = ''.join(fractional_part[start:])
+                return sign + str(integer_part) + '.' + non_repeating + '(' + repeating + ')'
+            
+            # Record the position of this remainder
+            seen_remainders[remainder] = position
+            position += 1
+            
+            # Calculate the next digit in the fractional part
+            remainder *= 10
+            digit = remainder // denominator
+            fractional_part.append(str(digit))
+            remainder %= denominator
+        
+        # If no repeating part, return the integer and fractional parts
+        return sign + str(integer_part) + '.' + ''.join(fractional_part)
+```
+
+This code handles the conversion of a fraction to its decimal representation, identifying and enclosing any repeating parts in parentheses. It also correctly handles the sign of the result and edge cases such as when the numerator is zero.

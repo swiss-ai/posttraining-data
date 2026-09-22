@@ -1,0 +1,54 @@
+Given a positive integer num, return the smallest positive integer x whose multiplication of each digit equals num. If there is no answer or the answer is not fit in 32-bit signed integer, return 0.
+ 
+Example 1:
+Input: num = 48
+Output: 68
+Example 2:
+Input: num = 15
+Output: 35
+
+ 
+Constraints:
+
+1 <= num <= 231 - 1
+
+
+
+<SEPARATOR>
+
+To solve this problem, we need to find the smallest positive integer x such that the product of its digits equals the given number `num`. The solution involves breaking down the number into its smallest factors (digits from 9 to 2) and then arranging these factors to form the smallest possible number.
+
+Here's the step-by-step approach:
+1. If `num` is less than 10, return `num` itself as it's already a single digit.
+2. Try to divide `num` by the largest possible digits (from 9 to 2) and keep track of these factors.
+3. If `num` becomes 1, it means we have successfully broken it down into the factors of digits.
+4. If `num` is not 1 after the loop, it means `num` cannot be broken down into the product of digits from 9 to 2, so return 0.
+5. Collect the factors in reverse order to form the smallest number.
+6. Check if the resulting number fits within a 32-bit signed integer (i.e., less than 2^31).
+7. Return the resulting number or 0 if it doesn't fit in a 32-bit signed integer.
+
+Here's the implementation of the solution:
+
+```python
+class Solution:
+    def smallestFactorization(self, num: int) -> int:
+        if num < 10:
+            return num
+        
+        factors = []
+        for i in range(9, 1, -1):
+            while num % i == 0:
+                factors.append(i)
+                num //= i
+        
+        if num != 1:
+            return 0
+        
+        factors.sort()
+        result = int(''.join(map(str, factors)))
+        
+        if result > 2**31 - 1:
+            return 0
+        
+        return result
+```
