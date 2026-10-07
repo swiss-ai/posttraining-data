@@ -25,3 +25,7 @@ python -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 ```
+
+## Native Apertus 2 processing
+
+The isolated [apertus2-processing](apertus2-processing/README.md) project checks native conversation corpora, tokenizes HF/JSONL inputs, and exports HF, Parquet or Megatron indexed datasets. It uses its own locked environment and supports resumable shard jobs.

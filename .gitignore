@@ -13,3 +13,7 @@ tests/
 judge-analysis/*.jsonl
 judge-analysis/*.json
 08-judge-evaluation/judge-analysis/
+
+# Keep the standalone native processing tests tracked.
+!apertus2-processing/tests/
+!apertus2-processing/tests/**

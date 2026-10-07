@@ -1,0 +1,32 @@
+name: Apertus 2 processing
+
+on:
+  pull_request:
+    paths:
+      - 'apertus2-processing/**'
+      - '.github/workflows/apertus2-processing.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'apertus2-processing/**'
+      - '.github/workflows/apertus2-processing.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: apertus2-processing
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: '3.13'
+          enable-cache: true
+          cache-dependency-glob: apertus2-processing/uv.lock
+      - run: make install
+      - run: make all
