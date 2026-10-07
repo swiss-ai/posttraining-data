@@ -1,4 +1,4 @@
-# 04-annotations: Dataset Annotation Tools
+# 05-annotations: Dataset Annotation Tools
 
 LLM-based classification tools for annotating chat format datasets with refusal detection, ideological sensitivity, AI assistant identification, and question quality assessment.
 
@@ -9,7 +9,7 @@ export SWISSAI_API_KEY="your_swiss_ai_api_key"
 
 Always use the project virtual environment:
 ```bash
-venv/bin/python 04-annotations/classify_refusal.py --help
+venv/bin/python 05-annotations/classify_refusal.py --help
 ```
 
 ## Available Classifications
@@ -18,36 +18,36 @@ venv/bin/python 04-annotations/classify_refusal.py --help
 Identifies assistant messages that decline requests due to safety/ethical constraints.
 
 ```bash
-venv/bin/python 04-annotations/classify_refusal.py \
+venv/bin/python 05-annotations/classify_refusal.py \
   data/02-standardised/dataset-name \
-  --output data/04-annotations/dataset-name-refusal
+  --output data/05-annotations/dataset-name-refusal
 ```
 
 ### 2. Ideological Classification  
 Scores ideological sensitivity of initial prompts (0-3 scale).
 
 ```bash
-venv/bin/python 04-annotations/classify_ideology.py \
+venv/bin/python 05-annotations/classify_ideology.py \
   data/02-standardised/dataset-name \
-  --output data/04-annotations/dataset-name-ideology
+  --output data/05-annotations/dataset-name-ideology
 ```
 
 ### 3. Assistant Classification
 Identifies content involving AI assistants or language models.
 
 ```bash
-venv/bin/python 04-annotations/classify_assistant.py \
+venv/bin/python 05-annotations/classify_assistant.py \
   data/02-standardised/dataset-name \
-  --output data/04-annotations/dataset-name-assistant
+  --output data/05-annotations/dataset-name-assistant
 ```
 
 ### 4. Quality Classification
 Evaluates question quality across 4 dimensions (1-3 scoring each).
 
 ```bash
-venv/bin/python 04-annotations/classify_quality.py \
+venv/bin/python 05-annotations/classify_quality.py \
   data/02-standardised/dataset-name \
-  --output data/04-annotations/dataset-name-quality
+  --output data/05-annotations/dataset-name-quality
 ```
 
 ### 5. Language Detection
@@ -110,12 +110,13 @@ venv/bin/python 05-annotations/convert_smoltalk2_think.py \
   --num-proc 8
 ```
 
-### 9. New Format Classifications
-For datasets with parts structure, use the `_newformat` versions:
+### 9. Classifying the legacy parts format
+The standardisation pipeline uses a parts-based schema. The scripts below
+consume that schema; it is separate from native Apertus conversation JSON.
 
 ```bash
 # Assistant classification for new format (with parts)
-venv/bin/python 05-annotations/classify_assistant_newformat.py \
+venv/bin/python 05-annotations/classify_assistant.py \
   data/04-decontaminated-newformat/dataset \
   --output data/05-annotations/dataset-assistant
 
@@ -125,19 +126,21 @@ venv/bin/python 05-annotations/language_annotate.py \
   data/05-annotations/dataset-lang
 ```
 
-**Note**: New format classifiers only process `response` type parts, excluding function calls, function outputs, and verifiable answers.
+**Note**: Assistant classification examines the initial prompt and assistant
+`response` parts. Tool calls, tool outputs and verifiable answers are excluded
+from its part classification.
 
 ## Chained Processing
 Classifications can be chained by using output as input:
 
 ```bash
-venv/bin/python 04-annotations/classify_refusal.py \
+venv/bin/python 05-annotations/classify_refusal.py \
   data/02-standardised/dataset-name \
-  --output data/04-annotations/dataset-name-refusal
+  --output data/05-annotations/dataset-name-refusal
 
-venv/bin/python 04-annotations/classify_quality.py \
-  data/04-annotations/dataset-name-refusal \
-  --output data/04-annotations/dataset-name-refusal-quality
+venv/bin/python 05-annotations/classify_quality.py \
+  data/05-annotations/dataset-name-refusal \
+  --output data/05-annotations/dataset-name-refusal-quality
 ```
 
 ## Metadata Structure

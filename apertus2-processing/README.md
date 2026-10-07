@@ -8,11 +8,55 @@ numbered stages or convert their legacy chat format automatically.
 This project owns dataset iteration, reports, workers, deterministic shards and
 resumption. Packing, training target shifts and training loaders remain downstream.
 
+## Before you start
+
+**The required handoff is native conversation JSON.** If your data already has
+that format, no numbered pipeline stage is required by these commands. Otherwise,
+finish the source-specific preparation and convert the selected conversations
+before running `check`.
+
+For data using this repository's legacy pipeline, use this sequence:
+
+```text
+Acquire data -> standardise for legacy scripts -> apply recipe-specific curation
+  -> optionally filter/assemble a mixture -> convert selected branches to native JSON
+  -> check the complete native corpus -> fix issues and recheck
+  -> tokenize the same unchanged native corpus -> optional indexed export
+```
+
+| Existing stage | What to do before native checking/tokenization |
+| --- | --- |
+| [01 Download](../01-hf-download/) | Acquire local data if needed; the native CLI does not download Hub datasets. |
+| [02 Standardisation](../02-standardisation/) | Use for legacy curation scripts. Its `conversation_branches`/`parts` output still needs native conversion. |
+| [03 License/source filtering](../03-license-based-filtering/) | Complete the filtering required by your dataset recipe. Native format checks do not perform it. |
+| [04 Decontamination](../04-decontamination/) | Run when required by the recipe. Its overlap-detection tokenization does not produce final Apertus token IDs. |
+| [05 Annotations](../05-annotations/) | Produce annotations needed for selection, scoring or training objectives. |
+| [06 Field filtering](../06-field-based-filtering/) | Apply required selection and partitioning while their source fields are still available. |
+| [07 Aggregation](../07-dataset-aggregation/) | Optionally assemble/filter the mixture, then convert to native JSON before the legacy `linearise-dataset.py` step. |
+| [08 Judge evaluation](../08-judge-evaluation/) | Optional evaluation of legacy data. If scores affect selection, apply that selection before freezing the native corpus. It does not consume native token output automatically. |
+
+Stage 07 contains separate scripts rather than a mandatory sequence. Its legacy
+linearizer selects the first branch and writes a different `messages` schema;
+it is not needed for native encoding. `create-mixture.py` and
+`concatenate-datasets.py` combine input splits, so select the intended training
+splits first. Their normalization can remove or rewrite metadata: apply filters
+that depend on it first and retain a source copy for conversion/provenance.
+
+There is no generic legacy-to-native converter in this integration. The dataset
+owner must define and review branch selection, source-field mapping, tool-result
+association and any loss weights. Renaming an existing column does not perform
+that conversion. [Input construction below](#native-input-format) shows the exact
+target representation and an executable storage example.
+
 ## Install
 
-Use Python 3.13 or newer and `uv` from this directory:
+Use Python 3.13 or newer and `uv` on Linux or macOS (POSIX file locks are required).
+Use a Linux environment such as WSL on Windows. This project has its own
+environment; the legacy root `requirements.txt` is not its installation method.
+From the repository root:
 
 ```sh
+cd apertus2-processing
 make install
 uv run --no-sync apertus-data --help
 ```
@@ -29,26 +73,135 @@ make install-dev LIBRARY_PATH=../../apertus-common
 The development installation is editable and resolves its dependencies separately;
 use `make install` for the committed dependency lock. No tokenizer files are vendored.
 Acquire the Apertus 2 instruct artifact separately and pass its local directory.
+Only tokenization needs it; use the instruct artifact with Apertus 2 control roles,
+not the base tokenizer or stage 04's decontamination tokenizer. Before the
+tokenization examples, set:
+
+```sh
+export APERTUS_ENCODING=/absolute/path/to/tokenizers/Apertus_2_instruct
+```
+
+## Native input format
+
+A complete, unweighted native record looks like this (pretty-printed here only):
+
+```json
+{
+  "schema_version": 2,
+  "system": {"thinking": "medium", "tools": []},
+  "items": [
+    {"direction": "in", "type": "user", "payload": "Hello"},
+    {"direction": "out", "type": "reply", "payload": "Hi"},
+    {"type": "wait"}
+  ]
+}
+```
+
+For complete-history checking, supply one system prompt with `thinking` equal
+to `low`, `medium` or `high`. Native messages require `direction`, `type` and a
+string `payload`; waits have `type: "wait"` and no direction or payload. Keep
+messages in their observed order. A wait marks the end of an output burst, not
+every individual output message. Another output after a wait requires input.
+Pending calls and unfinished conversations may be valid; the checker does not
+require an artificial final wait or a completed tool call.
+
+Construct with the library and use `Conversation.to_json()` to get correct
+discriminators, aliases and escaping. Contributors must make these mappings
+explicit in their source adapter:
+
+| Source information | Native representation |
+| --- | --- |
+| Standing system instructions | `SystemPrompt.behavior`; choose `thinking` and tool declarations explicitly. |
+| User text / reasoning / assistant answer | `User` / `Think` / `Reply`, each with a string payload. |
+| Tool declarations | `system.tools` entries with `name`, `description` and object-root JSON `schema`. Legacy `parameters` often needs decoding/mapping. |
+| Tool call | `Call(name=..., counter=..., payload=...)`; payload is JSON object text. `Call.build(arguments=...)` accepts an object and serializes it. |
+| Tool result | `Result` with the matching name and counter, and a string payload. Preserve or recover the association from reliable source evidence. |
+| Retrieved or attached text | `Document` with supplying-party `from` and citation `id` provenance. |
+| Structured answer / verifier target | Choose a `Claim` payload under the training recipe; legacy answer lists do not have a universal automatic mapping. |
+
+Complete histories use conversation-wide tool counters starting at zero, with
+each new call advancing the counter. Parallel calls remain separate messages.
+Tool results can arrive out of order but must identify the correct call. Legacy
+parts embedded under an assistant role can still be input tool results in the
+native format. Do not infer ambiguous result associations from text.
+
+Select the intended legacy branches and produce one native record per selected
+linear conversation, with distinct stable IDs. Preserve preference labels and
+source annotations in external metadata under the recipe; do not concatenate
+chosen/rejected branches into one transcript. Fragments need explicit
+[checking context](#partial-histories-and-checking-context).
+
+Supported containers:
+
+| Container | Required content | CLI setting |
+| --- | --- | --- |
+| Bare JSONL | One native conversation object per physical UTF-8 line, with escaped payload newlines. No top-level array. | Default for JSONL |
+| Wrapped JSONL | A wrapper such as `{"record_id":"example-1","conversation_json":"...native JSON string..."}` | `--conversation-column conversation_json` |
+| Saved HF Dataset/Dict | A string column containing each `Conversation.to_json()` result | Default column `conversation_json` |
+
+Save HF inputs with `save_to_disk()` and pass the saved directory. A plain
+Dataset is treated as split `train`; a DatasetDict retains its split names.
+Uncompressed JSONL directories are read non-recursively in lexical filename
+order. Hub identifiers, arbitrary Parquet/Arrow files, diagnostic `<|in|>...`
+text and OpenAI `role`/`content` lists are not native CLI inputs. `--format`
+selects the output format only.
+
+The [input-writing example](examples/write_native_inputs.py) creates all three
+supported layouts from the same small typed conversation. It demonstrates the
+storage contract; adapt your dataset separately using the mapping decisions above:
+
+```sh
+export APERTUS_DEMO_ROOT="$(mktemp -d)"
+uv run --no-sync python examples/write_native_inputs.py "$APERTUS_DEMO_ROOT/input"
+# input/native.jsonl, input/wrapped.jsonl, input/hf/
+```
 
 ## Check, then tokenize
+
+Use the same native input path for both commands, and gate tokenization on a
+successful full check with `&&`:
+
+```sh
+uv run --no-sync apertus-data check "$APERTUS_DEMO_ROOT/input/native.jsonl" \
+  --output "$APERTUS_DEMO_ROOT/check" &&
+uv run --no-sync apertus-data tokenize "$APERTUS_DEMO_ROOT/input/native.jsonl" \
+  --output "$APERTUS_DEMO_ROOT/tokens" --tokenizer "$APERTUS_ENCODING" \
+  --check none --format hf
+```
+
+For your own corpus, replace the demo input with your native JSONL path or saved
+native HF directory and select fresh report/token output directories. Checking
+writes a report, not a repaired dataset. Inspect `summary.json` and the issue
+shards; fix conversion/data problems upstream and check again before tokenizing.
+Outputs must be outside the input dataset. Reuse an unchanged run with `--resume`;
+changed input requires a new output directory.
+
+The other demo containers can be checked with:
+
+```sh
+uv run --no-sync apertus-data check "$APERTUS_DEMO_ROOT/input/hf" \
+  --output "$APERTUS_DEMO_ROOT/check-hf"
+uv run --no-sync apertus-data check "$APERTUS_DEMO_ROOT/input/wrapped.jsonl" \
+  --conversation-column conversation_json --output "$APERTUS_DEMO_ROOT/check-wrapped"
+```
 
 The bundled [weighted example](examples/weighted.jsonl) masks reasoning, weights
 the reply by 0.5 and gives the final wait its own weight of 1.
 
 ```sh
 uv run --no-sync apertus-data check examples/weighted.jsonl \
-  --output /tmp/apertus-check --allow-loss-weights
-
+  --output "$APERTUS_DEMO_ROOT/check-weighted" --allow-loss-weights &&
 uv run --no-sync apertus-data tokenize examples/weighted.jsonl \
-  --output /tmp/apertus-tokens --tokenizer "$APERTUS_ENCODING" \
+  --output "$APERTUS_DEMO_ROOT/tokens-weighted" --tokenizer "$APERTUS_ENCODING" \
   --format hf --emit-loss-weights
 ```
 
 Checking runs every built-in conformance check and structural validation. It needs
 no tokenizer. Tokenization always validates native structure, defaults to
 `--check none`, and can repeat full checking with `--check full`. The separate
-check report is not an authorization token: callers must keep inputs unchanged
-between checking and tokenization. Tokenization does not search for an earlier report.
+check report is not consumed by tokenization: callers must keep data, selected
+splits and checking context unchanged between the steps. `--check full` is useful
+for a single checked tokenization run or when repeating checks is desired.
 
 Default profile checking rejects explicit loss annotations. `check --allow-loss-weights`
 opts in; `tokenize --emit-loss-weights` also enables acceptance during full checking.
@@ -94,17 +247,21 @@ Detailed `issues.jsonl` files retain each record's identity, rule, severity,
 location and message. Aggregates distinguish issue occurrences from affected
 records by rule, severity, source and split. Structural failures and unevaluated
 checks remain visible. A record passes only when checking is both OK and complete;
-warnings do not fail it. Reports include all records, even under the default
-tokenization failure policy.
+warnings do not fail it. Summary counts cover every scanned record, even under
+the default tokenization failure policy. Issue files contain findings only;
+successful records without findings do not get an issue entry.
 
 HF output is a saved `DatasetDict`, including empty splits. Parquet output has a
 `splits.json` mapping logical splits to ordered shard paths; directory names are
 opaque identifiers. Both formats include `manifest.json` with checksums.
 
 ```python
+import os
+from pathlib import Path
+
 from datasets import load_from_disk
 
-data = load_from_disk("/tmp/apertus-tokens/dataset")
+data = load_from_disk(Path(os.environ["APERTUS_DEMO_ROOT"]) / "tokens-weighted/dataset")
 first = data["train"][0]
 assert len(first["token_ids"]) == first["token_count"]
 assert len(first["loss_weights"]) == first["token_count"]

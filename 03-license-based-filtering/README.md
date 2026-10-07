@@ -4,7 +4,7 @@ Removes samples from datasets based on known licensing issues or problematic sou
 
 ## Available Scripts
 
-- **`license_filter.py`**
+- **`license-filter.py`**
 
 ## Usage
 
@@ -12,30 +12,30 @@ Removes samples from datasets based on known licensing issues or problematic sou
 
 ```bash
 # Apply license filtering with default output path
-venv/bin/python 03-license-based-filtering/license_filter.py data/02-standardised-newformat/tulu-3-sft-mixture
+venv/bin/python 03-license-based-filtering/license-filter.py data/02-standardised-newformat/tulu-3-sft-mixture
 
 # Specify custom output path  
-venv/bin/python 03-license-based-filtering/license_filter.py data/02-standardised-newformat/smoltalk \
+venv/bin/python 03-license-based-filtering/license-filter.py data/02-standardised-newformat/smoltalk \
   --output data/03-license-filtered-newformat/smoltalk
 
 # Use chunked processing for large datasets
-venv/bin/python 03-license-based-filtering/license_filter.py data/02-standardised-newformat/smoltalk2 \
+venv/bin/python 03-license-based-filtering/license-filter.py data/02-standardised-newformat/smoltalk2 \
   --chunk-size 50000
 ```
 
 ### List Available Filters
 ```bash
-venv/bin/python 03-license-based-filtering/license_filter.py --list-filters
+venv/bin/python 03-license-based-filtering/license-filter.py --list-filters
 ```
 
 ### Force Format for Custom Filtering
 ```bash
 # Use another dataset's filter configuration (old format)
-venv/bin/python 03-license-based-filtering/license_filter.py data/02-standardised/custom-dataset \
+venv/bin/python 03-license-based-filtering/license-filter.py data/02-standardised/custom-dataset \
   --force-format smoltalk
 
 # Use another dataset's filter configuration (new format)
-venv/bin/python 03-license-based-filtering/license_filter.py data/02-standardised-newformat/custom-dataset \
+venv/bin/python 03-license-based-filtering/license-filter.py data/02-standardised-newformat/custom-dataset \
   --force-format smoltalk
 ```
 
