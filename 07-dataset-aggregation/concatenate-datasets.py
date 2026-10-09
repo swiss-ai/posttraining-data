@@ -28,7 +28,12 @@ from datasets import Dataset, DatasetDict, load_from_disk, concatenate_datasets
 from tqdm import tqdm
 
 
-from datasets import Features as ds_Features, Value as ds_Value, List as ds_List
+from datasets import Features as ds_Features, Value as ds_Value
+try:
+    from datasets import List as ds_List
+except ImportError:  # datasets < 4.0 (pinned 3.3.2) expresses a list of a feature as a Python list
+    def ds_List(feature):
+        return [feature]
 
 FULL_FEATURES = ds_Features({
     "conversation_id": ds_Value("string"),
@@ -430,14 +435,14 @@ def save_dataset_and_metadata(dataset: Dataset, output_path: Path,
     
     # Print summary statistics
     print("\nConcatenation Summary:")
-    print(f"  Total samples: {output_stats["total_samples"]:,}")
+    print(f"  Total samples: {output_stats['total_samples']:,}")
     print(f"  Dataset sources found:")
     for source, count in sorted(output_stats["dataset_sources"].items()):
         print(f"    {source}: ~{count:,}")
     if output_stats.get("has_system_prompts"):
-        print(f"  Samples with system prompts: ~{output_stats["has_system_prompts"]:,}")
+        print(f"  Samples with system prompts: ~{output_stats['has_system_prompts']:,}")
     if output_stats.get("has_available_functions"):
-        print(f"  Samples with available functions: ~{output_stats["has_available_functions"]:,}")
+        print(f"  Samples with available functions: ~{output_stats['has_available_functions']:,}")
 
 # ───────────— CLI / main ───────────── #
 def cli():
