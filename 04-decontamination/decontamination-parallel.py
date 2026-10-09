@@ -418,6 +418,7 @@ def main(args):
         )  # Reports are saved inside the input dataset's directory
         if os.path.exists(output_path) and not args.overwrite:
             print("contamination_report already exists, skipping decontamination")
+            processed_benchmarks.append(eval_dataset_name)  # count existing reports as processed
             continue
         # Step 1: Load/compute benchmark n-grams
         step_start = time.time()

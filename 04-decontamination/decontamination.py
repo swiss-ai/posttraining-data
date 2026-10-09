@@ -57,7 +57,8 @@ def load_existing_metadata(input_path: Path) -> Optional[Dict[str, Any]]:
 
 def save_dataset_and_metadata(train_data, output_path: Path, input_path: Path,
                               contaminated_ids: set, processed_benchmarks: list,
-                              tokenizer_name: str, ngram_length: int, diff_threshold: float):
+                              tokenizer_name: str, ngram_length: int, diff_threshold: float,
+                              samples_removed: int):
     """Save filtered dataset and update metadata with processing log."""
     # Ensure output directory exists
     output_path = Path(output_path)
@@ -94,7 +95,8 @@ def save_dataset_and_metadata(train_data, output_path: Path, input_path: Path,
         "diff_threshold": diff_threshold,
         "benchmarks_processed": len(processed_benchmarks),
         "benchmark_names": processed_benchmarks,
-        "contaminated_samples_removed": len(contaminated_ids),
+        "contaminated_ids_flagged": len(contaminated_ids),
+        "contaminated_samples_removed": samples_removed,
         "samples_after_filtering": total_samples_after,
         "decontamination_success": True
     }
@@ -389,6 +391,7 @@ def main(args):
         )  # Reports are saved inside the input dataset's directory
         if os.path.exists(output_path) and not args.overwrite:
             print("contamination_report already exists, skipping decontamination")
+            processed_benchmarks.append(eval_dataset_name)  # still apply the existing report in the final filter
             continue
         # Step 1: Load/compute benchmark n-grams
         step_start = time.time()
@@ -552,10 +555,16 @@ def main(args):
     # Handle DatasetDict format - filter all splits if DatasetDict, otherwise filter single dataset
     if hasattr(train_data, 'keys'):  # DatasetDict
         from datasets import DatasetDict
+        samples_before = sum(len(v) for v in train_data.values())
         train_data = DatasetDict({k: v.filter(lambda x: x["conversation_id"] not in contaminated_ids)
                                   for k, v in train_data.items()})
+        samples_after = sum(len(v) for v in train_data.values())
     else:  # Single Dataset
+        samples_before = len(train_data)
         train_data = train_data.filter(lambda x: x["conversation_id"] not in contaminated_ids)
+        samples_after = len(train_data)
+    samples_removed = samples_before - samples_after
+    print(f"Removed {samples_removed} samples ({len(contaminated_ids)} contaminated IDs flagged)")
 
     # Save dataset with metadata
     save_dataset_and_metadata(
@@ -566,7 +575,8 @@ def main(args):
         processed_benchmarks,
         args.tokenizer_name,
         args.ngram_length,
-        args.diff_threshold
+        args.diff_threshold,
+        samples_removed
     )
 
 
