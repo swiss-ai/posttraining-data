@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from typing import Dict, Any, Optional
 
 from datasets import Dataset, DatasetDict, load_dataset
+from conversation_ids import assign_conversation_ids
 
 SRC = "nvidia/OpenMathReasoning"
 UTC = timezone.utc
@@ -266,6 +267,7 @@ def main():
     print(f"Kept: {len(converted_samples)} samples")
 
     print("Creating DatasetDict...")
+    assign_conversation_ids(converted_samples, output_path.name, "train")
     dataset_dict = DatasetDict({"train": Dataset.from_list(converted_samples)})
 
     save_dataset_and_metadata(dataset_dict, output_path, args)

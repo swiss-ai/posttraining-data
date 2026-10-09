@@ -28,6 +28,7 @@ from pathlib import Path
 from datetime import datetime, UTC
 from typing import List, Dict, Any, Optional
 from datasets import Dataset, DatasetDict
+from conversation_ids import assign_conversation_ids
 
 # Hardcoded input path as specified
 INPUT_PATH = "/iopsstor/scratch/cscs/smoalla/projects/swiss-alignment/artifacts/shared/datasets/s1K_42_langs/s1k_en_thk_42_langs_1k.json"
@@ -235,6 +236,7 @@ def main():
     
     # Create Dataset and DatasetDict
     print("Creating DatasetDict...")
+    assign_conversation_ids(converted_samples, output_path.name, "train")
     dataset = Dataset.from_list(converted_samples)
     dataset_dict = DatasetDict({"train": dataset})
     

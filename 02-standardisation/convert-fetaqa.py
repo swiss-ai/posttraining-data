@@ -40,6 +40,7 @@ from datetime import datetime, UTC
 from typing import Dict, Any, Optional
 from pathlib import Path
 from datasets import Dataset, DatasetDict
+from conversation_ids import assign_conversation_ids
 from huggingface_hub import hf_hub_download
 
 SRC = "dongfujiang_fetaqa"
@@ -299,6 +300,7 @@ def main():
     
     # Create Dataset and DatasetDict
     print("Creating DatasetDict...")    
+    assign_conversation_ids(converted_samples, output_path.name, "train")
     dataset = Dataset.from_list(converted_samples)
     dataset_dict = DatasetDict({"train": dataset})
     

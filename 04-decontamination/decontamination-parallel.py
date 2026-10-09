@@ -34,6 +34,7 @@ from datetime import datetime
 from typing import Dict, Any, Optional
 
 from benchmark_filters import filter_benchmark_names
+from conversation_id_checks import validate_conversation_ids
 
 """
 Parallel decontamination script for processing benchmark subsets.
@@ -366,6 +367,7 @@ def main(args):
             from datasets import concatenate_datasets
             train_data = concatenate_datasets(all_splits_data)
     # If single Dataset, use as-is
+    validate_conversation_ids(train_data["conversation_id"], args.dataset_path)
     if not os.path.exists(args.report_path):
         print(f"Creating contamination reports directory: {args.report_path}")
         os.makedirs(args.report_path, exist_ok=True)

@@ -19,6 +19,7 @@ from typing import Dict, Any, List, Optional, Tuple
 import pyarrow as pa
 import pandas as pd
 from datasets import Dataset, DatasetDict
+from conversation_ids import assign_conversation_ids
 from tqdm import tqdm
 
 
@@ -361,6 +362,7 @@ def process_wikiqa_dataset(input_path: str, output_path: str, dataset_name: str 
     
     # Create Dataset
     print("Creating dataset...")
+    assign_conversation_ids(converted_samples, Path(output_path).name, "train")
     dataset = Dataset.from_list(converted_samples)
     
     # Wrap in DatasetDict for consistency

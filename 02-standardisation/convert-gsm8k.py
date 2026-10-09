@@ -22,6 +22,7 @@ from datetime import datetime, UTC
 from typing import Dict, Any, Optional
 from pathlib import Path
 from datasets import Dataset, DatasetDict, load_dataset
+from conversation_ids import assign_conversation_ids
 
 SRC = "gsm8k"
 
@@ -212,6 +213,7 @@ def main():
         converted_samples.append(convert_sample(sample))
 
     print("Creating DatasetDict...")
+    assign_conversation_ids(converted_samples, output_path.name, "train")
     converted_dataset = Dataset.from_list(converted_samples)
     dataset_dict = DatasetDict({"train": converted_dataset})
 

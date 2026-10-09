@@ -15,6 +15,8 @@ from datetime import datetime
 from typing import Dict, Any, Optional, List
 from datasets import load_from_disk, Dataset, DatasetDict
 
+from conversation_id_checks import validate_conversation_ids
+
 
 def load_existing_metadata(input_path: Path) -> Optional[Dict[str, Any]]:
     """Load existing dataset metadata if it exists."""
@@ -306,6 +308,16 @@ Examples:
         print(f"Error loading training data: {e}")
         return 1
 
+    try:
+        if hasattr(train_data, 'keys'):  # DatasetDict
+            all_ids = [cid for split in train_data.values() for cid in split["conversation_id"]]
+        else:
+            all_ids = train_data["conversation_id"]
+        validate_conversation_ids(all_ids, str(input_path))
+    except ValueError as e:
+        print(f"Error: {e}")
+        return 1
+
     # Get original sample count
     if hasattr(train_data, 'keys'):  # DatasetDict
         original_samples = sum(len(split) for split in train_data.values())
@@ -314,22 +326,27 @@ Examples:
         original_samples = len(train_data)
         print(f"Original dataset: {original_samples} samples")
 
-    # Apply filtering
+    # Apply filtering (report keys are JSON strings, so compare IDs as strings)
     print("Applying contamination filtering...")
 
     if hasattr(train_data, 'keys'):  # DatasetDict
         train_data = DatasetDict({
-            k: v.filter(lambda x: x["conversation_id"] not in contaminated_ids)
+            k: v.filter(lambda x: str(x["conversation_id"]) not in contaminated_ids)
             for k, v in train_data.items()
         })
         final_samples = sum(len(split) for split in train_data.values())
     else:  # Single Dataset
-        train_data = train_data.filter(lambda x: x["conversation_id"] not in contaminated_ids)
+        train_data = train_data.filter(lambda x: str(x["conversation_id"]) not in contaminated_ids)
         final_samples = len(train_data)
 
     removed_samples = original_samples - final_samples
     print(f"Removed {removed_samples:,} contaminated samples ({removed_samples / original_samples * 100:.2f}%)")
     print(f"Final dataset: {final_samples:,} samples")
+    if removed_samples != len(contaminated_ids):
+        print(f"Error: removed {removed_samples:,} samples but {len(contaminated_ids):,} IDs were flagged: "
+              f"the reports in {reports_dir} do not match the conversation_ids of {input_path}. "
+              f"Not saving the filtered dataset.")
+        return 1
 
     # Save filtered dataset with metadata
     print(f"\n=== SAVING FILTERED DATASET ===")

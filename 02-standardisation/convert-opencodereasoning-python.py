@@ -5,6 +5,7 @@ from datetime import datetime, UTC
 from typing import Dict, Any, Optional
 
 from datasets import Dataset, DatasetDict, load_dataset
+from conversation_ids import add_conversation_ids
 
 SRC = "nvidia/OpenCodeReasoning-2"
 
@@ -211,7 +212,7 @@ def main():
     for split, d in ds.items():
         print(f"{split}: {d.num_rows:,} rows")
         d = subset(d, a.limit)
-        out_ds[split] = process_split(d, a.num_proc)
+        out_ds[split] = add_conversation_ids(process_split(d, a.num_proc), out.name, split, a.num_proc)
 
     save_dataset_and_metadata(out_ds, out, inp, a)
 

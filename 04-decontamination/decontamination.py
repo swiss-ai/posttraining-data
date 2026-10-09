@@ -34,6 +34,7 @@ from datetime import datetime
 from typing import Dict, Any, Optional
 
 from benchmark_filters import filter_benchmark_names
+from conversation_id_checks import validate_conversation_ids
 
 """
 Code modified from: https://github.com/huggingface/cosmopedia/blob/main/decontamination/decontaminate.py
@@ -339,6 +340,7 @@ def main(args):
             from datasets import concatenate_datasets
             train_data = concatenate_datasets(all_splits_data)
     # If single Dataset, use as-is
+    validate_conversation_ids(train_data["conversation_id"], args.dataset_path)
     if not os.path.exists(args.report_path):
         print(f"Creating contamination reports directory: {args.report_path}")
         os.makedirs(args.report_path, exist_ok=True)
@@ -553,18 +555,25 @@ def main(args):
     # train_data.save_to_disk(args.output)
 
     # Handle DatasetDict format - filter all splits if DatasetDict, otherwise filter single dataset
+    # Report keys are JSON strings, so compare IDs as strings.
     if hasattr(train_data, 'keys'):  # DatasetDict
         from datasets import DatasetDict
         samples_before = sum(len(v) for v in train_data.values())
-        train_data = DatasetDict({k: v.filter(lambda x: x["conversation_id"] not in contaminated_ids)
+        train_data = DatasetDict({k: v.filter(lambda x: str(x["conversation_id"]) not in contaminated_ids)
                                   for k, v in train_data.items()})
         samples_after = sum(len(v) for v in train_data.values())
     else:  # Single Dataset
         samples_before = len(train_data)
-        train_data = train_data.filter(lambda x: x["conversation_id"] not in contaminated_ids)
+        train_data = train_data.filter(lambda x: str(x["conversation_id"]) not in contaminated_ids)
         samples_after = len(train_data)
     samples_removed = samples_before - samples_after
     print(f"Removed {samples_removed} samples ({len(contaminated_ids)} contaminated IDs flagged)")
+    if samples_removed != len(contaminated_ids):
+        raise ValueError(
+            f"Removed {samples_removed} samples but {len(contaminated_ids)} IDs were flagged: the reports in "
+            f"{args.report_path} do not match the conversation_ids of {args.dataset_path}. "
+            f"Not saving the filtered dataset."
+        )
 
     # Save dataset with metadata
     save_dataset_and_metadata(

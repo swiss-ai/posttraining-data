@@ -5,6 +5,7 @@ from datetime import datetime, UTC
 from typing import Dict, Any, Optional
 from pathlib import Path
 from datasets import Dataset, DatasetDict, load_dataset
+from conversation_ids import assign_conversation_ids
 
 SRC = "DeepMath-103K"
 
@@ -141,6 +142,7 @@ def main():
         converted_samples.append(convert_sample(sample))
 
     print("Creating DatasetDict...")
+    assign_conversation_ids(converted_samples, output_path.name, "train")
     dataset_dict = DatasetDict({"train": Dataset.from_list(converted_samples)})
 
     print(f"Converted {len(converted_samples)} samples")

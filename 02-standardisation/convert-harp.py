@@ -4,6 +4,7 @@ import json
 import urllib.request
 import tempfile
 from datasets import Dataset
+from conversation_ids import assign_conversation_ids
 import enum
 import re
 import sys
@@ -192,6 +193,7 @@ def main():
     
     # Create Dataset and DatasetDict
     print("Creating DatasetDict...")    
+    assign_conversation_ids(converted_samples, output_path.name, "train")
     dataset = Dataset.from_list(converted_samples)
     dataset_dict = DatasetDict({"train": dataset})
     

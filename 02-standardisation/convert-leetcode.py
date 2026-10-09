@@ -10,6 +10,7 @@ from subprocess import run
 from datetime import datetime, UTC
 from typing import Dict, Any, Optional
 from datasets import Dataset, DatasetDict, load_dataset, concatenate_datasets
+from conversation_ids import add_conversation_ids
 
 SRC = "newfacade/LeetCodeDataset"
 
@@ -316,6 +317,7 @@ def main():
         desc="Converting",
     )
 
+    converted_data = add_conversation_ids(converted_data, output_path.name, "train", args.num_proc)
     dataset_dict = DatasetDict({"train": converted_data})
 
     print(f"Converted {len(converted_data)} samples")

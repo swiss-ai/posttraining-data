@@ -487,7 +487,40 @@ Schema Normalization:
                    help="Skip schema normalization (requires identical schemas)")
     p.add_argument("--strict", action="store_true",
                    help="Fail if schemas don't match exactly (after normalization)")
+    p.add_argument("--skip-id-check", action="store_true",
+                   help="Skip the conversation_id check (empty, duplicated or shared between different inputs). "
+                        "Only for legacy datasets; decontamination relies on unique IDs.")
     return p.parse_args()
+
+
+def check_conversation_ids(datasets: List[Dataset], input_paths: List[str]) -> List[str]:
+    """Return problems with conversation_ids across the inputs (empty list if none).
+
+    Within an input, IDs must be non-empty and unique. Across inputs, an ID may only
+    repeat if both inputs are the same path (deliberate upsampling); otherwise two
+    different datasets share an ID, which breaks any later ID-based filtering.
+    """
+    problems = []
+    id_owner: Dict[str, str] = {}
+    for dataset, path in zip(datasets, input_paths):
+        ids = dataset["conversation_id"]
+        name = Path(path).name
+        empty = sum(1 for cid in ids if cid is None or str(cid).strip() == "")
+        if empty:
+            problems.append(f"{name}: {empty} empty conversation_ids")
+        unique_ids = set(ids)
+        if len(unique_ids) != len(ids):
+            problems.append(f"{name}: {len(ids) - len(unique_ids)} duplicated conversation_ids within the dataset")
+        collisions = {}
+        for cid in unique_ids:
+            if cid is None or str(cid).strip() == "":
+                continue
+            owner = id_owner.setdefault(cid, path)
+            if owner != path:
+                collisions[Path(owner).name] = collisions.get(Path(owner).name, 0) + 1
+        for other, count in collisions.items():
+            problems.append(f"{name}: {count} conversation_ids also used by {other}")
+    return problems
 
 
 def apply_range(dataset: Dataset, range_str: str) -> Dataset:
@@ -657,6 +690,20 @@ def main():
     else:
         print("  All datasets have compatible schemas")
     
+    # Verify conversation_ids (repeating the same input path for upsampling is allowed)
+    if args.skip_id_check:
+        print("\nSkipping conversation_id check (--skip-id-check)")
+    else:
+        print("\nVerifying conversation_ids...")
+        id_problems = check_conversation_ids(datasets_to_concat, input_paths)
+        if id_problems:
+            print("Error: invalid conversation_ids:")
+            for problem in id_problems:
+                print(f"  - {problem}")
+            print("Re-run the affected 02-standardisation converters, or pass --skip-id-check for legacy datasets.")
+            sys.exit(1)
+        print("  All conversation_ids are non-empty and unique per dataset")
+
     # Concatenate datasets
     print("\nConcatenating datasets...")
     try:

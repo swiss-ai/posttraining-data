@@ -27,6 +27,7 @@ from datetime import datetime, UTC
 from typing import Dict, Any, Optional, List
 from pathlib import Path
 from datasets import Dataset, DatasetDict, load_dataset, concatenate_datasets
+from conversation_ids import add_conversation_ids
 
 SRC = "nvidia/Nemotron-Instruction-Following-Chat-v1"
 
@@ -270,6 +271,7 @@ def main():
     converted_data = converted_data.filter(lambda x: x.get("_valid", True), num_proc=args.num_proc)
     converted_data = converted_data.remove_columns(["_valid"])
 
+    converted_data = add_conversation_ids(converted_data, output_path.name, "train", args.num_proc)
     dataset_dict = DatasetDict({"train": converted_data})
 
     print(f"Converted {len(converted_data)} samples")

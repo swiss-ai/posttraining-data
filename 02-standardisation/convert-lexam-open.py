@@ -31,6 +31,7 @@ from datetime import datetime, UTC
 from typing import Dict, Any, Optional
 from pathlib import Path
 from datasets import Dataset, DatasetDict, load_dataset, concatenate_datasets
+from conversation_ids import assign_conversation_ids
 
 SRC = "LEXam_open_question"
 
@@ -217,6 +218,7 @@ def main():
     
     # Create Dataset and DatasetDict
     print("Creating DatasetDict...")    
+    assign_conversation_ids(converted_samples, output_path.name, "train")
     dataset = Dataset.from_list(converted_samples)
     dataset_dict = DatasetDict({"train": dataset})
     

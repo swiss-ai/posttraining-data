@@ -23,6 +23,7 @@ from statistics import mean
 from typing import Any, Dict, Optional
 
 from datasets import Dataset, DatasetDict, load_dataset, load_from_disk
+from conversation_ids import add_conversation_ids
 from transformers import AutoTokenizer
 
 
@@ -582,6 +583,7 @@ def main() -> None:
     )
 
     print("Creating DatasetDict...", flush=True)
+    converted = add_conversation_ids(converted, output_path.name, "train", args.num_proc)
     dataset_dict = DatasetDict({"train": converted})
     save_dataset_and_metadata(dataset_dict, output_path, args, stats)
     print("Conversion complete!", flush=True)
