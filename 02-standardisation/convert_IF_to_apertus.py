@@ -652,7 +652,7 @@ def main():
     )
     parser.add_argument(
         "--output-dir",
-        default="/iopsstor/scratch/cscs/hyukhymenko/sft-1.1-mixes/if-mix-17-03",
+        required=True,
         help="Output directory for HuggingFace dataset"
     )
     parser.add_argument(
