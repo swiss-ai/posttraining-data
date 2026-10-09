@@ -68,6 +68,14 @@ environment:
 | `DECONTAMINATION_CACHE_DIR` | `/capstor/store/cscs/swissai/infra01/posttrain_data/decontamination_cache` |
 | `TOKENIZER_NAME` | `swiss-ai/Apertus-8B-Instruct-2509` |
 
+**Tokenizer: adjust it for new model versions.** The n-grams are built from token IDs, so
+`TOKENIZER_NAME` should be the tokenizer of the model being trained (currently Apertus 1.5:
+`swiss-ai/Apertus-8B-Instruct-2509`). For a new model version with a different tokenizer, update the
+default in `slurm_config.sh` (and pass the same `--tokenizer_name` when calling the Python scripts
+directly). The benchmark n-gram cache is keyed by tokenizer, so a new tokenizer builds its own cache
+entries; results from runs with different tokenizers are not directly comparable (v1.0 used
+`alehc/swissai-tokenizer`).
+
 `HF_HOME` is not set by the scripts; jobs inherit it from your shell. The `debug` partition allows at most
 2 submitted jobs per user, so use a chunk size that gives a single array job there (e.g. `chunk_size` ≥
 number of benchmarks).
