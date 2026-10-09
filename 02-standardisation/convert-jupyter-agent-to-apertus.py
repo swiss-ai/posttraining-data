@@ -21,6 +21,7 @@ from datetime import UTC, datetime
 from typing import Any, Dict, Iterable, List, Optional
 
 from datasets import Dataset, DatasetDict, load_dataset
+from conversation_ids import add_conversation_ids_for_output
 
 
 SRC = "jupyter-agent/jupyter-agent-dataset"
@@ -372,6 +373,7 @@ def main() -> None:
 
     dataset = DatasetDict({"train": converted})
     print(f"Saving to {args.output}")
+    dataset = add_conversation_ids_for_output(dataset, args.output)
     dataset.save_to_disk(args.output)
     print("Done")
 

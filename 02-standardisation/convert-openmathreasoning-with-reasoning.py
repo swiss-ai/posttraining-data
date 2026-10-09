@@ -23,7 +23,7 @@ from statistics import mean
 from typing import Any, Dict, Optional
 
 from datasets import Dataset, DatasetDict, load_dataset, load_from_disk
-from conversation_ids import add_conversation_ids
+from conversation_ids import add_conversation_ids_for_output
 from transformers import AutoTokenizer
 
 
@@ -317,6 +317,7 @@ def save_dataset_and_metadata(
     stats: dict[str, int],
 ) -> None:
     output_path.mkdir(parents=True, exist_ok=True)
+    dataset_dict = add_conversation_ids_for_output(dataset_dict, output_path)
     dataset_dict.save_to_disk(str(output_path))
 
     metadata = load_existing_metadata(output_path) or {}
@@ -583,7 +584,6 @@ def main() -> None:
     )
 
     print("Creating DatasetDict...", flush=True)
-    converted = add_conversation_ids(converted, output_path.name, "train", args.num_proc)
     dataset_dict = DatasetDict({"train": converted})
     save_dataset_and_metadata(dataset_dict, output_path, args, stats)
     print("Conversion complete!", flush=True)

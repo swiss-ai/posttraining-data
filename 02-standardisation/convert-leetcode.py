@@ -10,7 +10,7 @@ from subprocess import run
 from datetime import datetime, UTC
 from typing import Dict, Any, Optional
 from datasets import Dataset, DatasetDict, load_dataset, concatenate_datasets
-from conversation_ids import add_conversation_ids
+from conversation_ids import add_conversation_ids_for_output
 
 SRC = "newfacade/LeetCodeDataset"
 
@@ -164,6 +164,7 @@ def save_dataset_and_metadata(dataset_dict: DatasetDict, output_path: Path, args
     output_path.mkdir(parents=True, exist_ok=True)
     
     # Save dataset
+    dataset_dict = add_conversation_ids_for_output(dataset_dict, output_path)
     dataset_dict.save_to_disk(str(output_path))
     
     # Load existing metadata or create new
@@ -317,7 +318,6 @@ def main():
         desc="Converting",
     )
 
-    converted_data = add_conversation_ids(converted_data, output_path.name, "train", args.num_proc)
     dataset_dict = DatasetDict({"train": converted_data})
 
     print(f"Converted {len(converted_data)} samples")

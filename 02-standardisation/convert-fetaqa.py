@@ -40,7 +40,7 @@ from datetime import datetime, UTC
 from typing import Dict, Any, Optional
 from pathlib import Path
 from datasets import Dataset, DatasetDict
-from conversation_ids import assign_conversation_ids
+from conversation_ids import add_conversation_ids_for_output
 from huggingface_hub import hf_hub_download
 
 SRC = "dongfujiang_fetaqa"
@@ -193,6 +193,7 @@ def save_dataset_and_metadata(dataset_dict: DatasetDict, output_path: Path, args
     output_path.mkdir(parents=True, exist_ok=True)
     
     # Save dataset
+    dataset_dict = add_conversation_ids_for_output(dataset_dict, output_path)
     dataset_dict.save_to_disk(str(output_path))
     
     # Load existing metadata or create new
@@ -300,7 +301,6 @@ def main():
     
     # Create Dataset and DatasetDict
     print("Creating DatasetDict...")    
-    assign_conversation_ids(converted_samples, output_path.name, "train")
     dataset = Dataset.from_list(converted_samples)
     dataset_dict = DatasetDict({"train": dataset})
     

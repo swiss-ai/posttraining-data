@@ -22,7 +22,7 @@ from datetime import datetime, UTC
 from typing import Dict, Any, Optional
 from pathlib import Path
 from datasets import Dataset, DatasetDict, load_dataset
-from conversation_ids import assign_conversation_ids
+from conversation_ids import add_conversation_ids_for_output
 
 SRC = "gsm8k"
 
@@ -129,6 +129,7 @@ def save_dataset_and_metadata(dataset_dict: DatasetDict, output_path: Path, args
     """Save converted dataset with processing metadata."""
     output_path.mkdir(parents=True, exist_ok=True)
 
+    dataset_dict = add_conversation_ids_for_output(dataset_dict, output_path)
     dataset_dict.save_to_disk(str(output_path))
 
     metadata = load_existing_metadata(output_path) or {}
@@ -213,7 +214,6 @@ def main():
         converted_samples.append(convert_sample(sample))
 
     print("Creating DatasetDict...")
-    assign_conversation_ids(converted_samples, output_path.name, "train")
     converted_dataset = Dataset.from_list(converted_samples)
     dataset_dict = DatasetDict({"train": converted_dataset})
 

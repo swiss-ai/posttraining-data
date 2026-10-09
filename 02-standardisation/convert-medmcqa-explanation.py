@@ -27,6 +27,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, Optional
 
 from datasets import Dataset, DatasetDict, concatenate_datasets, load_dataset, load_from_disk
+from conversation_ids import add_conversation_ids_for_output
 
 
 SRC = "openlifescienceai/medmcqa"
@@ -241,6 +242,7 @@ def save_dataset_and_metadata(
     stats: Dict[str, int],
 ) -> None:
     output_path.mkdir(parents=True, exist_ok=True)
+    dataset_dict = add_conversation_ids_for_output(dataset_dict, output_path)
     dataset_dict.save_to_disk(str(output_path))
 
     metadata = load_existing_metadata(output_path) or {}

@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from typing import Dict, Any, Optional
 
 from datasets import Dataset, DatasetDict, load_dataset
-from conversation_ids import assign_conversation_ids
+from conversation_ids import add_conversation_ids_for_output
 
 SRC = "nvidia/OpenMathReasoning"
 UTC = timezone.utc
@@ -120,6 +120,7 @@ def load_existing_metadata(output_path: Path) -> Optional[Dict[str, Any]]:
 def save_dataset_and_metadata(dataset_dict: DatasetDict, output_path: Path, args: argparse.Namespace):
     """Save converted dataset with processing metadata."""
     output_path.mkdir(parents=True, exist_ok=True)
+    dataset_dict = add_conversation_ids_for_output(dataset_dict, output_path)
     dataset_dict.save_to_disk(str(output_path))
 
     metadata = load_existing_metadata(output_path) or {}
@@ -267,7 +268,6 @@ def main():
     print(f"Kept: {len(converted_samples)} samples")
 
     print("Creating DatasetDict...")
-    assign_conversation_ids(converted_samples, output_path.name, "train")
     dataset_dict = DatasetDict({"train": Dataset.from_list(converted_samples)})
 
     save_dataset_and_metadata(dataset_dict, output_path, args)

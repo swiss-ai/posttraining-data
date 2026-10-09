@@ -28,7 +28,7 @@ from pathlib import Path
 from datetime import datetime, UTC
 from typing import List, Dict, Any, Optional
 from datasets import Dataset, DatasetDict
-from conversation_ids import assign_conversation_ids
+from conversation_ids import add_conversation_ids_for_output
 
 # Hardcoded input path as specified
 INPUT_PATH = "/iopsstor/scratch/cscs/smoalla/projects/swiss-alignment/artifacts/shared/datasets/s1K_42_langs/s1k_en_thk_42_langs_1k.json"
@@ -148,6 +148,7 @@ def save_dataset_and_metadata(dataset_dict: DatasetDict, output_path: Path, args
     output_path.mkdir(parents=True, exist_ok=True)
     
     # Save dataset
+    dataset_dict = add_conversation_ids_for_output(dataset_dict, output_path)
     dataset_dict.save_to_disk(str(output_path))
     
     # Load existing metadata or create new
@@ -236,7 +237,6 @@ def main():
     
     # Create Dataset and DatasetDict
     print("Creating DatasetDict...")
-    assign_conversation_ids(converted_samples, output_path.name, "train")
     dataset = Dataset.from_list(converted_samples)
     dataset_dict = DatasetDict({"train": dataset})
     

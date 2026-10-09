@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from datasets import Dataset, DatasetDict, load_from_disk
+from conversation_ids import add_conversation_ids_for_output
 
 
 def now_iso() -> str:
@@ -259,6 +260,7 @@ def main() -> None:
 
     dataset_dict = DatasetDict({"train": Dataset.from_list(converted)})
     output_path.mkdir(parents=True, exist_ok=True)
+    dataset_dict = add_conversation_ids_for_output(dataset_dict, output_path)
     dataset_dict.save_to_disk(str(output_path))
     save_metadata(output_path, args, len(source), len(converted), skipped)
 

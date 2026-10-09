@@ -5,7 +5,7 @@ from datetime import datetime, UTC
 from typing import Dict, Any, Optional
 
 from datasets import Dataset, DatasetDict, load_dataset
-from conversation_ids import add_conversation_ids
+from conversation_ids import add_conversation_ids_for_output
 
 SRC = "nvidia/OpenCodeReasoning-2"
 
@@ -152,6 +152,7 @@ def save_dataset_and_metadata(dataset_dict: DatasetDict, output_path: Path,
     output_path.mkdir(parents=True, exist_ok=True)
     
     # Save dataset
+    dataset_dict = add_conversation_ids_for_output(dataset_dict, output_path)
     dataset_dict.save_to_disk(str(output_path))
     
     # Load existing metadata or create new
@@ -212,7 +213,7 @@ def main():
     for split, d in ds.items():
         print(f"{split}: {d.num_rows:,} rows")
         d = subset(d, a.limit)
-        out_ds[split] = add_conversation_ids(process_split(d, a.num_proc), out.name, split, a.num_proc)
+        out_ds[split] = process_split(d, a.num_proc)
 
     save_dataset_and_metadata(out_ds, out, inp, a)
 

@@ -2,6 +2,7 @@ import os, re, json, sys, argparse, hashlib, difflib
 from pathlib import Path
 from datetime import datetime, UTC
 from datasets import disable_progress_bars
+from conversation_ids import add_conversation_ids_for_output
 from typing import List, Dict, Any, Optional, Tuple
 
 from datasets import Dataset, DatasetDict, load_dataset
@@ -802,6 +803,7 @@ def save_dataset_and_metadata(
     output_path.mkdir(parents=True, exist_ok=True)
 
     # Save dataset
+    dataset_dict = add_conversation_ids_for_output(dataset_dict, output_path)
     dataset_dict.save_to_disk(str(output_path))
 
     # Load existing metadata or create new

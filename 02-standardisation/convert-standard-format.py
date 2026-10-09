@@ -15,6 +15,7 @@ from subprocess import run
 from datetime import datetime
 from collections import Counter
 from datasets import load_from_disk
+from conversation_ids import add_conversation_ids_for_output
 from typing import Dict, Any, Optional, List, Tuple
 
 
@@ -1133,6 +1134,7 @@ def save_dataset_and_metadata(dataset, output_path: Path, dataset_name: str, inp
     
     # Save dataset
     print(f"Saving dataset to {output_path}...")
+    output_dataset = add_conversation_ids_for_output(output_dataset, output_path)
     output_dataset.save_to_disk(str(output_path))
     
     # Load or create metadata

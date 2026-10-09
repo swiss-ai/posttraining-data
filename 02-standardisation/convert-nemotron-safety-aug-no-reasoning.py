@@ -31,6 +31,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from datasets import Dataset, DatasetDict, load_from_disk
+from conversation_ids import add_conversation_ids_for_output
 
 SRC = "nemotron-aug-no-reasoning"
 
@@ -114,6 +115,7 @@ def load_existing_metadata(output_path: Path) -> Optional[Dict[str, Any]]:
 def save_dataset_and_metadata(dataset_dict: DatasetDict, output_path: Path,
                                args: argparse.Namespace):
     output_path.mkdir(parents=True, exist_ok=True)
+    dataset_dict = add_conversation_ids_for_output(dataset_dict, output_path)
     dataset_dict.save_to_disk(str(output_path))
 
     metadata = load_existing_metadata(output_path) or {}
