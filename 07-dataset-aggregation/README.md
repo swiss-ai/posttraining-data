@@ -6,7 +6,7 @@ These scripts assemble datasets in the repository's legacy branched format
 the legacy pipeline environment.
 
 For native Apertus 2 checking and tokenization, see
-[Before you start](../apertus2-processing/README.md#before-you-start).
+[apertus2-processing](../apertus2-processing/README.md).
 Neither aggregation nor the legacy linearizer produces native Apertus JSON.
 
 ## Create a filtered mixture
@@ -71,8 +71,8 @@ with structured `content`, `parts`, and `blocks`. It retains
 `created_timestamp`, but removes other original columns. Complete filtering
 that depends on those fields before linearization. Only SFT is implemented.
 
-For native Apertus 2, use an explicit legacy-to-native conversion before this
-linearization step instead. That adapter is not provided here; branch
-selection, tool associations, turn boundaries, and metadata preservation need
-an explicit policy. A legacy `messages` column cannot be passed directly to
-`apertus-data` as native JSON.
+For native Apertus 2, skip this linearization step and map the selected branches
+with a source-specific [mapping script](../apertus2-processing/README.md#mapping-a-dataset).
+No legacy-to-native adapter is provided here; branch selection, tool associations,
+turn boundaries, and metadata preservation need an explicit policy. A legacy
+`messages` column cannot be passed directly to `apertus-data` as native JSON.

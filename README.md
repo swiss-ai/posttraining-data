@@ -28,17 +28,14 @@ pip install -r requirements.txt
 
 ## Native Apertus 2 processing
 
-The isolated [apertus2-processing](apertus2-processing/README.md) project checks
-native conversation corpora, tokenizes HF/JSONL inputs, and exports HF, Parquet or
-Megatron indexed datasets. It uses its own locked environment and supports
-resumable shard jobs.
+The separate [apertus2-processing](apertus2-processing/README.md) project checks
+and tokenizes datasets in the native Apertus 2 format on Slurm clusters. It writes
+an exact per-sample check report, or Megatron indexed datasets with optional loss
+weights, and resumes interrupted jobs. It uses its own locked environment.
 
-For existing pipeline data, complete the curation and mixture selection required
-by your recipe, then convert selected branches to native Apertus JSON before
-checking and tokenization. Stages 02 and 07 do not produce that native format;
-`linearise-dataset.py` is a legacy path and is not required for the new encoder.
-Already-native datasets can start directly with the native commands.
-
-See [prerequisites and stage ordering](apertus2-processing/README.md#before-you-start),
-[exact input layouts](apertus2-processing/README.md#native-input-format), and
-[check/tokenize commands](apertus2-processing/README.md#check-then-tokenize).
+The numbered stages do not produce the native format, and `linearise-dataset.py`
+is not needed for it. For data from this pipeline, complete the curation and
+mixture selection your recipe requires, then map the selected branches to native
+conversations with a [mapping script](apertus2-processing/README.md#mapping-a-dataset).
+See the [native format](apertus2-processing/README.md#native-format) and how to
+[check and tokenize](apertus2-processing/README.md#check-and-tokenize).

@@ -1,0 +1,10 @@
+{
+  "schema_version": 2,
+  "system": {"thinking": "medium", "tools": []},
+  "items": [
+    {"type": "user", "payload": "What is 6 times 7?"},
+    {"type": "think", "payload": "Multiply the numbers.", "loss_weight": 0},
+    {"type": "reply", "payload": "42", "loss_weight": 0.5},
+    {"type": "wait", "loss_weight": 1}
+  ]
+}

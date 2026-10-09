@@ -28,5 +28,7 @@ jobs:
           python-version: '3.13'
           enable-cache: true
           cache-dependency-glob: apertus2-processing/uv.lock
-      - run: make install
-      - run: make all
+      - run: uv sync --locked
+      - run: uv run --no-sync ruff check
+      - run: uv run --no-sync ruff format --check
+      - run: uv run --no-sync pytest

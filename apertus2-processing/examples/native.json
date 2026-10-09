@@ -1,0 +1,52 @@
+{
+  "schema_version": 2,
+  "system": {
+    "identity": "You are Apertus 2, a travel assistant.",
+    "thinking": "medium",
+    "behavior": "Answer concisely and cite attached documents by their id.",
+    "tools": [
+      {
+        "name": "get_weather",
+        "description": "Get the weather forecast for a city.",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "city": {"type": "string"},
+            "day": {"type": "string", "enum": ["today", "tomorrow"]}
+          },
+          "required": ["city"],
+          "additionalProperties": false
+        },
+        "policy": "Use for questions about current or upcoming weather."
+      },
+      {
+        "name": "get_calendar",
+        "description": "List the user's appointments on a date.",
+        "schema": {
+          "type": "object",
+          "properties": {"date": {"type": "string", "description": "ISO date, e.g. 2026-07-19."}},
+          "required": ["date"]
+        }
+      }
+    ],
+    "environment": "Text chat. The user is in Lisbon; today is 2026-07-18."
+  },
+  "items": [
+    {"type": "document", "from": "user", "id": "a1", "payload": "<name>itinerary.txt</name>\n<content>19 July: walking tour of Alfama. 21 July: flight home.</content>"},
+    {"type": "user", "payload": "Based on my itinerary [a1], what should I wear tomorrow, and does the tour clash with my calendar?"},
+    {"type": "think", "payload": "Tomorrow is the Alfama walking tour [a1]. I need the forecast and the calendar for 2026-07-19; fetch both."},
+    {"type": "call", "name": "get_weather", "counter": 0, "payload": "{\"city\":\"Lisbon\",\"day\":\"tomorrow\"}"},
+    {"type": "call", "name": "get_calendar", "counter": 1, "payload": "{\"date\":\"2026-07-19\"}"},
+    {"type": "wait"},
+    {"type": "result", "name": "get_weather", "counter": 0, "payload": "{\"tempC\":27,\"cond\":\"sunny\"}"},
+    {"type": "result", "name": "get_calendar", "counter": 1, "payload": "[{\"time\":\"15:00\",\"title\":\"Dentist\"}]"},
+    {"type": "reply", "payload": "Tomorrow is sunny and 27 °C: wear light clothes, a hat and comfortable shoes for the Alfama tour [a1]. Your only appointment is the dentist at 15:00, so do the tour in the morning."},
+    {"type": "wait"},
+    {"type": "host", "payload": "The user has been away for two hours. Current time: 2026-07-18 18:05."},
+    {"type": "user", "payload": "How many nights are left before my flight home? Answer with a number."},
+    {"type": "think", "payload": "Today is 18 July and the flight is on 21 July [a1]: the nights of 18, 19 and 20 July remain."},
+    {"type": "claim", "payload": "3"},
+    {"type": "reply", "payload": "3 nights: 18, 19 and 20 July."},
+    {"type": "wait"}
+  ]
+}

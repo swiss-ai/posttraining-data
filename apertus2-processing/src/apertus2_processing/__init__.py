@@ -1,1 +1,1 @@
-"""Corpus orchestration for the native Apertus format."""
+"""Distributed checking and tokenization of native Apertus 2 datasets."""

@@ -1,5 +1,3 @@
-import json
-
 import pytest
 from apertus_common import Conversation, Reply, SystemPrompt, User, Wait
 from tokenizers import AddedToken, Tokenizer, decoders, models, pre_tokenizers
@@ -8,6 +6,7 @@ from transformers import PreTrainedTokenizerFast
 
 @pytest.fixture
 def artifact(tmp_path):
+    """A tiny byte-level tokenizer with the Apertus 2 control-token roles."""
     path = tmp_path / "tokenizer"
     path.mkdir()
     controls = ["<|in|>", "<|/in|>", "<|out|>", "<|/out|>", "<|hdr|>", "<|wait|>", "<|pad|>"]
@@ -46,24 +45,16 @@ def artifact(tmp_path):
 
 
 @pytest.fixture
-def conversation():
-    return Conversation(
-        system=SystemPrompt.build(),
-        items=[User(payload="literal <|out|> 🙂"), Reply(payload="Hello"), Wait()],
-    )
-
-
-@pytest.fixture
-def corpus(tmp_path, conversation):
-    path = tmp_path / "input.jsonl"
-    path.write_text("\n".join(conversation.to_json() for _ in range(7)) + "\n")
-    return path
-
-
-def write_wrapped(path, conversations):
-    path.write_text(
-        "".join(
-            json.dumps({"conversation_json": c.to_json(), "conversation_id": str(i)}) + "\n"
-            for i, c in enumerate(conversations)
-        )
-    )
+def records():
+    """Seven valid native conversations of different lengths, as JSON strings."""
+    return [
+        Conversation(
+            system=SystemPrompt.build(),
+            items=[
+                User(payload=f"question {i} 🙂"),
+                Reply(payload="answer " * (i % 3 + 1)),
+                Wait(),
+            ],
+        ).to_json()
+        for i in range(7)
+    ]
