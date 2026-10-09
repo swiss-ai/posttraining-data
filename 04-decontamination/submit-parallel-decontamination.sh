@@ -199,6 +199,8 @@ python 04-decontamination/merge-decontamination-reports.py \\
       "${INPUT_PATH}" \\
       "${OUTPUT_PATH}" \\
       "${REPORTS_DIR}" \\
+      --decontamination_prompts "${DECONTAMINATION_PROMPTS}" \\
+      --expected-jobs ${NUM_JOBS} \\
       --tokenizer_name "swiss-ai/Apertus-8B-Instruct-2509" \\
       --ngram_length 8 \\
       --diff_threshold 0.5
@@ -239,7 +241,7 @@ if [ $? -eq 0 ]; then
     else
         echo "Error: Failed to submit merge job"
         echo "You can run the merge manually after parallel jobs complete:"
-        echo "  python 04-decontamination/merge-decontamination-reports.py $INPUT_PATH $OUTPUT_PATH $REPORTS_DIR"
+        echo "  python 04-decontamination/merge-decontamination-reports.py $INPUT_PATH $OUTPUT_PATH $REPORTS_DIR --decontamination_prompts $DECONTAMINATION_PROMPTS --expected-jobs $NUM_JOBS"
     fi
 else
     echo "Error: Failed to submit parallel jobs"

@@ -27,6 +27,12 @@ from typing import List, Dict, Any, Optional
 from datasets import Dataset, DatasetDict, load_from_disk, concatenate_datasets
 from tqdm import tqdm
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "04-decontamination"))
+from benchmark_filters import expected_benchmark_names, report_stem  # noqa: E402
+
+DEFAULT_DECONTAMINATION_PROMPTS = "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/decontamination_prompts"
+DECONTAMINATION_OPERATIONS = {"decontamination", "parallel_decontamination"}
+
 
 from datasets import Features as ds_Features, Value as ds_Value
 try:
@@ -492,10 +498,47 @@ Schema Normalization:
                    help="Skip schema normalization (requires identical schemas)")
     p.add_argument("--strict", action="store_true",
                    help="Fail if schemas don't match exactly (after normalization)")
+    p.add_argument("--decontamination-prompts", default=DEFAULT_DECONTAMINATION_PROMPTS,
+                   help="Benchmark prompt set every input must have been decontaminated against")
+    p.add_argument("--skip-decontamination-check", action="store_true",
+                   help="Skip checking that every input was decontaminated against all benchmarks. "
+                        "Only for legacy datasets.")
     p.add_argument("--skip-id-check", action="store_true",
                    help="Skip the conversation_id check (empty, duplicated or shared between different inputs). "
                         "Only for legacy datasets; decontamination relies on unique IDs.")
     return p.parse_args()
+
+
+def check_decontamination(input_paths: List[str], decontamination_prompts: str) -> List[str]:
+    """Return inputs that were not fully decontaminated (empty list if all were).
+
+    Each input's dataset_metadata.json must contain a successful decontamination
+    entry (04-decontamination) covering every benchmark of the prompt set.
+    """
+    expected = {report_stem(name) for name in expected_benchmark_names(decontamination_prompts)}
+    problems = []
+    for path in dict.fromkeys(input_paths):  # same path may repeat for upsampling
+        name = Path(path).name
+        metadata_file = Path(path) / "dataset_metadata.json"
+        if not metadata_file.exists():
+            problems.append(f"{name}: no dataset_metadata.json, so no record of decontamination")
+            continue
+        with open(metadata_file) as f:
+            log = json.load(f).get("processing_log", [])
+        entries = [e for e in log if e.get("operation") in DECONTAMINATION_OPERATIONS]
+        if not entries:
+            problems.append(f"{name}: never decontaminated (no decontamination entry in processing_log)")
+            continue
+        entry = entries[-1]
+        if not entry.get("decontamination_success"):
+            problems.append(f"{name}: last decontamination did not succeed")
+            continue
+        checked = {report_stem(b) for b in entry.get("benchmark_names", [])}
+        missing = expected - checked
+        if missing:
+            problems.append(f"{name}: decontaminated against {len(checked & expected)}/{len(expected)} benchmarks "
+                            f"(missing e.g. {sorted(missing)[:3]})")
+    return problems
 
 
 def check_conversation_ids(datasets: List[Dataset], input_paths: List[str]) -> List[str]:
@@ -581,6 +624,20 @@ def main():
         print("Error: Need at least 2 datasets to concatenate")
         sys.exit(1)
     
+    # Every input must have been decontaminated against the full benchmark set
+    if args.skip_decontamination_check:
+        print("Skipping decontamination check (--skip-decontamination-check)")
+    else:
+        print(f"Verifying decontamination against {args.decontamination_prompts}...")
+        decontamination_problems = check_decontamination(input_paths, args.decontamination_prompts)
+        if decontamination_problems:
+            print("Error: not all inputs are fully decontaminated:")
+            for problem in decontamination_problems:
+                print(f"  - {problem}")
+            print("Run 04-decontamination on these datasets, or pass --skip-decontamination-check for legacy datasets.")
+            sys.exit(1)
+        print("  All inputs are decontaminated against every benchmark")
+
     # Parse sample ranges
     sample_ranges = args.sample_range.split(',')
     if len(sample_ranges) == 1:

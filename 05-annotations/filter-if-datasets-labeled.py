@@ -20,7 +20,7 @@ import re
 import shutil
 import sys
 from collections import Counter
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -643,6 +643,19 @@ def build_labeled_samples(
     return rows
 
 
+def write_output_metadata(input_path: str, output_dir: Path, entry: dict[str, Any]) -> None:
+    """Copy the input's dataset_metadata.json (incl. its processing_log, e.g. the
+    decontamination entry step 07 checks) to output_dir and append entry."""
+    metadata: dict[str, Any] = {}
+    input_metadata_path = Path(input_path) / "dataset_metadata.json"
+    if input_metadata_path.exists():
+        with open(input_metadata_path) as f:
+            metadata = json.load(f)
+    metadata.setdefault("processing_log", []).append(entry)
+    with open(output_dir / "dataset_metadata.json", "w") as f:
+        json.dump(metadata, f, indent=2)
+
+
 def checkpoint_output_path(labeled_output_dir: Path) -> Path:
     return labeled_output_dir.parent / f"{labeled_output_dir.name}.checkpoint"
 
@@ -932,6 +945,17 @@ async def filter_if_dataset_async(
     stats.hard_samples_kept = len(hard_indices)
     hard_samples = [dict(dataset[idx]) for idx in hard_indices]
     save_dataset_dict_atomic(build_dataset_dict(hard_samples, split_name), output_dir)
+
+    entry = {
+        "operation": "filter_if_datasets_labeled",
+        "script": "filter-if-datasets-labeled.py",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "input_path": str(input_path),
+        "k": k,
+        "stats": asdict(stats),
+    }
+    write_output_metadata(input_path, labeled_output_dir, {**entry, "output": "labeled", "output_path": str(labeled_output_dir)})
+    write_output_metadata(input_path, output_dir, {**entry, "output": "hard_samples", "output_path": str(output_dir)})
 
     print("\nFiltering complete!")
     print(f"Total samples: {stats.total_samples}")

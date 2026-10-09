@@ -15,6 +15,7 @@ from datetime import datetime
 from typing import Dict, Any, Optional, List
 from datasets import load_from_disk, Dataset, DatasetDict
 
+from benchmark_filters import expected_benchmark_names, report_stem
 from conversation_id_checks import validate_conversation_ids
 
 
@@ -91,8 +92,11 @@ def save_dataset_and_metadata(train_data, output_path: Path, input_path: Path,
     print(f"Metadata saved to {metadata_file}")
 
 
-def collect_contamination_reports(reports_dir: Path) -> Dict[str, Dict]:
-    """Collect all contamination reports from parallel jobs."""
+def collect_contamination_reports(reports_dir: Path, unreadable: Optional[List[str]] = None) -> Dict[str, Dict]:
+    """Collect all contamination reports from parallel jobs.
+
+    Names of reports that cannot be read are appended to ``unreadable``.
+    """
     reports_dir = Path(reports_dir)
     if not reports_dir.exists():
         raise FileNotFoundError(f"Reports directory does not exist: {reports_dir}")
@@ -124,6 +128,8 @@ def collect_contamination_reports(reports_dir: Path) -> Dict[str, Dict]:
 
         except (json.JSONDecodeError, IOError) as e:
             print(f"Warning: Failed to load report {report_file}: {e}")
+            if unreadable is not None:
+                unreadable.append(report_file.stem.replace("__contamination_report", ""))
             continue
 
     return all_reports
@@ -186,13 +192,15 @@ Examples:
   python merge_decontamination_reports.py \\
     /path/to/input/dataset \\
     /path/to/output/dataset \\
-    /path/to/parallel_reports
+    /path/to/parallel_reports \\
+    --decontamination_prompts /path/to/decontamination_prompts
   
   # With specific parameters
   python merge_decontamination_reports.py \\
     /path/to/input/dataset \\
     /path/to/output/dataset \\
     /path/to/parallel_reports \\
+    --decontamination_prompts /path/to/decontamination_prompts \\
     --tokenizer_name "alehc/swissai-tokenizer" \\
     --expected-jobs 20
         """
@@ -212,6 +220,13 @@ Examples:
         "reports_directory",
         type=str,
         help="Directory containing contamination reports from parallel jobs"
+    )
+    parser.add_argument(
+        "--decontamination_prompts",
+        type=str,
+        required=True,
+        help="Benchmark prompts the reports were computed from. Every benchmark in it "
+             "(minus DECONTAM_EXCLUDE_BENCHMARK_PATTERNS) must have a readable report."
     )
     parser.add_argument(
         "--tokenizer_name",
@@ -273,15 +288,31 @@ Examples:
 
     # Collect all contamination reports
     print(f"\n=== COLLECTING CONTAMINATION REPORTS ===")
+    unreadable_reports = []
     try:
-        all_reports = collect_contamination_reports(reports_dir)
+        all_reports = collect_contamination_reports(reports_dir, unreadable_reports)
+        expected = {report_stem(name) for name in expected_benchmark_names(args.decontamination_prompts)}
     except Exception as e:
         print(f"Error collecting reports: {e}")
         return 1
 
-    if not all_reports:
-        print("Error: No valid contamination reports found")
+    # Every benchmark must have been checked against the whole dataset
+    missing = sorted(expected - set(all_reports))
+    unreadable = sorted(expected & set(unreadable_reports))
+    if missing or unreadable:
+        print(f"Error: {len(missing)} benchmarks have no report and {len(unreadable)} reports are unreadable "
+              f"(expected {len(expected)} benchmarks from {args.decontamination_prompts}).")
+        for name in missing[:20]:
+            print(f"  missing:    {name}")
+        for name in unreadable[:20]:
+            print(f"  unreadable: {name}")
+        print("Re-run the parallel jobs for these benchmarks (existing reports are reused). Not saving the filtered dataset.")
         return 1
+    ignored = sorted(set(all_reports) - expected)
+    if ignored:
+        print(f"Ignoring {len(ignored)} reports for benchmarks not in the prompt set: {ignored[:10]}")
+        all_reports = {name: report for name, report in all_reports.items() if name in expected}
+    print(f"All {len(expected)} benchmarks have a report")
 
     # Merge contamination results
     print(f"\n=== MERGING RESULTS ===")
