@@ -7,7 +7,7 @@
 #SBATCH --output=%x-%j.out
 #
 # Check or tokenize native data on all allocated CPUs. Submit from apertus2-processing
-# with your site's --account and --partition (on CSCS Alps, also --environment):
+# with your site's --account, --partition and --qos:
 #
 #   sbatch slurm/run.sh check    INPUT RUN_DIR [options]
 #   sbatch slurm/run.sh tokenize INPUT RUN_DIR --tokenizer DIR [options]
@@ -19,7 +19,9 @@
 #
 # Parallelism (may change on resume): THREADS = tokenizer threads per worker
 # (default 1; tokenize only); WORKERS = processes per node (default CPUs / THREADS).
-# See README.md for input format, outputs, tuning, and resume constraints.
+# Uses slurm/alps.toml and the scratch environment installed by slurm/setup.sh.
+# Override APERTUS_ENVIRONMENT (EDF path; "none" outside Alps) and
+# UV_PROJECT_ENVIRONMENT as needed. See README.md for the complete setup.
 set -euo pipefail
 
 if [[ $# -lt 3 || -z ${SLURM_JOB_ID:-} ]]; then
@@ -28,9 +30,19 @@ if [[ $# -lt 3 || -z ${SLURM_JOB_ID:-} ]]; then
 fi
 mode=$1 input=$2 run=$3
 shift 3
-apertus_data=.venv/bin/apertus-data  # created by `uv sync`; compute nodes need no uv
+apertus_data=${UV_PROJECT_ENVIRONMENT:-${SCRATCH:?}/apertus2-processing/venv}/bin/apertus-data
+container=()
+if [[ ${APERTUS_ENVIRONMENT:-} != none ]]; then
+  container=(--environment="${APERTUS_ENVIRONMENT:-$PWD/slurm/alps.toml}"
+    --container-workdir="$PWD" --container-name="apertus-data-$SLURM_JOB_ID")
+fi
+workers=()
+if [[ -n ${WORKERS:-} ]]; then workers=(--workers "$WORKERS"); fi
 
-"$apertus_data" prepare "$mode" "$input" "$run" "$@"
-srun --ntasks-per-node=1 --cpus-per-task="$SLURM_CPUS_ON_NODE" \
-  "$apertus_data" encode "$run" --threads "${THREADS:-1}" ${WORKERS:+--workers "$WORKERS"}
-"$apertus_data" merge "$run"
+srun --nodes=1 --ntasks=1 --kill-on-bad-exit=1 "${container[@]}" \
+  "$apertus_data" prepare "$mode" "$input" "$run" "$@"
+srun --nodes="$SLURM_JOB_NUM_NODES" --ntasks="$SLURM_JOB_NUM_NODES" \
+  --ntasks-per-node=1 --cpus-per-task="$SLURM_CPUS_ON_NODE" --kill-on-bad-exit=1 --label \
+  "${container[@]}" "$apertus_data" encode "$run" --threads "${THREADS:-1}" "${workers[@]}"
+srun --nodes=1 --ntasks=1 --kill-on-bad-exit=1 "${container[@]}" \
+  "$apertus_data" merge "$run"

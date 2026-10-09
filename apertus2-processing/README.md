@@ -17,14 +17,56 @@ commands do not convert other chat formats.
 Requires Python 3.13+, [uv](https://docs.astral.sh/uv/), Git, and GitHub read access to
 the private `apertus-common` repository. [pyproject.toml](pyproject.toml) pins a
 revision from its [apertus2 branch](https://github.com/swiss-ai/apertus-common/tree/apertus2).
-On a cluster, install on a filesystem shared by all nodes. Jobs use
-`.venv/bin/apertus-data`; compute nodes need no uv.
+For a workstation:
 
 ```sh
 cd apertus2-processing
 uv sync --locked
 uv run --no-sync apertus-data --help
 ```
+
+### CSCS Alps setup
+
+The launcher defaults to the official [Alps Extended Image](https://docs.cscs.ch/software/alps-extended-images/)
+in [slurm/alps.toml](slurm/alps.toml), currently `ngc-pytorch:26.02-py3-alps6`
+from the CSCS registry. No personal SquashFS image or `~/.edf` entry is needed.
+`slurm/setup.sh` installs the locked dependencies and managed Python 3.13 on a
+compute node; it does not use the container's older Python. The default environment
+is `$SCRATCH/apertus2-processing/venv`. uv's cache and Python installation also live
+on scratch and must remain available for subsequent jobs.
+
+On the login node, discover an authorized account and cache the private Git
+dependency. This avoids relying on login-only credential helpers inside jobs:
+
+```sh
+cd apertus2-processing
+sacctmgr -nP show assoc where user="$(id -un)" format=Account,QOS
+scontrol show partition debug
+export JOB_ACCOUNT=...  # authorized account from the output above
+mkdir -p "$SCRATCH/apertus2-processing/logs"
+export APERTUS_COMMON_MIRROR="$SCRATCH/apertus2-processing/apertus-common.git"
+git clone --mirror https://github.com/swiss-ai/apertus-common.git "$APERTUS_COMMON_MIRROR"
+# If the mirror already exists, refresh it instead:
+# git -C "$APERTUS_COMMON_MIRROR" fetch --prune origin
+sbatch --account="$JOB_ACCOUNT" \
+  --output="$SCRATCH/apertus2-processing/logs/setup-%j.out" slurm/setup.sh
+```
+
+Wait for the setup job to complete successfully before processing. It requests
+one debug node for at most 20 minutes, with QoS `normal`. The mirror is only needed
+for installation; the dependency URL and commit stay pinned by `uv.lock`.
+`uv` must be available at `$HOME/.local/bin/uv`, or set `UV_BIN` to its absolute path
+on a shared filesystem. Network access is needed for the registry and public Python
+packages. A first image pull may take several minutes; retry setup if it times out.
+
+Override `UV_PROJECT_ENVIRONMENT` for a separate scratch environment and
+`APERTUS_ENVIRONMENT` for a different EDF **absolute path**, consistently for setup
+and processing. Do not pass `--environment` to `sbatch`: each launcher starts its
+compute steps in the container. Outside Alps, install in your site's environment
+and set `APERTUS_ENVIRONMENT=none` and `UV_PROJECT_ENVIRONMENT` when using `run.sh`.
+Scratch is subject to automatic purging; rerun setup if the environment or its
+managed interpreter has been removed. Store durable datasets/results in project
+storage; keep caches, temporary data, and logs on scratch.
 
 Tokenization also requires the Apertus 2 instruct tokenizer from
 [apertus-omni-tokenizer](https://github.com/swiss-ai/apertus-omni-tokenizer/tree/feat/apertus-2-text-tokenizers):
@@ -149,14 +191,20 @@ It skips rows whose user/assistant roles do not alternate and saves
 
 `--split` selects `train` (default) or `test`; `--num-proc` controls filtering and
 mapping workers (default 1). Run from `apertus2-processing`, on a laptop or an
-allocated compute node, never a cluster login node. Add your cluster's `--account`
-and `--partition` to `srun`:
+allocated compute node, never a cluster login node. After the Alps setup, the
+cluster example starts a one-node debug allocation (omit account/partition/time
+when using an existing allocation):
 
 ```sh
 # Laptop
 uv run --no-sync python mappers/no_robots.py /data/no_robots-native --num-proc 8
-# Cluster
-srun --cpus-per-task=32 .venv/bin/python mappers/no_robots.py /data/no_robots-native \
+# Cluster; caches and output stay on scratch
+export HF_HOME="$SCRATCH/.cache/huggingface"
+srun --account="$JOB_ACCOUNT" --partition=debug --qos=normal --time=00:20:00 \
+  --nodes=1 --ntasks=1 --cpus-per-task=32 \
+  --environment="${APERTUS_ENVIRONMENT:-$PWD/slurm/alps.toml}" --container-workdir="$PWD" \
+  "${UV_PROJECT_ENVIRONMENT:-$SCRATCH/apertus2-processing/venv}/bin/python" \
+  mappers/no_robots.py "$SCRATCH/no_robots-native" \
   --num-proc 32
 ```
 
@@ -172,18 +220,25 @@ cannot parse or encode. Run processing on a laptop or allocated compute nodes,
 never a cluster login node.
 
 Submit [slurm/run.sh](slurm/run.sh) from `apertus2-processing`, adding your site's
-`--account` and `--partition` before the script path (on CSCS Alps, also
-`--environment`). The installation, `INPUT`, and `RUN_DIR` must be shared across
+`--account`, `--partition`, and `--qos` before the script path. On Alps the launcher
+uses the image and scratch environment described above. The installation, `INPUT`, and `RUN_DIR` must be shared across
 nodes. For a new run, choose a new or empty `RUN_DIR` outside the input:
 
 ```sh
-sbatch slurm/run.sh check /data/no_robots-native /scratch/no_robots-check --shard-rows 500
+sbatch --account="$JOB_ACCOUNT" --partition=debug --qos=normal --nodes=2 --time=00:20:00 \
+  --output="$SCRATCH/apertus2-processing/logs/check-%j.out" \
+  slurm/run.sh check "$SCRATCH/no_robots-native" "$SCRATCH/no_robots-check" --shard-rows 500
 # After the check job succeeds:
-sbatch slurm/run.sh tokenize /data/no_robots-native /scratch/no_robots-tokens \
+sbatch --account="$JOB_ACCOUNT" --partition=debug --qos=normal --nodes=2 --time=00:20:00 \
+  --output="$SCRATCH/apertus2-processing/logs/tokenize-%j.out" \
+  slurm/run.sh tokenize "$SCRATCH/no_robots-native" "$SCRATCH/no_robots-tokens" \
   --shard-rows 500 --tokenizer "$APERTUS_ENCODING"
 ```
 
-Each job runs one mode. By default, logs go to `apertus-data-<job id>.out` in the
+These examples use at most two debug nodes for 20 minutes. For production, select
+an authorized partition/QoS and time limit appropriate to the workload; project
+reservations are no longer used. Never choose `highprio` without an explicit user
+request. Each job runs one mode. By default, logs go to `apertus-data-<job id>.out` in the
 submit directory. Exit codes: **0** success, **1** check found failing samples,
 **2** processing error.
 
@@ -219,7 +274,8 @@ parallelism as described below. Run `prepare` again before resuming.
 | `THREADS` | Tokenizer threads per worker (default 1). Only tokenization uses the threads; prefer scaling worker processes first. |
 | `--shard-rows` | Aim for at least four shards per worker. Write Parquet with row groups of this size so shards can be distributed effectively. |
 
-For example: `WORKERS=64 THREADS=4 sbatch --nodes=4 slurm/run.sh tokenize ...`.
+For example, prefix either submission above with `WORKERS=4 THREADS=2` for a small
+validation run. Encoding logs include the Slurm task rank to identify each node.
 Allow a few seconds of startup per worker; measure throughput with representative
 conversations on your hardware.
 
@@ -235,8 +291,8 @@ merge     first node       → final outputs in RUN_DIR, in input order
 ```
 
 - **`prepare`** plans shards from input row-count metadata and records options,
-  library identity, and input/tokenizer file sizes and modification times in
-  `run.json`. Shard IDs therefore refer to the same rows on every node and resume.
+  library identity, and input/tokenizer file sizes, modification times, and sampled
+  content hashes in `run.json`. Shard IDs refer to the same rows on every node and resume.
   An existing plan is verified and reused; stale claims and temporary shards are
   removed.
 - **`encode`** uses one worker process per CPU by default. Workers coordinate through
@@ -256,6 +312,14 @@ change nodes, `WORKERS`, `THREADS`, and the time limit between submissions.
 Changed inputs, options, tokenizer files, or `apertus-common` version/Git revision
 require a new run directory. `encode` and `merge` also verify inputs, tokenizer
 files, and library identity before starting.
+
+Keep inputs and tokenizer files immutable throughout processing and resume. The
+identity check hashes up to the first and last 64 KiB of each file, in addition to
+its size and modification time. This catches same-size rewrites hidden by Lustre's
+whole-second timestamps without rereading the entire dataset on every node. It is
+**not a full content checksum** for files larger than 128 KiB: changes confined to
+the middle with unchanged metadata can escape detection. Older run plans without
+`sample_sha256` must use a new run directory after upgrading.
 
 Never run two jobs on the same run directory concurrently. Use
 `--job-name=<run name> --dependency=singleton` to queue a resubmission behind the
@@ -330,8 +394,39 @@ padded, packed, or shifted. With `--loss-weights`, an aligned
 
 ## Development
 
+On a workstation, or inside an allocated compute environment:
+
 ```sh
 uv run --no-sync pytest
 uv run --no-sync ruff check && uv run --no-sync ruff format --check
 APERTUS_ENCODING=... uv run --no-sync pytest -k real_tokenizer
 ```
+
+### Real two-node validation on Alps
+
+After setup, set `APERTUS_ENCODING` to the real `Apertus_2_instruct` directory and
+submit from this directory:
+
+```sh
+sbatch --account="$JOB_ACCOUNT" \
+  --output="$SCRATCH/apertus2-processing/logs/test-%j.out" slurm/test.sh
+```
+
+[slurm/test.sh](slurm/test.sh) is limited to **two debug nodes and 20 minutes**. It
+runs Ruff, the full pytest suite (including the real tokenizer), then actual
+two-node `run.sh` launches with four workers/node and two tokenizer threads/worker.
+The integration fixture contains 1,024 conversations: multilingual text, tools,
+documents, citations, and fractional/zero loss weights. Assertions cover:
+
+- Recursive Parquet and saved HF `DatasetDict` inputs, custom column and split.
+- Successful checks and per-row errors/warnings with the expected failing exit code.
+- Every token and weight against direct single-conversation encoding using the real
+  tokenizer; identical token `.bin`/`.idx` files across the two input formats.
+- Recovery after removing one generated shard and leaving temporary output;
+  completed shards retain their contents and modification times.
+- A second, fully completed resume that performs no encoding or shard rewrites.
+
+Artifacts are saved under `$SCRATCH/apertus2-processing/validation-$SLURM_JOB_ID`
+(override with a **new** `VALIDATION_DIR`): pytest JUnit XML, node names, resume logs,
+fixtures, all processing outputs, and `validation.json` on success. These are
+functional correctness tests, not a production-scale throughput or OOM benchmark.

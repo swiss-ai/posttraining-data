@@ -10,8 +10,8 @@ Run from apertus2-processing on a laptop or compute node, never a cluster login
 node. `--num-proc` controls filtering and mapping workers (default 1):
 
     uv run --no-sync python mappers/no_robots.py /data/no_robots-native --num-proc 8
-    srun --cpus-per-task=32 .venv/bin/python mappers/no_robots.py /data/no_robots-native \
-        --num-proc 32
+
+For Alps, use the container and scratch-environment launch command in README.md.
 
 Save an HF dataset with native JSON strings in `conversation_json` and the source
 `prompt_id`, ready for `apertus-data prepare`. See README.md for the full workflow.

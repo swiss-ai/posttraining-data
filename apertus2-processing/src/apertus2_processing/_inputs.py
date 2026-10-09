@@ -1,11 +1,13 @@
 """Native-format inputs (Parquet files or a saved HF dataset): planning and reads."""
 
 import functools
+import hashlib
 from pathlib import Path
 
 import pyarrow.parquet as pq
 
 _READ_BATCH = 1024
+_FINGERPRINT_BYTES = 64 * 1024
 
 
 def _visible(path, root):
@@ -36,12 +38,29 @@ def _load_hf(path, split):
 
 
 def snapshot(*roots):
-    """Cheap identity of input files, compared on resume and merge."""
+    """Metadata plus bounded content fingerprints; source files must stay immutable.
+
+    Lustre can report only whole-second mtimes. Sampling both ends also detects
+    same-size rewrites within that second without reading multi-terabyte inputs.
+    This hashes entire small files, but is not a full checksum of large files.
+    """
     result = []
     for root in roots:
         for path in _files(root):
             stat = path.stat()
-            result.append({"path": str(path), "size": stat.st_size, "mtime_ns": stat.st_mtime_ns})
+            with path.open("rb") as stream:
+                digest = hashlib.sha256(stream.read(_FINGERPRINT_BYTES))
+                if stat.st_size > _FINGERPRINT_BYTES:
+                    stream.seek(max(_FINGERPRINT_BYTES, stat.st_size - _FINGERPRINT_BYTES))
+                    digest.update(stream.read(_FINGERPRINT_BYTES))
+            result.append(
+                {
+                    "path": str(path),
+                    "size": stat.st_size,
+                    "mtime_ns": stat.st_mtime_ns,
+                    "sample_sha256": digest.hexdigest(),
+                }
+            )
     return result
 
 

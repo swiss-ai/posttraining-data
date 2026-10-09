@@ -4,6 +4,13 @@ from tokenizers import AddedToken, Tokenizer, decoders, models, pre_tokenizers
 from transformers import PreTrainedTokenizerFast
 
 
+@pytest.fixture(autouse=True)
+def isolate_slurm_step(monkeypatch):
+    """Unit tests invoke encode locally, even when pytest runs inside an srun step."""
+    for name in ("SLURM_JOB_ID", "SLURM_STEP_ID", "SLURM_PROCID", "SLURM_NTASKS"):
+        monkeypatch.delenv(name, raising=False)
+
+
 @pytest.fixture
 def artifact(tmp_path):
     """A tiny byte-level tokenizer with the Apertus 2 control-token roles."""

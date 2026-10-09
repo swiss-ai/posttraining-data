@@ -1,0 +1,7 @@
+# Official CSCS Alps Extended Image; no personal SquashFS file required.
+image = "jfrog.svc.cscs.ch/docker-group-csstaff/alps-images/ngc-pytorch:26.02-py3-alps6"
+mounts = ["/capstor/", "/iopsstor/", "/users/"]
+writable = true
+
+[annotations]
+com.hooks.cxi.enabled = "false"

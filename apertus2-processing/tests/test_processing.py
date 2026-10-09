@@ -2,6 +2,7 @@ import importlib.util
 import json
 import os
 import subprocess
+import sys
 from collections import Counter
 from pathlib import Path
 
@@ -12,14 +13,14 @@ import pytest
 from apertus_common import Conversation, checkers_for, load_encoding
 from datasets import Dataset, DatasetDict, load_from_disk
 
-from apertus2_processing import _indexed, _run
+from apertus2_processing import _indexed, _inputs, _run
 from apertus2_processing.cli import main
 from apertus2_processing.report import issue_rows
 
 ROOT = Path(__file__).parents[1]
 EXAMPLES = ROOT / "examples"
 EXAMPLE_OPTIONS = {"native.json": [], "weighted.json": ["--loss-weights"]}
-APERTUS_DATA = ROOT / ".venv" / "bin" / "apertus-data"
+APERTUS_DATA = Path(sys.executable).parent / "apertus-data"
 
 
 def write_parquet(path, rows, row_group_size=None):
@@ -277,6 +278,21 @@ def test_rejected_inputs_options_and_run_directories(tmp_path, records, capsys):
     assert "not prepared" in capsys.readouterr().err
 
 
+@pytest.mark.parametrize("size,offset", [(1024, 10), (200_000, 0), (200_000, 199_999)])
+def test_input_fingerprint_detects_same_size_same_mtime_rewrites(tmp_path, size, offset):
+    path = tmp_path / "data"
+    path.write_bytes(b"a" * size)
+    before = _inputs.snapshot(path)
+    with path.open("r+b") as stream:
+        stream.seek(offset)
+        stream.write(b"b")
+    os.utime(path, ns=(path.stat().st_atime_ns, before[0]["mtime_ns"]))
+    after = _inputs.snapshot(path)
+    assert after[0]["size"] == before[0]["size"]
+    assert after[0]["mtime_ns"] == before[0]["mtime_ns"]
+    assert after[0]["sample_sha256"] != before[0]["sample_sha256"]
+
+
 @pytest.mark.parametrize("field", ["version", "commit"])
 def test_encode_and_merge_reject_changed_library(tmp_path, records, monkeypatch, capsys, field):
     source = write_parquet(tmp_path / "input.parquet", records)
@@ -316,7 +332,7 @@ def test_empty_input(tmp_path, artifact):
     assert documents(tmp_path / "tokens" / "tokens", np.int32) == []
 
 
-@pytest.mark.skipif(not APERTUS_DATA.exists(), reason="run 'uv sync' to create .venv")
+@pytest.mark.skipif(not APERTUS_DATA.exists(), reason="install the apertus-data entry point")
 def test_slurm_script_on_two_simulated_nodes(tmp_path, artifact, records):
     """Two srun tasks with three workers each share the shards; resubmitting resumes."""
     source = write_parquet(tmp_path / "input.parquet", records * 3, row_group_size=2)
@@ -324,7 +340,12 @@ def test_slurm_script_on_two_simulated_nodes(tmp_path, artifact, records):
     bin_dir.mkdir()
     (bin_dir / "srun").write_text(
         "#!/bin/bash\n"
-        "while [[ $1 == --* ]]; do shift; done\n"
+        "tasks=1\n"
+        "while [[ $1 == --* ]]; do\n"
+        "  [[ $1 == --ntasks=* ]] && tasks=${1#*=}\n"
+        "  shift\n"
+        "done\n"
+        'if [[ $tasks == 1 ]]; then exec "$@"; fi\n'
         'SLURM_NTASKS=2 SLURM_PROCID=0 "$@" & first=$!\n'
         'SLURM_NTASKS=2 SLURM_PROCID=1 "$@"; second=$?\n'
         "wait $first && exit $second\n"
@@ -333,6 +354,10 @@ def test_slurm_script_on_two_simulated_nodes(tmp_path, artifact, records):
     env = os.environ | {
         "PATH": f"{bin_dir}:{os.environ['PATH']}",
         "SLURM_CPUS_ON_NODE": "3",
+        "SLURM_JOB_ID": "",
+        "SLURM_JOB_NUM_NODES": "2",
+        "UV_PROJECT_ENVIRONMENT": str(APERTUS_DATA.parent.parent),
+        "APERTUS_ENVIRONMENT": "none",
         "WORKERS": "3",
     }
     command = ["bash", "slurm/run.sh", "tokenize", str(source), str(tmp_path / "run")]
