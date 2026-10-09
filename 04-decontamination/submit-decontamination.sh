@@ -7,6 +7,8 @@
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 # Get the repository root (parent of 04-decontamination)
 REPO_ROOT="$( cd "${SCRIPT_DIR}/.." && pwd )"
+# Account, partition, QOS, log folder, Python env, ... (overridable via environment)
+source "${SCRIPT_DIR}/slurm_config.sh"
 
 # Check if correct number of arguments provided
 if [ $# -ne 2 ]; then
@@ -32,52 +34,44 @@ DATASET_NAME=$(basename "$INPUT_PATH")
 OUTPUT_DIR=$(dirname "$OUTPUT_PATH")
 mkdir -p "$OUTPUT_DIR"
 
-# Create slurm logs directory if it doesn't exist
-mkdir -p slurm_logs
+check_slurm_config
 
 # Generate unique job script name with timestamp
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-JOB_SCRIPT="slurm_logs/decontaminate_${DATASET_NAME}_${TIMESTAMP}.slurm"
+JOB_SCRIPT="${SLURM_LOG_DIR}/decontaminate_${DATASET_NAME}_${TIMESTAMP}.slurm"
 
 # Create the SLURM job script
 cat > "$JOB_SCRIPT" << EOF
 #!/bin/bash
 
 #SBATCH -J decontam_${DATASET_NAME}
-#SBATCH -t 12:00:00
-#SBATCH --account=infra01         
-#SBATCH --reservation=SD-69241-apertus-1-5-0
-#SBATCH --output=slurm_logs/decontam_${DATASET_NAME}_${TIMESTAMP}.out
-#SBATCH --error=slurm_logs/decontam_${DATASET_NAME}_${TIMESTAMP}.out
+#SBATCH -t ${DECONTAM_TIME_LIMIT}
+#SBATCH --account=${SLURM_ACCOUNT}
+#SBATCH --partition=${SLURM_PARTITION}
+${SBATCH_QOS_LINE}
+${SBATCH_RESERVATION_LINE}
+#SBATCH --output=${SLURM_LOG_DIR}/decontam_${DATASET_NAME}_${TIMESTAMP}.out
+#SBATCH --error=${SLURM_LOG_DIR}/decontam_${DATASET_NAME}_${TIMESTAMP}.out
 #SBATCH --nodes 1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=72
-#SBATCH --partition=normal
 
 # Set environment variables
 export TOKENIZERS_PARALLELISM=true
 export OMP_NUM_THREADS=1
-export HF_HOME=/iopsstor/scratch/cscs/hyukhymenko/.cache/huggingface
-
-# Set cache directory on capstor
-export DECONTAMINATION_CACHE_DIR="/capstor/store/cscs/swissai/infra01/posttrain_data/decontamination_cache"
-
-# Create cache directory if it doesn't exist
-mkdir -p \${DECONTAMINATION_CACHE_DIR}
 
 # Change to project directory
 cd ${REPO_ROOT}
-source /users/hyukhymenko/miniconda3/etc/profile.d/conda.sh
-conda activate multiif-env
+source "${PYTHON_ENV_ACTIVATE}"
 
 # Run decontamination
 python 04-decontamination/decontamination.py \\
       "${INPUT_PATH}" \\
       --output "${OUTPUT_PATH}" \\
-      --decontamination_prompts "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/decontamination_prompts" \\
-      --tokenizer_name "swiss-ai/Apertus-8B-Instruct-2509" \\
+      --decontamination_prompts "${DECONTAMINATION_PROMPTS}" \\
+      --tokenizer_name "${TOKENIZER_NAME}" \\
       --report_path "${OUTPUT_PATH}/contamination_reports" \\
-      --cache_dir "\${DECONTAMINATION_CACHE_DIR}" \\
+      --cache_dir "${DECONTAMINATION_CACHE_DIR}" \\
       --ngram_length 8 \\
       --diff_threshold 0.5 \\
       --num_proc 4
@@ -104,7 +98,7 @@ if [ $? -eq 0 ]; then
     echo "Job submitted successfully."
     echo ""
     echo "To monitor the job output, run:"
-    echo "  tail -f slurm_logs/decontam_${DATASET_NAME}_${TIMESTAMP}.out"
+    echo "  tail -f ${SLURM_LOG_DIR}/decontam_${DATASET_NAME}_${TIMESTAMP}.out"
 else
     echo "Error: Failed to submit job"
     exit 1

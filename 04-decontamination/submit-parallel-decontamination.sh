@@ -7,11 +7,12 @@
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 # Get the repository root (parent of 04-decontamination)
 REPO_ROOT="$( cd "${SCRIPT_DIR}/.." && pwd )"
+# Account, partition, QOS, log folder, Python env, prompts, ... (overridable via environment)
+source "${SCRIPT_DIR}/slurm_config.sh"
 
 # Default parameters
 DEFAULT_CHUNK_SIZE=20
 DEFAULT_MAX_PARALLEL=64
-DECONTAMINATION_PROMPTS="/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/decontamination_prompts"
 
 # Check if correct number of arguments provided
 if [ $# -lt 2 ] || [ $# -gt 4 ]; then
@@ -31,7 +32,7 @@ fi
 INPUT_PATH="$1"
 OUTPUT_PATH="$2"
 CHUNK_SIZE=${3:-$DEFAULT_CHUNK_SIZE}
-MAX_PARALLEL=${64:-$DEFAULT_MAX_PARALLEL}
+MAX_PARALLEL=${4:-$DEFAULT_MAX_PARALLEL}
 
 # Validate input path exists
 if [ ! -d "$INPUT_PATH" ]; then
@@ -39,12 +40,7 @@ if [ ! -d "$INPUT_PATH" ]; then
     exit 1
 fi
 
-# Validate decontamination prompts exist
-if [ ! -d "$DECONTAMINATION_PROMPTS" ]; then
-    echo "Error: Decontamination prompts not found: $DECONTAMINATION_PROMPTS"
-    echo "Run gather_decontamination_prompts.py first to create benchmark prompts"
-    exit 1
-fi
+check_slurm_config
 
 # Extract dataset name from path for job naming
 DATASET_NAME=$(basename "$INPUT_PATH")
@@ -57,19 +53,13 @@ mkdir -p "$OUTPUT_DIR"
 REPORTS_DIR="${OUTPUT_PATH}_parallel_reports"
 mkdir -p "$REPORTS_DIR"
 
-# Create slurm logs directory if it doesn't exist
-SLURM_LOG_DIR="/users/hyukhymenko/slurm_logs"
-mkdir -p "$SLURM_LOG_DIR"
-
 # Generate unique timestamp for this run
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 
 # Get total number of benchmarks and calculate job array size
 echo "Counting available benchmarks..."
 cd "$REPO_ROOT"
-source /users/hyukhymenko/miniconda3/etc/profile.d/conda.sh
-conda activate multiif-env
-export HF_HOME=/iopsstor/scratch/cscs/hyukhymenko/.cache/huggingface
+source "$PYTHON_ENV_ACTIVATE"
 
 TOTAL_BENCHMARKS=$(python 04-decontamination/list-benchmarks.py --prompts-path "$DECONTAMINATION_PROMPTS" --count-only | head -n 1 | cut -d' ' -f1)
 if [ -z "$TOTAL_BENCHMARKS" ] || [ "$TOTAL_BENCHMARKS" -eq 0 ]; then
@@ -101,28 +91,22 @@ cat > "$JOB_SCRIPT" << EOF
 #!/bin/bash
 
 #SBATCH -J pdecontam_${DATASET_NAME}
-#SBATCH -t 8:00:00
-#SBATCH --account=infra01
-#SBATCH --reservation=SD-69241-apertus-1-5-0
+#SBATCH -t ${PARALLEL_TIME_LIMIT}
+#SBATCH --account=${SLURM_ACCOUNT}
+#SBATCH --partition=${SLURM_PARTITION}
+${SBATCH_QOS_LINE}
+${SBATCH_RESERVATION_LINE}
 #SBATCH --output=${SLURM_LOG_DIR}/pdecontam_${DATASET_NAME}_${TIMESTAMP}_%a.out
 #SBATCH --error=${SLURM_LOG_DIR}/pdecontam_${DATASET_NAME}_${TIMESTAMP}_%a.out
 #SBATCH --array=0-$((NUM_JOBS-1))%${MAX_PARALLEL}
 #SBATCH --nodes 1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=72
-#SBATCH --partition=normal
 #SBATCH --exclusive
 
 # Set environment variables
 export TOKENIZERS_PARALLELISM=true
 export OMP_NUM_THREADS=1
-export HF_HOME=/iopsstor/scratch/cscs/hyukhymenko/.cache/huggingface
-
-# Set cache directory on capstor
-export DECONTAMINATION_CACHE_DIR="/capstor/store/cscs/swissai/infra01/posttrain_data/decontamination_cache"
-
-# Create cache directory if it doesn't exist
-mkdir -p \${DECONTAMINATION_CACHE_DIR}
 
 # Calculate benchmark range for this job
 BENCHMARK_START=\$((SLURM_ARRAY_TASK_ID * $CHUNK_SIZE))
@@ -139,16 +123,15 @@ echo "Chunk size: \$((\$BENCHMARK_END - \$BENCHMARK_START)) benchmarks"
 
 # Change to project directory
 cd ${REPO_ROOT}
-source /users/hyukhymenko/miniconda3/etc/profile.d/conda.sh
-conda activate multiif-env
+source "${PYTHON_ENV_ACTIVATE}"
 
 # Run parallel decontamination for this benchmark subset
 python 04-decontamination/decontamination-parallel.py \\
       "${INPUT_PATH}" \\
       --decontamination_prompts "${DECONTAMINATION_PROMPTS}" \\
-      --tokenizer_name "swiss-ai/Apertus-8B-Instruct-2509" \\
+      --tokenizer_name "${TOKENIZER_NAME}" \\
       --report_path "${REPORTS_DIR}" \\
-      --cache_dir "\${DECONTAMINATION_CACHE_DIR}" \\
+      --cache_dir "${DECONTAMINATION_CACHE_DIR}" \\
       --benchmark-start \$BENCHMARK_START \\
       --benchmark-end \$BENCHMARK_END \\
       --ngram_length 8 \\
@@ -173,15 +156,16 @@ cat > "$MERGE_SCRIPT" << EOF
 #!/bin/bash
 
 #SBATCH -J merge_${DATASET_NAME}
-#SBATCH -t 2:00:00
-#SBATCH --account=infra01
-#SBATCH --reservation=SD-69241-apertus-1-5-0
+#SBATCH -t ${MERGE_TIME_LIMIT}
+#SBATCH --account=${SLURM_ACCOUNT}
+#SBATCH --partition=${SLURM_PARTITION}
+${SBATCH_QOS_LINE}
+${SBATCH_RESERVATION_LINE}
 #SBATCH --output=${SLURM_LOG_DIR}/merge_${DATASET_NAME}_${TIMESTAMP}.out
 #SBATCH --error=${SLURM_LOG_DIR}/merge_${DATASET_NAME}_${TIMESTAMP}.out
 #SBATCH --nodes 1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=36
-#SBATCH --partition=normal
 
 echo "=== MERGING PARALLEL DECONTAMINATION RESULTS ==="
 echo "Dataset: ${DATASET_NAME}"
@@ -190,9 +174,7 @@ echo "Final output: ${OUTPUT_PATH}"
 
 # Change to project directory
 cd ${REPO_ROOT}
-source /users/hyukhymenko/miniconda3/etc/profile.d/conda.sh
-conda activate multiif-env
-export HF_HOME=/iopsstor/scratch/cscs/hyukhymenko/.cache/huggingface
+source "${PYTHON_ENV_ACTIVATE}"
 
 # Run merge script to combine all reports and create final filtered dataset
 python 04-decontamination/merge-decontamination-reports.py \\
@@ -201,7 +183,7 @@ python 04-decontamination/merge-decontamination-reports.py \\
       "${REPORTS_DIR}" \\
       --decontamination_prompts "${DECONTAMINATION_PROMPTS}" \\
       --expected-jobs ${NUM_JOBS} \\
-      --tokenizer_name "swiss-ai/Apertus-8B-Instruct-2509" \\
+      --tokenizer_name "${TOKENIZER_NAME}" \\
       --ngram_length 8 \\
       --diff_threshold 0.5
 
