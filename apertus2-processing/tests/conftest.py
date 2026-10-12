@@ -1,7 +1,42 @@
+import numpy as np
+import pyarrow as pa
+import pyarrow.parquet as pq
 import pytest
-from apertus_common import Conversation, Reply, SystemPrompt, User, Wait
+from apertus_common import Conversation, Reply, SystemPrompt, User, Wait, load_encoding
 from tokenizers import AddedToken, Tokenizer, decoders, models, pre_tokenizers
 from transformers import PreTrainedTokenizerFast
+
+from apertus2_processing import _indexed
+from apertus2_processing.cli import main
+
+
+def write_parquet(path, rows, row_group_size=None):
+    table = pa.table({"conversation_json": pa.array(rows, pa.string())})
+    pq.write_table(table, path, row_group_size=row_group_size)
+    return path
+
+
+def run_all(mode, source, run, *options, workers=1):
+    """Prepare, encode, and merge a run through the CLI; return merge's exit code."""
+    assert main(["prepare", mode, str(source), str(run), *map(str, options)]) == 0
+    assert main(["encode", str(run), "--workers", str(workers)]) == 0
+    return main(["merge", str(run)])
+
+
+def documents(prefix, dtype):
+    """Every document of an indexed dataset as a list of Python numbers."""
+    lengths = _indexed.read_lengths(prefix, dtype)
+    return [_indexed.read_document(prefix, dtype, lengths, i).tolist() for i in range(len(lengths))]
+
+
+def encoded(artifact, records):
+    """Direct encodings as (token ids, float32 loss weights) per record."""
+    encoding = load_encoding(artifact)
+    results = [
+        encoding.encode_conversation(Conversation.from_json(r), return_loss_weights=True)
+        for r in records
+    ]
+    return [r.token_ids for r in results], [np.float32(r.loss_weights).tolist() for r in results]
 
 
 @pytest.fixture(autouse=True)

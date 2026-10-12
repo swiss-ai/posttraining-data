@@ -1,4 +1,4 @@
-"""apertus-data: prepare, encode and merge distributed check/tokenize runs.
+"""apertus-data: prepare, encode and merge distributed check/tokenize runs; inspect tokens.
 
 Exit codes: 0 success, 1 check found failing samples, 2 error.
 """
@@ -9,6 +9,7 @@ import os
 import sys
 import traceback
 
+from ._inspect import render
 from ._run import encode, merge, prepare
 
 
@@ -41,6 +42,27 @@ def parser():
     cmd.add_argument("--threads", type=int, default=1, help="Tokenizer threads per worker")
     cmd = commands.add_parser("merge", help="Verify all shards and write the final outputs")
     cmd.add_argument("run", help="Prepared run directory")
+    cmd = commands.add_parser(
+        "inspect", help="Print documents of a merged tokenize run", formatter_class=formatter
+    )
+    cmd.add_argument("run", help="Merged tokenize run directory")
+    cmd.add_argument(
+        "--index", type=int, action="append", help="Zero-based document to show (repeatable)"
+    )
+    cmd.add_argument("--sample", type=int, default=3, help="Random documents when no --index")
+    cmd.add_argument("--seed", type=int, help="Seed for --sample")
+    cmd.add_argument("--tokenizer", help="Override the run's tokenizer directory")
+    cmd.add_argument(
+        "--source", action="store_true", help="Also print the source row's native JSON"
+    )
+    cmd.add_argument(
+        "--tokens",
+        action="store_true",
+        help="One line per token: position, ID, [loss weight,] text (partial for multi-byte)",
+    )
+    cmd.add_argument(
+        "--weights", action="store_true", help="Also show loss weights (run needs --loss-weights)"
+    )
     return root
 
 
@@ -64,10 +86,26 @@ def main(argv=None):
                 raise ValueError("--workers and --threads must be positive")
             workers = args.workers or max(1, (os.process_cpu_count() or 1) // args.threads)
             encode(args.run, workers=workers, threads=args.threads)
-        else:
+        elif args.command == "merge":
             summary = merge(args.run)
             print(json.dumps(summary, indent=1))
             return 1 if summary.get("failed_rows") else 0
+        else:
+            blocks = render(
+                args.run,
+                indices=args.index or (),
+                sample=args.sample,
+                seed=args.seed,
+                tokenizer=args.tokenizer,
+                source=args.source,
+                tokens=args.tokens,
+                weights=args.weights,
+            )
+            try:
+                for block in blocks:
+                    print(block, flush=True)
+            except BrokenPipeError:  # e.g. piped into head; silence the flush at exit too
+                os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
         return 0
     except ValueError as error:
         cause = f" ({error.__cause__})" if error.__cause__ else ""

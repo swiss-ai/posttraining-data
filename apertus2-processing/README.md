@@ -3,21 +3,19 @@
 Check and tokenize **native Apertus 2 datasets** with
 [apertus-common](https://github.com/swiss-ai/apertus-common), locally or across Slurm
 nodes. Checking produces per-sample issue reports; tokenization produces Megatron
-indexed datasets (`.bin`/`.idx`) with optional loss weights. Interrupted runs resume
-from completed shards.
+indexed datasets (`.bin`/`.idx`) with optional loss weights, which `inspect` reads back
+as text. Interrupted runs resume from completed shards.
 
-**Prepare native data first.** Read the
-[format specification](https://github.com/swiss-ai/apertus-2-format-spec-proposal/blob/v1/spec.md)
-and [Apertus 2 profile](https://github.com/swiss-ai/apertus-2-format-spec-proposal/blob/v1/profile/apertus_2/apertus_2.md),
-then write a mapper such as [mappers/no_robots.py](mappers/no_robots.py). The processing
-commands do not convert other chat formats.
+The commands do not convert other chat formats: first produce native data with a
+mapper ([Prepare a dataset](#prepare-a-dataset)).
 
 ## Install
 
 Requires Python 3.13+, [uv](https://docs.astral.sh/uv/), Git, and GitHub read access to
 the private `apertus-common` repository. [pyproject.toml](pyproject.toml) pins a
 revision from its [apertus2 branch](https://github.com/swiss-ai/apertus-common/tree/apertus2).
-For a workstation:
+Run every command from `apertus2-processing`, on a workstation or an allocated compute
+node, never a cluster login node. For a workstation:
 
 ```sh
 cd apertus2-processing
@@ -27,16 +25,17 @@ uv run --no-sync apertus-data --help
 
 ### CSCS Alps setup
 
-The launcher defaults to the official [Alps Extended Image](https://docs.cscs.ch/software/alps-extended-images/)
-in [slurm/alps.toml](slurm/alps.toml), currently `ngc-pytorch:26.02-py3-alps6`
-from the CSCS registry. No personal SquashFS image or `~/.edf` entry is needed.
-`slurm/setup.sh` installs the locked dependencies and managed Python 3.13 on a
-compute node; it does not use the container's older Python. The default environment
-is `$SCRATCH/apertus2-processing/venv`. uv's cache and Python installation also live
-on scratch and must remain available for subsequent jobs.
+`slurm/setup.sh` installs the locked dependencies and a managed Python 3.13 into
+`$SCRATCH/apertus2-processing/venv` from a compute node, inside the official
+[Alps Extended Image](https://docs.cscs.ch/software/alps-extended-images/) named in
+[slurm/alps.toml](slurm/alps.toml) (currently `ngc-pytorch:26.02-py3-alps6` from the
+CSCS registry; no personal SquashFS image or `~/.edf` entry is needed). It does not use
+the container's older Python. `uv` must be available at `$HOME/.local/bin/uv`, or set
+`UV_BIN` to its absolute path on a shared filesystem; the job needs network access for
+the registry and public Python packages.
 
 On the login node, discover an authorized account and cache the private Git
-dependency. This avoids relying on login-only credential helpers inside jobs:
+dependency, which avoids relying on login-only credential helpers inside jobs:
 
 ```sh
 cd apertus2-processing
@@ -53,22 +52,22 @@ sbatch --account="$JOB_ACCOUNT" \
 ```
 
 Wait for the setup job to complete successfully before processing. It requests
-one debug node for at most 20 minutes, with QoS `normal`. The mirror is only needed
-for installation; the dependency URL and commit stay pinned by `uv.lock`.
-`uv` must be available at `$HOME/.local/bin/uv`, or set `UV_BIN` to its absolute path
-on a shared filesystem. Network access is needed for the registry and public Python
-packages. A first image pull may take several minutes; retry setup if it times out.
+one debug node for at most 20 minutes, with QoS `normal`; a first image pull may take
+several minutes, so retry if it times out. The mirror is only needed for installation;
+the dependency URL and commit stay pinned by `uv.lock`.
 
 Override `UV_PROJECT_ENVIRONMENT` for a separate scratch environment and
 `APERTUS_ENVIRONMENT` for a different EDF **absolute path**, consistently for setup
 and processing. Do not pass `--environment` to `sbatch`: each launcher starts its
 compute steps in the container. Outside Alps, install in your site's environment
 and set `APERTUS_ENVIRONMENT=none` and `UV_PROJECT_ENVIRONMENT` when using `run.sh`.
-Scratch is subject to automatic purging; rerun setup if the environment or its
-managed interpreter has been removed. Store durable datasets/results in project
-storage; keep caches, temporary data, and logs on scratch.
+Everything on scratch (environment, `uv` cache, managed interpreter, logs) is purged
+automatically: keep caches and temporary data there, durable datasets and results in
+project storage, and rerun setup if the environment has been removed.
 
-Tokenization also requires the Apertus 2 instruct tokenizer from
+### Tokenizer
+
+Tokenization requires the Apertus 2 instruct tokenizer from
 [apertus-omni-tokenizer](https://github.com/swiss-ai/apertus-omni-tokenizer/tree/feat/apertus-2-text-tokenizers):
 
 ```sh
@@ -79,7 +78,9 @@ export APERTUS_ENCODING="$(cd ../../apertus-omni-tokenizer && pwd)/tokenizers/Ap
 
 ## Native format
 
-Each conversation has one system prompt and items in observed order:
+Each conversation (see the [format specification](https://github.com/swiss-ai/apertus-2-format-spec-proposal/blob/v1/spec.md)
+and [Apertus 2 profile](https://github.com/swiss-ai/apertus-2-format-spec-proposal/blob/v1/profile/apertus_2/apertus_2.md))
+has one system prompt and items in observed order:
 
 ```json
 {
@@ -103,13 +104,9 @@ and a gradable claim:
 | `system` | Required `thinking`: `low`, `medium` (standard), or `high`. Optional `identity`, `behavior`, `environment`, and `tools`; each tool has a `name`, `description`, argument `schema`, and optional `policy`. |
 | Input items | `user`; a `document` with supplier `from` and citation `id` (e.g. `a1`, cited as `[a1]`); a `host` notice from the harness; tool `result`s. |
 | Output items | `think`, `call`, `claim` (a gradable answer before its `reply`), and `reply`. Call `counter`s increase across the whole conversation; matching results carry the same `name` and `counter`. Calls may run in parallel. |
-| `wait` | The model stops for new input: after each turn's outputs, including the last, and after calls that await results. Further output requires new input. |
+| `wait` | Ends an output burst (consecutive output items) and hands control to the harness for new input: after each turn's outputs, including the last, and after calls that await results. |
 
-Input arriving mid-turn, such as a tool result, is valid but produces a check warning.
-Build conversations with `apertus-common` and serialize with `Conversation.to_json()`.
-Messages use `type` alone: the library derives `direction`, which must not appear in
-JSON. Only schema v2 is accepted. Regenerate v1 or direction-bearing records with
-your mapper, check them again, and use new run directories.
+Only schema v2 is accepted; regenerate older conversations with your mapper.
 
 ### Loss weights
 
@@ -152,7 +149,7 @@ Use `RUN_DIR/loss_weights` as the Megatron loss-weight prefix.
 
 ## Prepare a dataset
 
-### Storing conversations
+### Input layout
 
 Store one native JSON **string** per row in a column named `conversation_json`
 (or choose another with `--column`). Supported inputs:
@@ -184,45 +181,141 @@ uv run --no-sync hf download --repo-type dataset NAME \
 
 [mappers/no_robots.py](mappers/no_robots.py) maps the small
 [HuggingFaceH4/no_robots](https://huggingface.co/datasets/HuggingFaceH4/no_robots)
-dataset using the `apertus-common` builder. It sets `thinking` to `medium`, maps a
-source system message to `behavior`, and adds a wait after each assistant answer.
-It skips rows whose user/assistant roles do not alternate and saves
-`conversation_json` plus the source `prompt_id` as an HF dataset.
+dataset with the foundation described in [Writing a mapper](#writing-a-mapper); its
+docstring states what each row becomes, and the source `prompt_id` is kept alongside
+`conversation_json`.
 
-`--split` selects `train` (default) or `test`; `--num-proc` controls filtering and
-mapping workers (default 1). Run from `apertus2-processing`, on a laptop or an
-allocated compute node, never a cluster login node. After the Alps setup, the
-cluster example starts a one-node debug allocation (omit account/partition/time
-when using an existing allocation):
+`--split` selects `train` (default) or `test`; `--help` lists the options every mapper
+shares (`--num-proc`, `--limit`, `--check`, `--strict`, `--loss-weights`,
+`--thinking-convention`), described in [Writing a mapper](#writing-a-mapper). After the
+Alps setup, the cluster example starts a one-node debug allocation (omit
+account/partition/time when using an existing allocation):
 
 ```sh
 # Laptop
-uv run --no-sync python mappers/no_robots.py /data/no_robots-native --num-proc 8
-# Cluster; caches and output stay on scratch
+uv run --no-sync python mappers/no_robots.py /data/no_robots-native --num-proc 8 --check
+# Cluster; mappers have no launcher script and run in the container directly
 export HF_HOME="$SCRATCH/.cache/huggingface"
 srun --account="$JOB_ACCOUNT" --partition=debug --qos=normal --time=00:20:00 \
   --nodes=1 --ntasks=1 --cpus-per-task=32 \
   --environment="${APERTUS_ENVIRONMENT:-$PWD/slurm/alps.toml}" --container-workdir="$PWD" \
   "${UV_PROJECT_ENVIRONMENT:-$SCRATCH/apertus2-processing/venv}/bin/python" \
   mappers/no_robots.py "$SCRATCH/no_robots-native" \
-  --num-proc 32
+  --num-proc 32 --check
 ```
 
-In your own mapper, pass `load_from_cache_file=False` to `datasets.map`: its cache
-ignores library upgrades and can return an older native format. The example
-mapper disables caching for both filtering and mapping.
+### Writing a mapper
+
+The profile is the authority on the format; this section gives the process and the
+rules of thumb that `apertus-data check` enforces.
+[`apertus2_processing.mapping`](src/apertus2_processing/mapping.py) provides the
+building blocks.
+
+1. Decide what each source row becomes: system fields, input items, output bursts,
+   and where the model waits.
+2. Write `to_native(row) -> Conversation` in `mappers/<name>.py`. For OpenAI-style
+   message lists call `from_chat(messages, tools=..., system=...)`, a thin wrapper over
+   `apertus_common.from_openai`: it maps `system` messages to `behavior`,
+   `reasoning_content` to `think`, `tool_calls` to `call`, tool messages to `result`, and
+   inserts a wait after every assistant turn. It has no path for `document`, `host`,
+   `claim`, or item loss weights, and rejects `developer` or repeated system messages unless
+   `merge_system=True`. For those cases, and for sources that are not message lists, use
+   `Conversation.builder()` from `apertus_common` and add waits yourself. `thinking`
+   defaults to `medium` in both; pass a source effort level and fixed `identity` or
+   `environment` values through `system=`, e.g. `system={"thinking": row["effort"]}`.
+   Raise `ValueError` for rows to skip; its message, like the library's `AdapterError`
+   reason, is counted in the summary. Any other exception is a mapper bug and stops the
+   run.
+3. Add `main()`: `parser = mapper_parser(description)`, your own flags, then
+   `run_mapper(dataset, to_native, args, keep_columns=[...])`. The driver checks with
+   `--check`, skips failing rows with `--strict`, writes the [Output](#output) with the
+   `datasets` cache disabled (it ignores library upgrades and could return an older
+   native format), and exits with code 2 when no conversation was written.
+4. Iterate with `--limit 200 --check` until `mapping.json` lists no rule counts and no
+   unexpected skips; then map everything.
+5. Run `apertus-data` check and tokenize on the output as described below. Inline
+   checking is a development aid; the check run remains the gate.
+
+#### Output
+
+`OUTPUT` is a saved HF `Dataset` with the `keep_columns` of the source followed by
+`conversation_json`, one compact native JSON string per surviving row in source order,
+ready for `apertus-data prepare`. `OUTPUT/mapping.json` records the run; `check` is
+`null` unless `--check` or `--strict` was given, and `skipped` keys are the skip reasons,
+or `check/<rule>` under `--strict`:
+
+```json
+{"rows": 8, "written": 7,
+ "skipped": {"roles must alternate user, assistant after an optional system message": 1},
+ "convention": "think-first",
+ "check": {"rows_with_issues": 1, "failed_rows": 0,
+           "issues": [{"rule": "training/final-wait", "severity": "warning", "count": 1}]}}
+```
+
+#### Thinking convention
+
+By default (`think-first`) every output burst starts with a `think`; where the source
+has no reasoning, the driver inserts an empty one so the model learns the think slot at
+every effort level. `source` keeps think items only where the source has reasoning.
+
+This is a **project convention**, not a profile rule: the profile makes `think`
+optional and the checker does not flag a missing or empty one. It lives in one place,
+`DEFAULT_CONVENTION` in [`mapping.py`](src/apertus2_processing/mapping.py), overridable
+per run with `--thinking-convention`. The driver applies it to the conversation
+`to_native` returns, so mappers never insert empty thinks themselves; it never adds or
+moves waits. The profile warns that the harness may drop think items from earlier
+bursts, so every conclusion the model needs later must also appear in a `reply` or
+`call`.
+
+#### Waits
+
+Treat the two training warnings as errors for turn-based SFT data; they are warnings
+only because mid-burst input is valid in agentic traces.
+
+| Rule of thumb | Caught by |
+|---|---|
+| Turn-based chat: `user`, `think`, `reply`, `wait`, repeated per turn. | `training/input-mid-burst` (warning) when the wait before the next user message is missing |
+| The conversation ends with a `wait`. | `training/final-wait` (warning) |
+| Calls that await results end the burst: `call`(s), `wait`, `result`(s), then the next burst. Parallel calls share one wait. | `training/input-mid-burst` (warning) |
+
+#### Checker rules
+
+`apertus-data check` and `--check` run the library's rules below, except
+`arguments/tool-name`, which applies to standalone argument checking only. Errors and
+unevaluated findings fail a sample; warnings do not.
+
+| Rule | Severity | Checks |
+|---|---|---|
+| `profile/known-output` | error | output types belong to the Apertus 2 profile |
+| `profile/nonnegative-counter` | error | call and result counters are non-negative |
+| `profile/document-provenance` | error | documents declare supplying party and citation ID |
+| `profile/unique-tool-name` | error | declared tool names are unique |
+| `profile/object-schema` | error | tool schemas declare object-root arguments |
+| `profile/loss-weight` | error | training loss annotations require opt-in (`--loss-weights`) |
+| `conversation/system` | error | complete histories have a system prompt |
+| `conversation/declared-tool` | error | calls name a declared tool |
+| `conversation/counter` | error | calls use consecutive conversation-wide counters |
+| `conversation/result` | error | each result closes exactly one matching pending call |
+| `conversation/host-closure` | error | explicit host closures close matching pending calls |
+| `conversation/document-id` | error | document IDs are unique across the history |
+| `conversation/wait` | error | output or another wait after a wait requires intervening input |
+| `conversation/claim-placement` | warning | claims normally precede the replies they support |
+| `arguments/json` | error | call arguments are strict JSON objects |
+| `arguments/schema` | error | arguments conform to the declared tool schema |
+| `arguments/broken-schema` | error | every declared schema is valid and locally resolvable |
+| `arguments/tool-name` | error | standalone argument checking uses the named tool |
+| `training/input-mid-burst` | warning | an output burst closes with a wait before the next input |
+| `training/final-wait` | warning | the final output burst closes with a wait |
 
 ## Check and tokenize
 
 **Check first**, fix the mapper until checking passes, then tokenize the same input
-with the same options. Tokenization assumes checked data and stops on records it
-cannot parse or encode. Run processing on a laptop or allocated compute nodes,
-never a cluster login node.
+with the same options. Tokenization assumes checked data and stops on conversations it
+cannot parse or encode.
 
-Submit [slurm/run.sh](slurm/run.sh) from `apertus2-processing`, adding your site's
-`--account`, `--partition`, and `--qos` before the script path. On Alps the launcher
-uses the image and scratch environment described above. The installation, `INPUT`, and `RUN_DIR` must be shared across
-nodes. For a new run, choose a new or empty `RUN_DIR` outside the input:
+Submit [slurm/run.sh](slurm/run.sh), adding your site's `--account`, `--partition`,
+and `--qos` before the script path. The installation, `INPUT`, and `RUN_DIR` must be
+shared across nodes. For a new run, choose a new or empty `RUN_DIR` outside the input:
 
 ```sh
 sbatch --account="$JOB_ACCOUNT" --partition=debug --qos=normal --nodes=2 --time=00:20:00 \
@@ -235,12 +328,12 @@ sbatch --account="$JOB_ACCOUNT" --partition=debug --qos=normal --nodes=2 --time=
   --shard-rows 500 --tokenizer "$APERTUS_ENCODING"
 ```
 
-These examples use at most two debug nodes for 20 minutes. For production, select
-an authorized partition/QoS and time limit appropriate to the workload; project
-reservations are no longer used. Never choose `highprio` without an explicit user
-request. Each job runs one mode. By default, logs go to `apertus-data-<job id>.out` in the
-submit directory. Exit codes: **0** success, **1** check found failing samples,
-**2** processing error.
+These examples use at most two debug nodes for 20 minutes. For production, pick an
+authorized partition, QoS, and time limit for the workload; `highprio` is not for
+routine runs. Each job runs one mode. By default, logs go to `apertus-data-<job id>.out`
+in the submit directory; encoding log lines carry the Slurm task rank to identify the
+node. Exit codes: **0** success, **1** check found failing samples, **2** processing
+error.
 
 | Option | Meaning |
 |---|---|
@@ -249,6 +342,30 @@ submit directory. Exit codes: **0** success, **1** check found failing samples,
 | `--loss-weights` | Accept annotations in check; export weights in tokenize. See [Loss weights](#loss-weights). |
 | `--tokenizer DIR` | Required for tokenize; ignored by check, so both modes can share an option list. |
 | `--shard-rows N` | Target rows per shard (default 10000). HF shards use this size; Parquet shards group whole row groups until at least this many rows. A final shard may be smaller. |
+
+### How a job runs
+
+Both modes follow the same sequence:
+
+```text
+prepare   first node, once → RUN_DIR/run.json
+encode    every node       → RUN_DIR/shards/NNNNNN/
+            workers claim a free shard, process it, and repeat
+merge     first node       → final outputs in RUN_DIR, in input order
+```
+
+- **`prepare`** plans shards from input row-count metadata and records options and
+  the input, tokenizer, and library identity in `run.json` (see
+  [Resume](#resume-after-a-crash-or-timeout)). Shard IDs refer to the same rows on
+  every node and resume. An existing plan is verified and reused; stale claims and
+  temporary shards are removed.
+- **`encode`** runs `WORKERS` processes per node ([Tuning](#tuning)). Workers
+  coordinate through atomic directory creation under `claims/`: only one can claim each
+  shard. Each writes to a temporary directory, then renames it into `shards/NNNNNN/`.
+  There is no coordinator, and faster nodes take more shards.
+- **`merge`** verifies all shards are complete and combines them in input order.
+  Each shard contains the same file types as the [final outputs](#outputs), plus
+  its summary.
 
 ### Without Slurm
 
@@ -262,8 +379,7 @@ uv run --no-sync apertus-data merge /tmp/no_robots-check
 ```
 
 For tokenization, use `prepare tokenize` with `--tokenizer "$APERTUS_ENCODING"`.
-`encode` uses all available CPUs by default; `--workers` and `--threads` control
-parallelism as described below. Run `prepare` again before resuming.
+`encode` takes `--workers` and `--threads` directly. Run `prepare` again before resuming.
 
 ### Tuning
 
@@ -275,33 +391,7 @@ parallelism as described below. Run `prepare` again before resuming.
 | `--shard-rows` | Aim for at least four shards per worker. Write Parquet with row groups of this size so shards can be distributed effectively. |
 
 For example, prefix either submission above with `WORKERS=4 THREADS=2` for a small
-validation run. Encoding logs include the Slurm task rank to identify each node.
-Allow a few seconds of startup per worker; measure throughput with representative
-conversations on your hardware.
-
-### How a job runs
-
-Both modes follow the same sequence:
-
-```text
-prepare   first node, once → RUN_DIR/run.json
-encode    every node       → RUN_DIR/shards/NNNNNN/
-            workers claim a free shard, process it, and repeat
-merge     first node       → final outputs in RUN_DIR, in input order
-```
-
-- **`prepare`** plans shards from input row-count metadata and records options,
-  library identity, and input/tokenizer file sizes, modification times, and sampled
-  content hashes in `run.json`. Shard IDs refer to the same rows on every node and resume.
-  An existing plan is verified and reused; stale claims and temporary shards are
-  removed.
-- **`encode`** uses one worker process per CPU by default. Workers coordinate through
-  atomic directory creation under `claims/`: only one can claim each shard. Each
-  writes to a temporary directory, then renames it into `shards/NNNNNN/`. There is
-  no coordinator, and faster nodes take more shards.
-- **`merge`** verifies all shards are complete and combines them in input order.
-  Each shard contains the same file types as the [final outputs](#outputs), plus
-  its summary.
+validation run. Allow a few seconds of startup per worker.
 
 ### Resume after a crash or timeout
 
@@ -342,10 +432,8 @@ indexes the conversation's `items`:
  "message": "a complete history requires a system prompt"}
 ```
 
-Errors and unevaluated findings fail a sample. Warnings, including
-`training/final-wait` and `training/input-mid-burst`, do not, but often indicate
-missing waits. Checker exceptions become `check/exception` findings with severity
-`unevaluated`: the sample fails and processing continues with the next row.
+Checker exceptions become `check/exception` findings with severity `unevaluated`: the
+sample fails and processing continues with the next row.
 `RUN_DIR/summary.json` aggregates the counts, for example:
 
 ```json
@@ -389,12 +477,28 @@ padded, packed, or shifted. With `--loss-weights`, an aligned
 `RUN_DIR/summary.json` records the totals:
 
 ```json
-{"mode": "tokenize", "documents": 9485, "tokens": 2949133, "loss_weights": false}
+{"mode": "tokenize", "documents": 9485, "tokens": 2993761, "loss_weights": false}
+```
+
+Read documents back with `apertus-data inspect RUN_DIR`. Each document prints as
+decoded text with its control tokens under a header `=== document I (of N): T tokens`.
+Errors, such as a directory that is not a merged tokenize run, an index out of range, or
+changed sources, exit with code 2:
+
+| Option | Meaning |
+|---|---|
+| `--index I` | Zero-based document to show; repeatable. Without it, `--sample N` random documents (default 3), reproducible with `--seed S`. |
+| `--tokens` | One line per token: position, ID, and text (partial for multi-byte characters). |
+| `--weights` | Add the count of tokens with loss and the distinct weights to the header, and a weight column to `--tokens`. Requires a `--loss-weights` run whose weight index matches the tokens. |
+| `--source` | Append `--- source PATH row R` (`R` as in [Check](#check)) and the row's native JSON. Fails if the input files have moved or changed since tokenization. |
+| `--tokenizer DIR` | Override the run's tokenizer. |
+
+```sh
+uv run --no-sync apertus-data inspect /tmp/no_robots-tokens --sample 2 --seed 1 --source
+uv run --no-sync apertus-data inspect /tmp/no_robots-tokens --index 0 --tokens --weights | head
 ```
 
 ## Development
-
-On a workstation, or inside an allocated compute environment:
 
 ```sh
 uv run --no-sync pytest

@@ -1,4 +1,3 @@
-import importlib.util
 import json
 import os
 import subprocess
@@ -7,10 +6,9 @@ from collections import Counter
 from pathlib import Path
 
 import numpy as np
-import pyarrow as pa
-import pyarrow.parquet as pq
 import pytest
-from apertus_common import Conversation, checkers_for, load_encoding
+from apertus_common import Conversation, checkers_for
+from conftest import documents, encoded, run_all, write_parquet
 from datasets import Dataset, DatasetDict, load_from_disk
 
 from apertus2_processing import _indexed, _inputs, _run
@@ -23,39 +21,9 @@ EXAMPLE_OPTIONS = {"native.json": [], "weighted.json": ["--loss-weights"]}
 APERTUS_DATA = Path(sys.executable).parent / "apertus-data"
 
 
-def write_parquet(path, rows, row_group_size=None):
-    table = pa.table({"conversation_json": pa.array(rows, pa.string())})
-    pq.write_table(table, path, row_group_size=row_group_size)
-    return path
-
-
 def example(name):
     """An example conversation as the compact JSON a dataset would store."""
     return json.dumps(json.loads((EXAMPLES / name).read_text()))
-
-
-def run_all(mode, source, run, *options, workers=1):
-    assert main(["prepare", mode, str(source), str(run), *map(str, options)]) == 0
-    assert main(["encode", str(run), "--workers", str(workers)]) == 0
-    return main(["merge", str(run)])
-
-
-def documents(prefix, dtype):
-    lengths = _indexed.read_lengths(prefix, dtype)
-    data = np.fromfile(f"{prefix}.bin", dtype=dtype)
-    return (
-        [part.tolist() for part in np.split(data, np.cumsum(lengths)[:-1])] if len(lengths) else []
-    )
-
-
-def encoded(artifact, records):
-    """Direct encodings as (token ids, float32 loss weights) per record."""
-    encoding = load_encoding(artifact)
-    results = [
-        encoding.encode_conversation(Conversation.from_json(r), return_loss_weights=True)
-        for r in records
-    ]
-    return [r.token_ids for r in results], [np.float32(r.loss_weights).tolist() for r in results]
 
 
 def write_input(kind, path, records):
@@ -380,38 +348,6 @@ def test_slurm_script_on_two_simulated_nodes(tmp_path, artifact, records):
     again = submit(SLURM_JOB_ID="43")
     assert again.returncode == 0, again.stderr
     assert " done: " not in again.stderr
-
-
-def test_mapper_waits_after_every_assistant_answer():
-    spec = importlib.util.spec_from_file_location("no_robots", ROOT / "mappers" / "no_robots.py")
-    mapper = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mapper)
-    multi_turn = [
-        {"role": "system", "content": "Answer in rhymes."},
-        {"role": "user", "content": "Hi"},
-        {"role": "assistant", "content": "Hello there"},
-        {"role": "user", "content": "Fine"},
-        {"role": "assistant", "content": "Glad to hear"},
-    ]
-    single_turn = [{"role": "user", "content": "Hi"}, {"role": "assistant", "content": "Hello"}]
-    checkers = checkers_for("full", training=True)
-    for messages, items, behavior in (
-        (multi_turn, ["user", "reply", "wait", "user", "reply", "wait"], "Answer in rhymes."),
-        (single_turn, ["user", "reply", "wait"], None),
-    ):
-        raw = mapper.to_native(messages)
-        assert all("direction" not in item for item in json.loads(raw)["items"])
-        conversation = Conversation.from_json(raw)
-        assert conversation.system is not None and conversation.system.thinking == "medium"
-        assert conversation.system.behavior == behavior
-        assert [item.type for item in conversation.items] == items
-        report = conversation.check(checkers=checkers)
-        assert report.ok and report.complete and not report.violations
-    # A user line mislabelled as a second assistant answer is skipped, not merged.
-    mislabelled = [*single_turn, {"role": "assistant", "content": "Thanks!"}]
-    assert not mapper.is_turn_based(mislabelled)
-    with pytest.raises(ValueError, match="alternate"):
-        mapper.to_native(mislabelled)
 
 
 @pytest.mark.skipif(not os.environ.get("APERTUS_ENCODING"), reason="set APERTUS_ENCODING")

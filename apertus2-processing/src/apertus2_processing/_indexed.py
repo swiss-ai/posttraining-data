@@ -70,6 +70,13 @@ def read_lengths(prefix, dtype):
     return lengths
 
 
+def read_document(prefix, dtype, lengths, index):
+    """Return document `index` of an indexed dataset whose `lengths` were already read."""
+    dtype = np.dtype(dtype)
+    offset = int(lengths[:index].sum(dtype=np.int64)) * dtype.itemsize
+    return np.fromfile(f"{prefix}.bin", dtype, count=int(lengths[index]), offset=offset)
+
+
 def merge(prefixes, target, dtype):
     """Concatenate indexed datasets in order and return the document count."""
     lengths = [read_lengths(prefix, dtype) for prefix in prefixes]

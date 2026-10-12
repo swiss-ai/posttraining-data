@@ -17,6 +17,7 @@ import numpy as np
 from . import _indexed, _inputs
 
 CONFIG = "run.json"
+SUMMARY = "summary.json"
 BATCH = 64
 DTYPES = {"tokens": np.int32, "loss_weights": np.float32}
 
@@ -103,8 +104,22 @@ def _issue(rule, severity, location, message):
     return {"rule": rule, "severity": severity, "location": location, "message": message}
 
 
-def _issue_counts(counts):
+def issue_counts(counts):
     return [{"rule": r, "severity": s, "count": n} for (r, s), n in sorted(counts.items())]
+
+
+def check_conversation(conversation, checkers):
+    """Check a parsed conversation: (passed, issues); checker failures fail the sample only."""
+    try:
+        report = conversation.check(checkers=checkers)
+    except Exception as error:  # noqa: BLE001 - checker failures fail the sample, not the job
+        return False, [
+            _issue("check/exception", "unevaluated", None, f"{type(error).__name__}: {error}")
+        ]
+    found = [
+        _issue(v.rule, str(v.severity), asdict(v.location), v.message) for v in report.violations
+    ] + [_issue(v.rule, "unevaluated", asdict(v.location), v.message) for v in report.unevaluated]
+    return report.ok and report.complete, found
 
 
 class Check:
@@ -125,19 +140,7 @@ class Check:
             return False, [
                 _issue("structure/invalid", "error", None, f"{type(error).__name__}: {error}")
             ]
-        try:
-            report = conversation.check(checkers=self.checkers)
-        except Exception as error:  # noqa: BLE001 - checker failures fail the sample, not the job
-            return False, [
-                _issue("check/exception", "unevaluated", None, f"{type(error).__name__}: {error}")
-            ]
-        found = [
-            _issue(v.rule, str(v.severity), asdict(v.location), v.message)
-            for v in report.violations
-        ] + [
-            _issue(v.rule, "unevaluated", asdict(v.location), v.message) for v in report.unevaluated
-        ]
-        return report.ok and report.complete, found
+        return check_conversation(conversation, self.checkers)
 
     def __call__(self, source, shard, directory):
         rows = failed = with_issues = 0
@@ -154,7 +157,7 @@ class Check:
             "rows": rows,
             "failed_rows": failed,
             "rows_with_issues": with_issues,
-            "issues": _issue_counts(counts),
+            "issues": issue_counts(counts),
         }
 
 
@@ -213,7 +216,7 @@ def _run_shard(run, config, index, process):
     partial.mkdir()
     try:
         summary = process(config["sources"][shard["source"]], shard, partial)
-        write_json(partial / "summary.json", summary)
+        write_json(partial / SUMMARY, summary)
         for path in partial.iterdir():  # on disk before the shard counts as complete
             with open(path, "rb") as stream:
                 os.fsync(stream.fileno())
@@ -285,7 +288,7 @@ def merge(run):
             f"{len(missing)} of {len(names)} shards are incomplete (first: {missing[0]}); "
             "resubmit the same job to resume"
         )
-    summaries = [read_json(run / "shards" / name / "summary.json") for name in names]
+    summaries = [read_json(run / "shards" / name / SUMMARY) for name in names]
     damaged = "shards/{} is damaged; delete it and resubmit the same job"
     for name, shard, summary in zip(names, config["shards"], summaries, strict=True):
         if summary["rows"] != shard["end"] - shard["start"]:
@@ -309,7 +312,7 @@ def merge(run):
             "rows": rows,
             "failed_rows": sum(summary["failed_rows"] for summary in summaries),
             "rows_with_issues": sum(summary["rows_with_issues"] for summary in summaries),
-            "issues": _issue_counts(counts),
+            "issues": issue_counts(counts),
         }
     else:
         for output in ["tokens"] + ["loss_weights"] * config["loss_weights"]:
@@ -325,5 +328,5 @@ def merge(run):
             "tokens": sum(summary["tokens"] for summary in summaries),
             "loss_weights": config["loss_weights"],
         }
-    write_json(run / "summary.json", result)
+    write_json(run / SUMMARY, result)
     return result
