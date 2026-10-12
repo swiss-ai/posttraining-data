@@ -125,7 +125,7 @@ def convert_sample(sample: Dict[str, Any], idx: int) -> Dict[str, Any]:
     if random.random() < 0.5:
         texts = [text.capitalize() for text in texts]
     punct = random.choice(['.', ')'])
-    spacing = f"{random.choice([' ', '\n'])}"
+    spacing = random.choice([' ', '\n'])
     formatted_choices = [
         f"{spacing}"  # Random spacing
         f"{label}{punct} {text}"  # Label format, punctuation, and Answer text

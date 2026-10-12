@@ -74,7 +74,7 @@ def comb_prod(choices: list, pos: int) -> str:
     for i in range(len(choices)):
         choices[i] = f'{labels[i]}{punct} {choices[i]}'
         
-    combinations = f'{random.choice([' ', "\n"])}'.join(choices)
+    combinations = random.choice([' ', "\n"]).join(choices)
 
     return combinations, verifiable, punct
 
