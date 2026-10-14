@@ -8,7 +8,7 @@ from pathlib import Path
 import numpy as np
 
 from . import _html, _indexed, _inputs
-from ._run import CONFIG, DTYPES, SUMMARY, read_json
+from ._run import CONFIG, DTYPES, SUMMARY, length_stats, read_json
 
 REPORT = "report.html"
 
@@ -65,8 +65,52 @@ def _default_weights(ids, controls):
     return weights
 
 
+def _merged_run(run):
+    """Resolve a merged tokenize run directory and read its config."""
+    run = Path(run).resolve()
+    if not ((run / CONFIG).exists() and (run / SUMMARY).exists()):
+        raise ValueError(f"{run} is not a merged run")
+    config = read_json(run / CONFIG)
+    if config["mode"] != "tokenize":
+        raise ValueError(f"{run} is a {config['mode']} run; inspect reads tokenize runs")
+    if not (run / "tokens.idx").exists():
+        raise ValueError(f"{run} has no tokens.idx; merge the run first")
+    return run, config
+
+
+def overview(run):
+    """Run totals and length distribution from the index, for any merged tokenize run."""
+    run, _ = _merged_run(run)
+    lengths = _indexed.read_lengths(run / "tokens", DTYPES["tokens"])
+    return {
+        "run": str(run),
+        "documents": len(lengths),
+        "tokens": int(lengths.sum(dtype=np.int64)),
+        "length": length_stats(lengths),
+    }
+
+
+def overview_text(stats):
+    """The run totals and length distribution as one sentence, shared by text and HTML."""
+    length = stats["length"]
+    if length is None:
+        return "0 documents"
+    over = ", ".join(
+        f">{int(limit) // 1024}k {o['documents']:,} ({o['share']:.1%})"
+        for limit, o in length["over"].items()
+    )
+    return (
+        f"{stats['documents']:,} documents, {stats['tokens']:,} tokens; length mean "
+        f"{length['mean']:,.0f}, p50 {length['p50']:,}, p90 {length['p90']:,}, "
+        f"p99 {length['p99']:,}, max {length['max']:,}; {over}"
+    )
+
+
 def documents(run, *, indices=(), sample=3, seed=None, tokenizer=None, source=False, weights=False):
-    """Yield one record per selected document of a merged tokenize run.
+    """Return an iterator of records, one per selected document of a merged tokenize run.
+
+    Validation happens here, before anything is yielded, so callers can print or write
+    nothing when the run, tokenizer, weights, or indices are unusable.
 
     A record holds `index`, `total`, `ids`, `pieces` (each token decoded alone), `text`
     (the document decoded), `weights` (one float per token: the written `loss_weights`
@@ -78,12 +122,7 @@ def documents(run, *, indices=(), sample=3, seed=None, tokenizer=None, source=Fa
     """
     from apertus_common import load_encoding
 
-    run = Path(run).resolve()
-    if not ((run / CONFIG).exists() and (run / SUMMARY).exists()):
-        raise ValueError(f"{run} is not a merged run")
-    config = read_json(run / CONFIG)
-    if config["mode"] != "tokenize":
-        raise ValueError(f"{run} is a {config['mode']} run; inspect reads tokenize runs")
+    run, config = _merged_run(run)
     if source:
         _verify_sources(config)
     try:
@@ -98,7 +137,12 @@ def documents(run, *, indices=(), sample=3, seed=None, tokenizer=None, source=Fa
         if not np.array_equal(weight_lengths, lengths):
             raise ValueError("loss_weights index disagrees with the tokens index")
     controls = sorted({*dataclasses.astuple(encoding.controls), encoding.bos_token_id})
-    for index in _choose(len(lengths), indices, sample, seed):
+    chosen = _choose(len(lengths), indices, sample, seed)
+    return _records(run, config, encoding, lengths, chosen, controls, source, weights)
+
+
+def _records(run, config, encoding, lengths, chosen, controls, source, weights):
+    for index in chosen:
         ids = _indexed.read_document(run / "tokens", DTYPES["tokens"], lengths, index).tolist()
         values = _default_weights(ids, encoding.controls)
         if weights:
@@ -159,6 +203,7 @@ def write_report(records, directory, *, run, tokens=False):
     directory are removed so the report and the files always describe the same set.
     """
     records = list(records)  # validated and rendered twice: text files and the HTML page
+    stats = overview(run)
     directory = Path(directory)
     directory.mkdir(parents=True, exist_ok=True)
     for stale in directory.glob("document-*.txt"):
@@ -169,5 +214,6 @@ def write_report(records, directory, *, run, tokens=False):
         path.write_text(render(record, tokens=tokens) + "\n", encoding="utf-8")
         paths.append(path)
     report = directory / REPORT
-    report.write_text(_html.report(records, run=str(run)), encoding="utf-8")
+    page = _html.report(records, stats=stats, text=overview_text(stats))
+    report.write_text(page, encoding="utf-8")
     return paths, report

@@ -39,8 +39,13 @@ def test_choose_uses_indices_or_a_seeded_sample():
         _inspect._choose(7, (), -1, None)
 
 
+def printed(capsys):
+    """Captured stdout without the leading `=== run` line."""
+    return capsys.readouterr().out.partition("\n")[2]
+
+
 def blocks(capsys):
-    return [b for b in capsys.readouterr().out.split("=== document ") if b]
+    return [b for b in printed(capsys).split("=== document ") if b]
 
 
 def test_inspect_decodes_documents_and_lists_tokens_with_weights(
@@ -64,7 +69,7 @@ def test_inspect_decodes_documents_and_lists_tokens_with_weights(
 
     ids, weights = encoded(artifact, records)
     assert main(["inspect", str(run), "--index", "3", "--tokens", "--weights"]) == 0
-    lines = capsys.readouterr().out.splitlines()
+    lines = printed(capsys).splitlines()
     assert lines[0].startswith(f"=== document 3 (of 7): {len(ids[3])} tokens, ")
     rows = [line.split(None, 3) for line in lines[1:]]
     assert [int(r[0]) for r in rows] == list(range(len(ids[3])))
@@ -128,7 +133,7 @@ def test_inspect_maps_documents_to_rows_across_parquet_files(tmp_path, artifact,
     # encoder output for data without annotations.
     ids, weights = encoded(artifact, records)
     assert main(["inspect", str(run), "--index", "1", "--tokens"]) == 0
-    rows = [line.split(None, 3) for line in capsys.readouterr().out.splitlines()[1:]]
+    rows = [line.split(None, 3) for line in printed(capsys).splitlines()[1:]]
     assert [float(r[2]) for r in rows] == weights[1] and [int(r[1]) for r in rows] == ids[1]
     assert main(["inspect", str(run), "--index", "1", "--weights"]) == 2
     assert "without --loss-weights" in capsys.readouterr().err
@@ -142,6 +147,27 @@ def test_inspect_maps_documents_to_rows_across_parquet_files(tmp_path, artifact,
     os.rename(source, tmp_path / "moved")
     assert main(["inspect", str(run), "--index", "0", "--source"]) == 2
     assert "no longer exists" in capsys.readouterr().err
+
+
+def test_inspect_prints_the_run_overview_first(tmp_path, artifact, records, capsys):
+    source = tmp_path / "native"
+    Dataset.from_dict({"conversation_json": records}).save_to_disk(str(source))
+    run = tmp_path / "tokens"
+    assert run_all("tokenize", source, run, "--tokenizer", artifact) == 0
+    summary = json.loads((run / "summary.json").read_text())
+    capsys.readouterr()
+    assert main(["inspect", str(run), "--sample", "0"]) == 0
+    line = capsys.readouterr().out
+    length = summary["length"]
+    assert line == (
+        f"=== run {run}: 7 documents, {summary['tokens']:,} tokens; length mean "
+        f"{length['mean']:,.0f}, p50 {length['p50']}, p90 {length['p90']}, p99 {length['p99']}, "
+        f"max {length['max']}; >4k 0 (0.0%), >8k 0 (0.0%), >16k 0 (0.0%), >32k 0 (0.0%)\n"
+    )
+    # Validation precedes the run line: a failing inspect leaves stdout empty.
+    assert main(["inspect", str(run), "--index", "99"]) == 2
+    out, err = capsys.readouterr()
+    assert out == "" and "out of range" in err
 
 
 def test_inspect_rejects_other_directories(tmp_path, records, capsys):
@@ -208,14 +234,16 @@ def test_inspect_output_writes_text_files_and_html_report(tmp_path, artifact, re
         "report.html",
     ]
     assert main(args) == 0
-    printed = capsys.readouterr().out
     texts = [(out / f"document-00000{i}.txt").read_text() for i in (3, 7)]
-    assert "".join(texts) == printed
+    assert "".join(texts) == printed(capsys)
 
     page = (out / "report.html").read_text()
     assert page.count("<script") == 2 and "<!--" not in page.split("</header>")[1]
     payload = payload_of(page)
-    assert payload["run"] == str(run) and [d["index"] for d in payload["documents"]] == [3, 7]
+    assert payload["stats"]["run"] == str(run)
+    assert [d["index"] for d in payload["documents"]] == [3, 7]
+    assert payload["stats"]["documents"] == 8 and payload["stats"]["length"]["max"] >= 1
+    assert "p50 " in page.split("</header>")[0]
     ids, weights = encoded(artifact, records)
     doc, last = payload["documents"]
     assert doc["ids"] == ids[3] and doc["weights"] == weights[3] and not doc["weights_written"]

@@ -9,7 +9,7 @@ import os
 import sys
 import traceback
 
-from ._inspect import documents, render, write_report
+from ._inspect import documents, overview, overview_text, render, write_report
 from ._run import encode, merge, prepare
 
 
@@ -117,6 +117,8 @@ def main(argv=None):
                 )
             else:
                 try:
+                    stats = overview(args.run)
+                    print(f"=== run {stats['run']}: {overview_text(stats)}", flush=True)
                     for record in records:
                         print(render(record, tokens=args.tokens), flush=True)
                 except BrokenPipeError:  # e.g. piped into head; silence the flush at exit too

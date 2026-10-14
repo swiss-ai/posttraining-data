@@ -62,7 +62,13 @@ def test_tokenized_shards_merge_into_input_order(tmp_path, artifact, records, ki
         assert documents(run / "loss_weights", np.float32) == weights
     else:
         assert not (run / "loss_weights.bin").exists()
-    assert json.loads((run / "summary.json").read_text())["documents"] == 7
+    summary = json.loads((run / "summary.json").read_text())
+    lengths = [len(doc) for doc in tokens]
+    assert summary["documents"] == 7 and summary["length"]["max"] == max(lengths)
+    assert (
+        summary["length"]["min"] == min(lengths) and summary["length"]["p50"] == sorted(lengths)[3]
+    )
+    assert summary["length"]["over"]["4096"] == {"documents": 0, "share": 0.0}
 
 
 def test_check_reports_exactly_which_samples_have_which_issues(tmp_path, records):
@@ -160,6 +166,16 @@ def test_examples_pass_check_and_weighted_tokens_align(tmp_path, artifact):
     assert documents(run / "tokens", np.int32) == tokens
     assert documents(run / "loss_weights", np.float32) == weights
     assert 0.5 in weights[0] and 0.0 in weights[0]
+
+
+def test_length_stats_counts_documents_strictly_above_each_limit():
+    assert _run.length_stats([]) is None
+    stats = _run.length_stats([1, 4096, 4097, 8193])
+    assert (stats["min"], stats["p50"], stats["max"]) == (1, 4096, 8193)  # even count: lower half
+    assert stats["over"]["4096"] == {"documents": 2, "share": 0.5}
+    assert stats["over"]["8192"] == {"documents": 1, "share": 0.25}
+    assert stats["over"]["32768"] == {"documents": 0, "share": 0.0}
+    assert _run.length_stats([5000] * 20001 + [40000])["over"]["32768"]["documents"] == 1
 
 
 def test_indexed_files_match_megatron_builder_bytes(tmp_path):

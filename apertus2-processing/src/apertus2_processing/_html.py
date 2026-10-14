@@ -24,6 +24,7 @@ header h1 { font-size:20px; margin:0 0 2px; }
 header .sub { color:var(--muted); margin:0 0 6px; }
 header .src { margin:0 0 10px; }
 header .src code { background:var(--panel); padding:1px 6px; border-radius:4px; }
+header .stats { color:var(--muted); margin:0 0 10px; }
 .controls { display:flex; flex-wrap:wrap; gap:16px; align-items:center; }
 #theme { position:absolute; top:12px; right:20px; padding:4px 10px;
          border:1px solid var(--line); border-radius:6px; background:var(--panel);
@@ -123,6 +124,7 @@ PAGE = Template("""<!doctype html>
 <p class="sub">Inspecting tokenized dataset samples: decoded text token by token, with loss
 weights and source rows.</p>
 <p class="src">Source path: <code>$run</code></p>
+<p class="stats">$stats</p>
 <div class="controls">
 <label><input type="checkbox" id="bounds"> token boundaries</label>
 <label><input type="checkbox" id="legend" checked> colour loss</label>
@@ -140,9 +142,16 @@ defaults: loss on output items and waits, none on system and input tokens. With
 """)
 
 
-def report(records, *, run):
-    """Render records (see `_inspect.documents`) into one self-contained HTML page."""
-    payload = {"run": run, "documents": list(records)}
+def report(records, *, stats, text):
+    """Render records (see `_inspect.documents`) and the run `stats`, summarised as
+    `text`, into one self-contained HTML page."""
+    payload = {"stats": stats, "documents": list(records)}
     # `<` never appears in the data block, so no text can close or comment it out.
     data = json.dumps(payload, ensure_ascii=False).replace("<", "\\u003c")
-    return PAGE.substitute(style=STYLE, script=SCRIPT, run=html.escape(run), data=data)
+    return PAGE.substitute(
+        style=STYLE,
+        script=SCRIPT,
+        run=html.escape(stats["run"]),
+        stats=html.escape(text),
+        data=data,
+    )

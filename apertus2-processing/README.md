@@ -485,15 +485,26 @@ padded, packed, or shifted. With `--loss-weights`, an aligned
 `RUN_DIR/summary.json` records the totals:
 
 ```json
-{"mode": "tokenize", "documents": 9485, "tokens": 2993761, "loss_weights": false}
+{"mode": "tokenize", "documents": 9485, "tokens": 2993761, "loss_weights": false,
+ "length": {"min": 32, "mean": 315.6, "p50": 258, "p90": 640, "p99": 1489, "max": 3732,
+            "over": {"4096": {"documents": 0, "share": 0.0}, "8192": {"documents": 0, "share": 0.0},
+                     "16384": {"documents": 0, "share": 0.0}, "32768": {"documents": 0, "share": 0.0}}}}
 ```
 
-Read documents back with `apertus-data inspect RUN_DIR`. Each document prints as
-decoded text with its control tokens under a header `=== document I (of N): T tokens,
-L with loss (weights ..., trainer defaults)`. Without `--weights`, the weights are the
-trainer defaults derived from the control tokens (see [Loss weights](#loss-weights));
-`--weights` reads the written `loss_weights` instead. Errors, such as a directory that is
-not a merged tokenize run, an index out of range, or changed sources, exit with code 2:
+`length` describes the document lengths in tokens, for choosing a training sequence
+length or a length filter: percentiles (linearly interpolated, truncated to whole tokens;
+`mean` rounded to one decimal) and, for 4k, 8k, 16k, and 32k tokens, how many documents
+exceed the limit and which share. It is `null` for an empty run.
+
+Read documents back with `apertus-data inspect RUN_DIR`. The output starts with a
+`=== run` line repeating those totals and statistics, read from the index so it also
+covers runs merged before `length` existed; `--sample 0` prints only that line. Each
+document then prints as decoded text with its control tokens under a header
+`=== document I (of N): T tokens, L with loss (weights ..., trainer defaults)`. Without
+`--weights`, the weights are the trainer defaults derived from the control tokens (see
+[Loss weights](#loss-weights)); `--weights` reads the written `loss_weights` instead.
+Errors, such as a directory that is not a merged tokenize run, an index out of range, or
+changed sources, exit with code 2:
 
 | Option | Meaning |
 |---|---|

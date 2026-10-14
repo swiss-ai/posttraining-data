@@ -277,6 +277,28 @@ def encode(run, *, workers, threads):
         raise RuntimeError(f"{failed} of {workers} workers failed; see their errors above")
 
 
+def length_stats(lengths, limits=(4096, 8192, 16384, 32768)):
+    """Document lengths in tokens: percentiles (interpolated, truncated to whole tokens)
+    and, per sequence-length limit, how many documents exceed it and which share."""
+    if not len(lengths):
+        return None
+    lengths = np.asarray(lengths, dtype=np.int64)
+    p50, p90, p99 = (int(q) for q in np.percentile(lengths, [50, 90, 99]))
+    over = {}
+    for limit in limits:
+        count = int((lengths > limit).sum())
+        over[str(limit)] = {"documents": count, "share": count / len(lengths)}
+    return {
+        "min": int(lengths.min()),
+        "mean": round(float(lengths.mean()), 1),
+        "p50": p50,
+        "p90": p90,
+        "p99": p99,
+        "max": int(lengths.max()),
+        "over": over,
+    }
+
+
 def merge(run):
     """Verify that every shard is complete, then write the final report or dataset."""
     run, config = load(run)
@@ -322,11 +344,13 @@ def merge(run):
                 raise ValueError(f"{output} shards do not hold one document per input row")
             os.replace(f"{partial}.bin", run / f"{output}.bin")
             os.replace(f"{partial}.idx", run / f"{output}.idx")
+        lengths = _indexed.read_lengths(run / "tokens", DTYPES["tokens"])
         result = {
             "mode": "tokenize",
             "documents": rows,
             "tokens": sum(summary["tokens"] for summary in summaries),
             "loss_weights": config["loss_weights"],
+            "length": length_stats(lengths),
         }
     write_json(run / SUMMARY, result)
     return result
