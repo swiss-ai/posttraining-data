@@ -35,6 +35,7 @@ from typing import Dict, Any, Optional
 
 from benchmark_filters import filter_benchmark_names
 from conversation_id_checks import validate_conversation_ids
+from removal_log import write_removal_log
 
 """
 Code modified from: https://github.com/huggingface/cosmopedia/blob/main/decontamination/decontaminate.py
@@ -59,7 +60,7 @@ def load_existing_metadata(input_path: Path) -> Optional[Dict[str, Any]]:
 def save_dataset_and_metadata(train_data, output_path: Path, input_path: Path,
                               contaminated_ids: set, processed_benchmarks: list,
                               tokenizer_name: str, ngram_length: int, diff_threshold: float,
-                              samples_removed: int):
+                              samples_removed: int, removal_summary: dict):
     """Save filtered dataset and update metadata with processing log."""
     # Ensure output directory exists
     output_path = Path(output_path)
@@ -99,6 +100,7 @@ def save_dataset_and_metadata(train_data, output_path: Path, input_path: Path,
         "contaminated_ids_flagged": len(contaminated_ids),
         "contaminated_samples_removed": samples_removed,
         "samples_after_filtering": total_samples_after,
+        **removal_summary,
         "decontamination_success": True
     }
 
@@ -524,11 +526,11 @@ def main(args):
 
     # Load the contamination reports and filter the training data
     print(f"\n=== FINAL FILTERING ===\nCombining contamination reports from {len(processed_benchmarks)} processed benchmarks...")
-    del eval_data
     gc.collect()
     train_data = load_from_disk(args.dataset_path)
     contaminated_ids = set()
     contamination_summary = []
+    reports = {}
     for eval_dataset_name in processed_benchmarks:
         report_path = os.path.join(
             args.report_path,
@@ -536,6 +538,7 @@ def main(args):
         )
         with open(report_path, "r") as f:
             report = json.load(f)
+        reports[eval_dataset_name] = report
         contaminated_ids = contaminated_ids.union(set(report.keys()))
         if len(report) > 0:
             contamination_summary.append((eval_dataset_name, len(report)))
@@ -556,6 +559,7 @@ def main(args):
 
     # Handle DatasetDict format - filter all splits if DatasetDict, otherwise filter single dataset
     # Report keys are JSON strings, so compare IDs as strings.
+    unfiltered_data = train_data
     if hasattr(train_data, 'keys'):  # DatasetDict
         from datasets import DatasetDict
         samples_before = sum(len(v) for v in train_data.values())
@@ -575,6 +579,11 @@ def main(args):
             f"Not saving the filtered dataset."
         )
 
+    # Log the removed samples with their matches
+    removal_summary = write_removal_log(unfiltered_data, reports, eval_data, args.tokenizer_name, Path(args.output),
+                                        args.diff_threshold, args.num_proc)
+    del unfiltered_data, eval_data, reports
+
     # Save dataset with metadata
     save_dataset_and_metadata(
         train_data,
@@ -585,7 +594,8 @@ def main(args):
         args.tokenizer_name,
         args.ngram_length,
         args.diff_threshold,
-        samples_removed
+        samples_removed,
+        removal_summary
     )
 
 

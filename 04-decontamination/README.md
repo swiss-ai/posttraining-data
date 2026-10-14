@@ -27,6 +27,7 @@ responses are not checked.
 - **`list-benchmarks.py`** - Lists/counts the benchmarks used for the job array
 - **`benchmark_filters.py`** - Benchmark exclusion patterns and the expected benchmark list
 - **`conversation_id_checks.py`** - Validation of `conversation_id`s
+- **`removal_log.py`** - Writes the removal log (removed samples with their matched benchmark prompts)
 
 ### Shell Scripts
 - **`submit-parallel-decontamination.sh`** - SLURM job array + merge job (recommended)
@@ -49,6 +50,14 @@ responses are not checked.
   `benchmarks_processed`, `benchmark_names`, `contaminated_ids_flagged` and
   `contaminated_samples_removed`. `07-dataset-aggregation/concatenate-datasets.py` only accepts inputs
   whose latest decontamination entry covers every benchmark.
+- **Removal log.** The removed samples are saved unchanged to `<output>/decontamination_removed/` (same
+  splits as the input), with a `decontamination_matches` column holding one entry per flagging benchmark:
+  `benchmark`, `eval_idx`, `benchmark_prompt`, `benchmark_prompt_tokens`, `match_ratio`, `longest_block`
+  and `matched_text` (the matched runs, joined with ` [...] `). `match_ratio` is recomputed at filter
+  time, so pass the tokenizer the reports were made with (also to the merge script); the processing-log
+  entry records `logged_matches_below_threshold`, which is non-zero when it was not. Reports keep only the
+  first benchmark prompt above the threshold, so `benchmark_prompt` is a match, not necessarily the
+  closest one. The entry also gets `removed_by_benchmark` and `removal_log_path`.
 
 ## Settings
 

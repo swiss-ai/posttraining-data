@@ -17,6 +17,7 @@ from datasets import load_from_disk, Dataset, DatasetDict
 
 from benchmark_filters import expected_benchmark_names, report_stem
 from conversation_id_checks import validate_conversation_ids
+from removal_log import write_removal_log
 
 
 def load_existing_metadata(input_path: Path) -> Optional[Dict[str, Any]]:
@@ -34,7 +35,7 @@ def load_existing_metadata(input_path: Path) -> Optional[Dict[str, Any]]:
 def save_dataset_and_metadata(train_data, output_path: Path, input_path: Path,
                               contaminated_ids: set, processed_benchmarks: list,
                               tokenizer_name: str, ngram_length: int, diff_threshold: float,
-                              parallel_job_count: int, samples_removed: int):
+                              parallel_job_count: int, samples_removed: int, removal_summary: dict):
     """Save filtered dataset and update metadata with processing log."""
     # Ensure output directory exists
     output_path = Path(output_path)
@@ -74,6 +75,7 @@ def save_dataset_and_metadata(train_data, output_path: Path, input_path: Path,
         "contaminated_samples_removed": samples_removed,
         "samples_after_filtering": total_samples_after,
         "parallel_jobs_used": parallel_job_count,
+        **removal_summary,
         "decontamination_success": True
     }
 
@@ -247,6 +249,12 @@ Examples:
         help="Difference threshold used for decontamination (for metadata)"
     )
     parser.add_argument(
+        "--num_proc",
+        type=int,
+        default=16,
+        help="Number of processes for scoring the matches of the removal log"
+    )
+    parser.add_argument(
         "--expected-jobs",
         type=int,
         help="Expected number of parallel jobs (for validation)"
@@ -359,6 +367,7 @@ Examples:
 
     # Apply filtering (report keys are JSON strings, so compare IDs as strings)
     print("Applying contamination filtering...")
+    unfiltered_data = train_data
 
     if hasattr(train_data, 'keys'):  # DatasetDict
         train_data = DatasetDict({
@@ -379,6 +388,20 @@ Examples:
               f"Not saving the filtered dataset.")
         return 1
 
+    # Log the removed samples with their matches (reports are keyed by report stem, prompts by benchmark name)
+    print(f"\n=== WRITING REMOVAL LOG ===")
+    try:
+        prompts = load_from_disk(args.decontamination_prompts)
+        name_of = {report_stem(name): name for name in prompts.keys()}
+        removal_summary = write_removal_log(
+            unfiltered_data, {name_of[stem]: report for stem, report in all_reports.items()}, prompts,
+            args.tokenizer_name, output_path, args.diff_threshold, args.num_proc
+        )
+    except Exception as e:
+        print(f"Error writing removal log: {e}")
+        return 1
+    del unfiltered_data, prompts
+
     # Save filtered dataset with metadata
     print(f"\n=== SAVING FILTERED DATASET ===")
     parallel_job_count = len(all_reports)  # Estimate based on number of unique reports
@@ -394,7 +417,8 @@ Examples:
             args.ngram_length,
             args.diff_threshold,
             parallel_job_count,
-            removed_samples
+            removed_samples,
+            removal_summary
         )
     except Exception as e:
         print(f"Error saving dataset: {e}")
