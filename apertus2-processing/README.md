@@ -179,17 +179,22 @@ uv run --no-sync hf download --repo-type dataset NAME \
 
 ### Mapping a dataset
 
-[mappers/no_robots.py](mappers/no_robots.py) maps the small
-[HuggingFaceH4/no_robots](https://huggingface.co/datasets/HuggingFaceH4/no_robots)
-dataset with the foundation described in [Writing a mapper](#writing-a-mapper); its
-docstring states what each row becomes, and the source `prompt_id` is kept alongside
-`conversation_json`.
+Two mappers built on the foundation described in [Writing a mapper](#writing-a-mapper)
+ship with the repository; each docstring states what a row becomes:
 
-`--split` selects `train` (default) or `test`; `--help` lists the options every mapper
-shares (`--num-proc`, `--limit`, `--check`, `--strict`, `--loss-weights`,
-`--thinking-convention`), described in [Writing a mapper](#writing-a-mapper). After the
-Alps setup, the cluster example starts a one-node debug allocation (omit
-account/partition/time when using an existing allocation):
+- [mappers/no_robots.py](mappers/no_robots.py) maps the small
+  [HuggingFaceH4/no_robots](https://huggingface.co/datasets/HuggingFaceH4/no_robots)
+  chat dataset, keeping the source `prompt_id`; `--split` selects `train` (default) or
+  `test`.
+- [mappers/nemotron_math.py](mappers/nemotron_math.py) maps
+  [nvidia/Nemotron-SFT-Math-v4](https://huggingface.co/datasets/nvidia/Nemotron-SFT-Math-v4)
+  with `thinking: high` and a `claim` holding the bare answer from the final reply's
+  `\boxed{}`; `--input DIR` is the local download and `--subset` selects `cot` or `tir`.
+
+`--help` lists the options every mapper shares (`--num-proc`, `--limit`, `--check`,
+`--strict`, `--loss-weights`, `--thinking-convention`), described in
+[Writing a mapper](#writing-a-mapper). After the Alps setup, the cluster example starts a
+one-node debug allocation (omit account/partition/time when using an existing allocation):
 
 ```sh
 # Laptop
@@ -217,10 +222,13 @@ building blocks.
    message lists call `from_chat(messages, tools=..., system=...)`, a thin wrapper over
    `apertus_common.from_openai`: it maps `system` messages to `behavior`,
    `reasoning_content` to `think`, `tool_calls` to `call`, tool messages to `result`, and
-   inserts a wait after every assistant turn. It has no path for `document`, `host`,
-   `claim`, or item loss weights, and rejects `developer` or repeated system messages unless
-   `merge_system=True`. For those cases, and for sources that are not message lists, use
-   `Conversation.builder()` from `apertus_common` and add waits yourself. `thinking`
+   inserts a wait after every assistant turn. Dataset quirks are normalised: `None`
+   fields and tool-message `name`s are dropped, empty `content` on tool-call turns is
+   dropped, and tool `parameters` given as JSON strings are parsed. It has no path for
+   `document`, `host`, `claim`, or item loss weights (insert those into its result, as
+   `mappers/nemotron_math.py` does for the claim), and rejects `developer` or repeated
+   system messages unless `merge_system=True`. For sources that are not message lists,
+   use `Conversation.builder()` from `apertus_common` and add waits yourself. `thinking`
    defaults to `medium` in both; pass a source effort level and fixed `identity` or
    `environment` values through `system=`, e.g. `system={"thinking": row["effort"]}`.
    Raise `ValueError` for rows to skip; its message, like the library's `AdapterError`
@@ -481,21 +489,26 @@ padded, packed, or shifted. With `--loss-weights`, an aligned
 ```
 
 Read documents back with `apertus-data inspect RUN_DIR`. Each document prints as
-decoded text with its control tokens under a header `=== document I (of N): T tokens`.
-Errors, such as a directory that is not a merged tokenize run, an index out of range, or
-changed sources, exit with code 2:
+decoded text with its control tokens under a header `=== document I (of N): T tokens,
+L with loss (weights ..., trainer defaults)`. Without `--weights`, the weights are the
+trainer defaults derived from the control tokens (see [Loss weights](#loss-weights));
+`--weights` reads the written `loss_weights` instead. Errors, such as a directory that is
+not a merged tokenize run, an index out of range, or changed sources, exit with code 2:
 
 | Option | Meaning |
 |---|---|
 | `--index I` | Zero-based document to show; repeatable. Without it, `--sample N` random documents (default 3), reproducible with `--seed S`. |
-| `--tokens` | One line per token: position, ID, and text (partial for multi-byte characters). |
-| `--weights` | Add the count of tokens with loss and the distinct weights to the header, and a weight column to `--tokens`. Requires a `--loss-weights` run whose weight index matches the tokens. |
+| `--tokens` | Text output only: one line per token with position, ID, loss weight, and text (partial for multi-byte characters). |
+| `--weights` | Use the written `loss_weights` instead of the trainer defaults everywhere (header, `--tokens`, `report.html`). Requires a `--loss-weights` run whose weight index matches the tokens. |
 | `--source` | Append `--- source PATH row R` (`R` as in [Check](#check)) and the row's native JSON. Fails if the input files have moved or changed since tokenization. |
 | `--tokenizer DIR` | Override the run's tokenizer. |
+| `--output DIR` | Write to `DIR` instead of printing: one `document-NNNNNN.txt` per document (the printed block; earlier ones in `DIR` are removed) and a self-contained `report.html` for any browser, no server needed: each document token by token, coloured by loss weight, control and partial-character tokens marked, hover for position, ID, and weight, toggles for token boundaries and light or dark theme, and the source row in a collapsible panel with `--source`. |
 
 ```sh
 uv run --no-sync apertus-data inspect /tmp/no_robots-tokens --sample 2 --seed 1 --source
 uv run --no-sync apertus-data inspect /tmp/no_robots-tokens --index 0 --tokens --weights | head
+uv run --no-sync apertus-data inspect /tmp/no_robots-tokens --sample 5 --weights --source \
+  --output /tmp/no_robots-report  # open report.html in a browser
 ```
 
 ## Development

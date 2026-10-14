@@ -1,15 +1,12 @@
-import importlib.util
 import json
-from pathlib import Path
 
 import pytest
-from apertus_common import AdapterError, Conversation, SystemPrompt, checkers_for
-from conftest import run_all
+from apertus_common import AdapterError, Conversation, SystemPrompt
+from conftest import clean, load_mapper, run_all, types
 from datasets import Dataset, load_from_disk
 
-from apertus2_processing import _run, mapping
+from apertus2_processing import mapping
 
-ROOT = Path(__file__).parents[1]
 TOOLS = [
     {
         "type": "function",
@@ -36,25 +33,6 @@ TOOL_CHAT = [
     {"role": "assistant", "content": "welcome"},
 ]
 TURN = [{"role": "user", "content": "q"}, {"role": "assistant", "content": "a"}]
-
-
-def types(conversation):
-    return [item.type for item in conversation.items]
-
-
-CHECKERS = checkers_for("full", training=True)
-
-
-def clean(conversation):
-    ok, found = _run.check_conversation(conversation, CHECKERS)
-    return ok and not found
-
-
-def load_mapper(name):
-    spec = importlib.util.spec_from_file_location(name, ROOT / "mappers" / f"{name}.py")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
 
 
 def chats(*extra):
@@ -173,6 +151,26 @@ def test_map_dataset_side_columns_survive_a_clean_first_batch():
         {"rule": "training/final-wait", "severity": "warning", "count": 1}
     ]
     assert len(native) == 1002
+
+
+def test_from_chat_normalises_dataset_quirks():
+    """Tool-message names, empty call-turn content, and string parameters as HF stores them."""
+    string_tools = [{**TOOLS[0], "function": {**TOOLS[0]["function"], "parameters": "{}"}}]
+    messages = [
+        TOOL_CHAT[0],
+        {**TOOL_CHAT[1], "content": ""},
+        {**TOOL_CHAT[2], "name": "add"},
+        {**TOOL_CHAT[3], "reasoning_content": None},
+    ]
+    conversation = mapping.from_chat(messages, tools=string_tools)
+    assert types(conversation) == ["user", "think", "call", "wait", "result", "reply", "wait"]
+    assert conversation.system.tools[0].json_schema == {}
+    with pytest.raises(AdapterError, match="unsupported fields"):
+        mapping.from_chat([{"role": "user", "content": "q", "extra": 1}])
+    empty_schema = [{**TOOLS[0], "function": {**TOOLS[0]["function"], "parameters": ""}}]
+    assert (
+        mapping.from_chat(TURN, tools=empty_schema).system.tools[0].json_schema["type"] == "object"
+    )
 
 
 def test_map_dataset_handles_struct_columns_from_datasets():

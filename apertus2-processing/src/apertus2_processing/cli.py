@@ -9,7 +9,7 @@ import os
 import sys
 import traceback
 
-from ._inspect import render
+from ._inspect import documents, render, write_report
 from ._run import encode, merge, prepare
 
 
@@ -43,7 +43,9 @@ def parser():
     cmd = commands.add_parser("merge", help="Verify all shards and write the final outputs")
     cmd.add_argument("run", help="Prepared run directory")
     cmd = commands.add_parser(
-        "inspect", help="Print documents of a merged tokenize run", formatter_class=formatter
+        "inspect",
+        help="Print or report documents of a merged tokenize run",
+        formatter_class=formatter,
     )
     cmd.add_argument("run", help="Merged tokenize run directory")
     cmd.add_argument(
@@ -58,10 +60,17 @@ def parser():
     cmd.add_argument(
         "--tokens",
         action="store_true",
-        help="One line per token: position, ID, [loss weight,] text (partial for multi-byte)",
+        help="Text output: one line per token with position, ID, loss weight, and text",
     )
     cmd.add_argument(
-        "--weights", action="store_true", help="Also show loss weights (run needs --loss-weights)"
+        "--weights",
+        action="store_true",
+        help="Show the written loss_weights instead of the trainer defaults (needs --loss-weights)",
+    )
+    cmd.add_argument(
+        "--output",
+        metavar="DIR",
+        help="Write document-NNNNNN.txt files and a standalone report.html to DIR, not stdout",
     )
     return root
 
@@ -91,21 +100,27 @@ def main(argv=None):
             print(json.dumps(summary, indent=1))
             return 1 if summary.get("failed_rows") else 0
         else:
-            blocks = render(
+            records = documents(
                 args.run,
                 indices=args.index or (),
                 sample=args.sample,
                 seed=args.seed,
                 tokenizer=args.tokenizer,
                 source=args.source,
-                tokens=args.tokens,
                 weights=args.weights,
             )
-            try:
-                for block in blocks:
-                    print(block, flush=True)
-            except BrokenPipeError:  # e.g. piped into head; silence the flush at exit too
-                os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
+            if args.output:
+                paths, report = write_report(records, args.output, run=args.run, tokens=args.tokens)
+                print(
+                    f"wrote {len(paths)} documents and {report.name} to {report.parent}",
+                    file=sys.stderr,
+                )
+            else:
+                try:
+                    for record in records:
+                        print(render(record, tokens=args.tokens), flush=True)
+                except BrokenPipeError:  # e.g. piped into head; silence the flush at exit too
+                    os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
         return 0
     except ValueError as error:
         cause = f" ({error.__cause__})" if error.__cause__ else ""

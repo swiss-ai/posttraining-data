@@ -9,6 +9,7 @@ checks each conversation, skips rows whose mapping raised `ValueError`, and writ
 
 import argparse
 import functools
+import json
 import sys
 from collections import Counter
 from pathlib import Path
@@ -68,16 +69,40 @@ def is_turn_based(messages):
     return bool(roles) and roles == ["user", "assistant"] * (len(roles) // 2)
 
 
+def _message(message):
+    """Drop what `datasets` adds and the library rejects: `None` fields (every optional
+    struct field is materialised), `name` on tool messages, and empty `content` on
+    tool-call turns, which would otherwise become an empty reply before the call."""
+    empty_call = message.get("tool_calls") and not message.get("content")
+    return {
+        k: v
+        for k, v in message.items()
+        if v is not None and k != "name" and not (k == "content" and empty_call)
+    }
+
+
+def _tool(tool):
+    """Parse `parameters` stored as a JSON string; an empty one means no schema."""
+    function = dict(tool["function"])
+    if isinstance(function.get("parameters"), str):
+        function["parameters"] = (
+            json.loads(function["parameters"]) if function["parameters"] else None
+        )
+    return {**tool, "function": function}
+
+
 def from_chat(messages, *, tools=None, system=None, merge_system=False):
     """Map OpenAI-style messages (and function tools) to a conversation with waits.
 
     `system` supplies `SystemPrompt` defaults as a dict or instance, such as `identity`,
     `thinking`, and `environment`; source system messages become `behavior`. Several
     system or `developer` messages require `merge_system=True`, which joins them. Rows
-    the library cannot map raise `AdapterError`. Keys with `None` values are dropped
-    first: `datasets` fills every optional field of a struct column with `None`.
+    the library cannot map raise `AdapterError`. Dataset quirks are normalised first:
+    `None` fields and tool-message `name`s are dropped, empty `content` on tool-call
+    turns is dropped, and tool `parameters` given as JSON strings are parsed.
     """
-    messages = [{k: v for k, v in m.items() if v is not None} for m in messages]
+    messages = [_message(m) for m in messages]
+    tools = [_tool(t) for t in tools] if tools else None
     policy = MappingPolicy(merge_system_messages=merge_system)
     return from_openai(messages, tools=tools, system_defaults=system, policy=policy).value
 

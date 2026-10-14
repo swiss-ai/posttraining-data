@@ -1,13 +1,45 @@
+import importlib.util
+from pathlib import Path
+
 import numpy as np
 import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
-from apertus_common import Conversation, Reply, SystemPrompt, User, Wait, load_encoding
+from apertus_common import (
+    Conversation,
+    Reply,
+    SystemPrompt,
+    User,
+    Wait,
+    checkers_for,
+    load_encoding,
+)
 from tokenizers import AddedToken, Tokenizer, decoders, models, pre_tokenizers
 from transformers import PreTrainedTokenizerFast
 
-from apertus2_processing import _indexed
+from apertus2_processing import _indexed, _run
 from apertus2_processing.cli import main
+
+ROOT = Path(__file__).parents[1]
+CHECKERS = checkers_for("full", training=True)
+
+
+def types(conversation):
+    return [item.type for item in conversation.items]
+
+
+def clean(conversation):
+    """True when the full checker with training rules reports nothing at all."""
+    ok, found = _run.check_conversation(conversation, CHECKERS)
+    return ok and not found
+
+
+def load_mapper(name):
+    """Import `mappers/<name>.py` by path, as the scripts are not a package."""
+    spec = importlib.util.spec_from_file_location(name, ROOT / "mappers" / f"{name}.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def write_parquet(path, rows, row_group_size=None):
