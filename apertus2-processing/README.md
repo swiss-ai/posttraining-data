@@ -179,7 +179,7 @@ uv run --no-sync hf download --repo-type dataset NAME \
 
 ### Mapping a dataset
 
-Two mappers built on the foundation described in [Writing a mapper](#writing-a-mapper)
+Three mappers built on the foundation described in [Writing a mapper](#writing-a-mapper)
 ship with the repository; each docstring states what a row becomes:
 
 - [mappers/no_robots.py](mappers/no_robots.py) maps the small
@@ -190,6 +190,11 @@ ship with the repository; each docstring states what a row becomes:
   [nvidia/Nemotron-SFT-Math-v4](https://huggingface.co/datasets/nvidia/Nemotron-SFT-Math-v4)
   with `thinking: high` and a `claim` holding the bare answer from the final reply's
   `\boxed{}`; `--input DIR` is the local download and `--subset` selects `cot` or `tir`.
+- [mappers/apertus_tool_use.py](mappers/apertus_tool_use.py) maps the tool-use and
+  terminal SFT mixes of swiss-ai/apertus-tool-use, keeping `teacher`, `subset`, `task`,
+  `language` and `license` as columns;
+  `--input FILE...` takes the mix files (JSON Lines), and `--max-tokens N --tokenizer DIR`
+  skips samples longer than N tokens. Check and tokenize with `--loss-weights`.
 
 `--help` lists the options every mapper shares (`--num-proc`, `--limit`, `--check`,
 `--strict`, `--loss-weights`, `--thinking-convention`), described in
