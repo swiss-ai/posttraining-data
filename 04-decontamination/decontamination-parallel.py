@@ -35,6 +35,7 @@ from typing import Dict, Any, Optional
 
 from benchmark_filters import filter_benchmark_names
 from conversation_id_checks import validate_conversation_ids
+from matching_units import MATCHING_VERSION, to_units
 
 """
 Parallel decontamination script for processing benchmark subsets.
@@ -94,6 +95,7 @@ def save_dataset_and_metadata(train_data, output_path: Path, input_path: Path,
         "output_path": str(output_path),
         "tokenizer_name": tokenizer_name,
         "ngram_length": ngram_length,
+        "matching_version": MATCHING_VERSION,
         "diff_threshold": diff_threshold,
         "benchmarks_processed": len(processed_benchmarks),
         "benchmark_names": processed_benchmarks,
@@ -118,8 +120,8 @@ def save_dataset_and_metadata(train_data, output_path: Path, input_path: Path,
 
 
 def get_ngrams(tokens, n):
-    """Generate n-grams from tokens."""
-    return set(zip(*[tokens[i:-(n-i)] for i in range(n)]))
+    """All n-grams of tokens: one per start position, the last one starts at len(tokens) - n."""
+    return {tuple(tokens[i:i + n]) for i in range(len(tokens) - n + 1)}
 
 def process_tokens(x, ngram_length):
     return {
@@ -230,7 +232,7 @@ def verify_contamination_worker(args_tuple):
 
 def get_benchmark_cache_key(benchmark_name, tokenizer_name, ngram_length):
     """Generate cache key for benchmark n-grams."""
-    key_string = f"{benchmark_name}_{tokenizer_name}_{ngram_length}"
+    key_string = f"{benchmark_name}_{tokenizer_name}_{ngram_length}_{MATCHING_VERSION}"
     return hashlib.md5(key_string.encode()).hexdigest()
 
 def get_benchmark_cache_path(cache_dir, cache_key):
@@ -269,7 +271,7 @@ def save_benchmark_ngrams_to_cache(ngrams, lookup_table, cache_path):
 def compute_benchmark_ngrams(eval_dataset, tokenizer, ngram_length, num_proc):
     """Compute n-grams for a benchmark dataset."""
     print(f"  Tokenizing {len(eval_dataset)} evaluation prompts...")
-    eval_data_tokens = tokenizer(eval_dataset["prompt"][:])["input_ids"]
+    eval_data_tokens = to_units(tokenizer, [str(p) for p in eval_dataset["prompt"][:]])
     print(f"  Generating n-grams...")
     with Pool(num_proc) as p:
         eval_ngrams = p.map(partial(process_tokens, ngram_length=ngram_length), eval_data_tokens)
@@ -375,7 +377,7 @@ def main(args):
     print("Tokenizing training prompts...")
     train_data = train_data.map(
         lambda batch: {
-            "prompt_token_ids": tokenizer([x["content"] for x in batch["initial_prompt"]])["input_ids"]
+            "prompt_token_ids": to_units(tokenizer, [x["content"] or "" for x in batch["initial_prompt"]])
         },
         batched=True,
     )

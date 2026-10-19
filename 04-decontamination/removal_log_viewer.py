@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Build a self-contained HTML viewer for decontamination removal logs.
 
-Shows removed training prompts next to their matched benchmark prompts, with the matched token runs
+Shows removed training prompts next to their matched benchmark prompts, with the matched runs
 highlighted in both. One dataset can be selected at a time.
 
   python removal_log_viewer.py OUT.html DIR [DIR ...] [--sample 300] [--tokenizer_name ...]
@@ -15,7 +15,8 @@ then has four views: the removals of the new and of the old version, and the sam
 one of them (matched by content, since conversation_ids may differ between versions). Counts are
 always complete; the samples shown are random. Training prompts longer than
 EXCERPT_ABOVE characters are shown as an excerpt: their start plus context around every matched run. Highlights are recomputed with the same matching as the decontamination
-step (difflib runs of >= 5 tokens), so pass the tokenizer the reports were made with.
+step (difflib runs of >= 5 units, see matching_units.py), so pass the tokenizer the reports were made
+with. Texts are shown in their NFKC form, which keeps line breaks and repeated characters.
 """
 import argparse
 import collections
@@ -28,6 +29,7 @@ from pathlib import Path
 from datasets import load_from_disk
 from transformers import AutoTokenizer
 
+from matching_units import merge_numbers, normalize_with_positions
 from removal_log import MIN_BLOCK, REMOVAL_LOG_DIR
 
 HEAD_CHARS = 1500  # long training prompts keep their start ...
@@ -70,20 +72,26 @@ def excerpt(text, spans_per_match):
     return "".join(parts), [[s for a, b in spans if (s := move(a, b))] for spans in spans_per_match]
 
 
-def char_spans(offsets, start, size):
-    """Character span of tokens [start, start + size), skipping special tokens (offset (0, 0))."""
-    toks = [o for o in offsets[start:start + size] if o[1] > o[0]]
-    return [toks[0][0], toks[-1][1]] if toks else None
+def shown_units(tok, text):
+    """(NFKC text to show, its units, character span of every unit in the shown text, None if empty)."""
+    shown, norm, pos = normalize_with_positions(text)
+    enc = tok(norm, add_special_tokens=False, return_offsets_mapping=True)
+    units, spans = merge_numbers(enc["input_ids"], enc["offset_mapping"], norm)
+    return shown, units, [[pos[a], pos[b - 1] + 1] if b > a else None for a, b in spans]
 
 
-def match_spans(tok, train_text, bench_text):
-    a = tok(train_text, return_offsets_mapping=True)
-    b = tok(bench_text, return_offsets_mapping=True)
-    blocks = [m for m in difflib.SequenceMatcher(None, a["input_ids"], b["input_ids"], autojunk=False)
+def char_span(spans, start, size):
+    """Character span of units [start, start + size)."""
+    inside = [s for s in spans[start:start + size] if s]
+    return [inside[0][0], inside[-1][1]] if inside else None
+
+
+def match_spans(train, bench):
+    """Highlighted spans in both shown texts; train and bench as returned by shown_units."""
+    blocks = [m for m in difflib.SequenceMatcher(None, train[1], bench[1], autojunk=False)
               .get_matching_blocks() if m.size >= MIN_BLOCK]
-    train = [s for m in blocks if (s := char_spans(a["offset_mapping"], m.a, m.size))]
-    bench = [s for m in blocks if (s := char_spans(b["offset_mapping"], m.b, m.size))]
-    return train, bench
+    return ([s for m in blocks if (s := char_span(train[2], m.a, m.size))],
+            [s for m in blocks if (s := char_span(bench[2], m.b, m.size))])
 
 
 def family(benchmark):
@@ -128,16 +136,18 @@ def only_in(rows, other):
 
 
 def build_item(tok, split, r, threshold):
-    text = r["initial_prompt"]["content"]
+    train = shown_units(tok, r["initial_prompt"]["content"])
+    text = train[0]
     ms = sorted(r["decontamination_matches"], key=lambda m: -m["match_ratio"])
     matches, train_spans = [], []
     for m in ms[:MAX_MATCHES]:
-        ts, bs = match_spans(tok, text, m["benchmark_prompt"])
+        bench = shown_units(tok, m["benchmark_prompt"])
+        ts, bs = match_spans(train, bench)
         train_spans.append(ts)
         matches.append({
             "benchmark": m["benchmark"], "family": family(m["benchmark"]), "eval_idx": m["eval_idx"],
             "ratio": round(m["match_ratio"], 4), "longest": m["longest_block"],
-            "bench_tokens": m["benchmark_prompt_tokens"], "bench": m["benchmark_prompt"], "bench_spans": bs,
+            "bench_tokens": m["benchmark_prompt_tokens"], "bench": bench[0], "bench_spans": bs,
         })
     shown_text, train_spans = excerpt(text, train_spans)
     for m, ts in zip(matches, train_spans):

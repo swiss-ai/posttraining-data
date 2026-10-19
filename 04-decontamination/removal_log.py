@@ -8,15 +8,16 @@ column with one entry per benchmark whose report flagged the sample:
   benchmark               benchmark (prompt split) name
   eval_idx                index of the matched prompt in that benchmark
   benchmark_prompt        the matched benchmark prompt
-  benchmark_prompt_tokens its length in tokens
-  match_ratio             share of its tokens matched in aligned runs of >= MIN_BLOCK tokens
+  benchmark_prompt_tokens its length in units (tokens, numbers as one unit; see matching_units.py)
+  match_ratio             share of its units matched in aligned runs of >= MIN_BLOCK units
                           (the value thresholded by diff_threshold)
-  longest_block           longest matched run in tokens
-  matched_text            the matched runs, decoded and joined with " [...] "
+  longest_block           longest matched run in units
+  matched_text            the matched runs of the normalised benchmark prompt, joined with " [...] "
 
 Reports only store the first benchmark prompt above the threshold, so `benchmark_prompt` is a match
 of that benchmark, not necessarily its closest one. match_ratio is recomputed here with the same
-matching as the decontamination step, so it is only meaningful with the same tokenizer.
+matching as the decontamination step, so it is only meaningful with the same tokenizer and
+matching_units.MATCHING_VERSION.
 """
 import difflib
 from collections import defaultdict
@@ -26,6 +27,8 @@ from typing import Dict
 
 from datasets import Dataset, DatasetDict, Features, Value
 from transformers import AutoTokenizer
+
+from matching_units import units_with_spans
 
 REMOVAL_LOG_DIR = "decontamination_removed"
 MIN_BLOCK = 5  # same minimum block size as the decontamination matching
@@ -49,15 +52,15 @@ def _init_worker(tokenizer_name):
 
 def _score(pair):
     train_text, eval_text = pair
-    train_tokens = _tokenizer(train_text)["input_ids"]
-    eval_tokens = _tokenizer(eval_text)["input_ids"]
+    _, train_tokens, _ = units_with_spans(_tokenizer, train_text)
+    eval_norm, eval_tokens, eval_spans = units_with_spans(_tokenizer, eval_text)
     blocks = [b for b in difflib.SequenceMatcher(None, train_tokens, eval_tokens, autojunk=False).get_matching_blocks()
               if b.size >= MIN_BLOCK]
     return {
         "benchmark_prompt_tokens": len(eval_tokens),
         "match_ratio": sum(b.size for b in blocks) / len(eval_tokens) if eval_tokens else 0.0,
         "longest_block": max((b.size for b in blocks), default=0),
-        "matched_text": " [...] ".join(_tokenizer.decode(eval_tokens[b.b:b.b + b.size]) for b in blocks),
+        "matched_text": " [...] ".join(eval_norm[eval_spans[b.b][0]:eval_spans[b.b + b.size - 1][1]] for b in blocks),
     }
 
 

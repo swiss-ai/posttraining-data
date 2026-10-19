@@ -17,6 +17,7 @@ from datasets import load_from_disk, Dataset, DatasetDict
 
 from benchmark_filters import expected_benchmark_names, report_stem
 from conversation_id_checks import validate_conversation_ids
+from matching_units import MATCHING_VERSION
 from removal_log import write_removal_log
 
 
@@ -68,6 +69,7 @@ def save_dataset_and_metadata(train_data, output_path: Path, input_path: Path,
         "output_path": str(output_path),
         "tokenizer_name": tokenizer_name,
         "ngram_length": ngram_length,
+        "matching_version": MATCHING_VERSION,
         "diff_threshold": diff_threshold,
         "benchmarks_processed": len(processed_benchmarks),
         "benchmark_names": processed_benchmarks,

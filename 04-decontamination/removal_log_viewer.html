@@ -161,7 +161,7 @@ const fmt = (n) => n.toLocaleString("en-US");
 const shortBench = (b) => b.split("__").slice(1).join(" / ");
 function ratioChip(r) {
   const cls = r >= 0.9 ? "ratio hi" : r >= 0.7 ? "ratio mid" : "ratio";
-  return el("span", { class: cls, title: "Share of the benchmark prompt's tokens matched" }, r.toFixed(2));
+  return el("span", { class: cls, title: "Share of the benchmark prompt's units matched" }, r.toFixed(2));
 }
 function highlighted(text, spans) {
   const s = [...spans].sort((a, b) => a[0] - b[0]);
@@ -251,8 +251,8 @@ function renderDetail() {
   const facts = el("div", { class: "facts" },
     el("span", {}, "Benchmark ", el("b", {}, m.benchmark), ` #${m.eval_idx}`),
     el("span", {}, "Match ratio ", el("b", {}, m.ratio.toFixed(3))),
-    el("span", {}, "Longest run ", el("b", {}, `${m.longest} tokens`)),
-    el("span", {}, "Benchmark prompt ", el("b", {}, `${m.bench_tokens} tokens`)));
+    el("span", {}, "Longest run ", el("b", {}, `${m.longest} units`)),
+    el("span", {}, "Benchmark prompt ", el("b", {}, `${m.bench_tokens} units`)));
   const trainPre = highlighted(it.train, m.train_spans);
   const trainPane = el("div", { class: "pane" },
     el("h2", {}, "Training prompt", el("span", {}, `${fmt(it.train_chars)} chars${it.excerpt ? ", excerpt around the matches" : ""}`)),
@@ -270,7 +270,8 @@ function renderDetail() {
     el("div", { class: "dhead" }, el("div", { class: "id" }, showId(it.id) + (it.split ? `  (${it.split})` : "")), tabs, facts),
     ...notes.map((t) => el("p", { class: "note warn" }, t)),
     el("div", { class: "panes" }, trainPane, benchPane),
-    el("p", { class: "note" }, "Highlighted: token runs of 5 or more that match between the two prompts, as counted by the decontamination check."));
+    el("p", { class: "note" }, "Highlighted: runs of 5 or more units that match between the two prompts, as counted by the decontamination check. " +
+      "Units are tokens of the normalised text, with each number as one unit."));
   const first = trainPre.querySelector("mark");
   if (first) trainPre.scrollTop = Math.max(0, first.offsetTop - trainPre.offsetTop - 60);
 }

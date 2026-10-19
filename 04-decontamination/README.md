@@ -6,10 +6,13 @@ If significant overlap is detected, the sample is removed from the training data
 ## How it works
 
 1. The first user turn (`initial_prompt`) of every training sample and every benchmark prompt are
-   tokenized (`swiss-ai/Apertus-8B-Instruct-2509`) and split into 8-grams.
+   normalised (Unicode NFKC, runs of a repeated non-letter character such as `━━━━━` collapsed to one,
+   whitespace collapsed to one space), tokenized (`swiss-ai/Apertus-8B-Instruct-2509`, without `<s>`)
+   and split into 8-grams of units. A unit is a token, except that a number (`1,023`, `16.482`,
+   `2'832`) counts as one unit; the tokenizer would split it into single digits (`matching_units.py`).
 2. Training samples that share at least one 8-gram with a benchmark prompt are candidates.
-3. A candidate is contaminated if at least 50% of the benchmark prompt's tokens appear in the training
-   prompt in aligned runs of 5 or more tokens (`difflib.SequenceMatcher`).
+3. A candidate is contaminated if at least 50% of the benchmark prompt's units appear in the training
+   prompt in aligned runs of 5 or more units (`difflib.SequenceMatcher`).
 4. For each benchmark a report `<benchmark>__contamination_report.json` is written, mapping each
    contaminated `conversation_id` to the matched benchmark prompt.
 5. The final filter removes every `conversation_id` that appears in any report.
@@ -23,6 +26,7 @@ responses are not checked.
 - **`decontamination.py`** - Single-job decontamination: all benchmarks in one process, then filtering
 - **`decontamination-parallel.py`** - Writes reports for a subset of benchmarks (one array job)
 - **`merge-decontamination-reports.py`** - Combines the reports of all array jobs and filters the dataset
+- **`matching_units.py`** - Normalisation and units compared by the check (shared by all scripts)
 - **`gather-decontamination-prompts.py`** - Gathers the evaluation benchmark prompts
 - **`list-benchmarks.py`** - Lists/counts the benchmarks used for the job array
 - **`benchmark_filters.py`** - Benchmark exclusion patterns and the expected benchmark list
