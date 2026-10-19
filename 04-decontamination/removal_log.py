@@ -24,7 +24,7 @@ from multiprocessing import Pool
 from pathlib import Path
 from typing import Dict
 
-from datasets import DatasetDict, Features, Value
+from datasets import Dataset, DatasetDict, Features, Value
 from transformers import AutoTokenizer
 
 REMOVAL_LOG_DIR = "decontamination_removed"
@@ -79,7 +79,8 @@ def write_removal_log(data, reports: Dict[str, Dict[str, int]], decontamination_
                                             "benchmark_prompt": str(prompts[idx])})
 
     splits = data if isinstance(data, DatasetDict) else {None: data}
-    removed = {k: v.filter(lambda x: str(x["conversation_id"]) in matches_by_id) for k, v in splits.items()}
+    removed = {k: v.filter(lambda ids: [str(c) in matches_by_id for c in ids], input_columns="conversation_id",
+                           batched=True) for k, v in splits.items()}
 
     # Score every (removed sample, matched benchmark prompt) pair
     pairs, owners = [], []
@@ -105,7 +106,9 @@ def write_removal_log(data, reports: Dict[str, Dict[str, int]], decontamination_
     log = {}
     for k, split in removed.items():
         features = Features({**split.features, "decontamination_matches": [MATCH_FEATURES]})
-        log[k] = split.map(add_matches, batched=True, features=features)
+        # map over zero rows would drop the new column, so build empty logs directly
+        log[k] = (split.map(add_matches, batched=True, features=features) if len(split)
+                  else Dataset.from_dict({c: [] for c in features}, features=features))
     log = DatasetDict(log) if isinstance(data, DatasetDict) else log[None]
 
     log_path = Path(output_path) / REMOVAL_LOG_DIR
