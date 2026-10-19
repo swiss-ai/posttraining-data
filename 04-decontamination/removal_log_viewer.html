@@ -1,0 +1,307 @@
+<title>Decontamination Removals</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: review tool. Sticky control bar, then sample list | side-by-side prompt panes; stacks at phone width. */
+:root {
+  --bg: #f6f7f8;
+  --surface: #ffffff;
+  --fg: #1b2127;
+  --muted: #5d6a75;
+  --line: #dde2e6;
+  --accent: #0d6a74;
+  --accent-soft: #e2f0f1;
+  --mark: #ffe08a;
+  --mark-fg: #2a2000;
+  --hi: #b42318;
+  --hi-soft: #fde8e6;
+  --mid: #9a5b00;
+  --mid-soft: #fdf0dc;
+  --font-ui: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-text: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --radius: 6px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #12171b; --surface: #1a2126; --fg: #e4e9ec; --muted: #94a2ad; --line: #2c363d;
+    --accent: #5cc3cc; --accent-soft: #163338; --mark: #6b5310; --mark-fg: #fff3cc;
+    --hi: #ff8a7a; --hi-soft: #3d1e1b; --mid: #f0b55a; --mid-soft: #3a2a12; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #12171b; --surface: #1a2126; --fg: #e4e9ec; --muted: #94a2ad; --line: #2c363d;
+  --accent: #5cc3cc; --accent-soft: #163338; --mark: #6b5310; --mark-fg: #fff3cc;
+  --hi: #ff8a7a; --hi-soft: #3d1e1b; --mid: #f0b55a; --mid-soft: #3a2a12; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body { background: var(--bg); color: var(--fg); font-family: var(--font-ui); font-size: 14px; line-height: 1.45; }
+.app { display: flex; flex-direction: column; height: 100%; }
+
+header { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 2; background: var(--surface);
+  border-bottom: 1px solid var(--line); padding: 12px 16px; display: grid; gap: 10px; }
+.row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
+h1 { font-size: 16px; font-weight: 600; margin: 0; text-wrap: balance; }
+.sub { color: var(--muted); font-size: 12.5px; }
+label.ctl { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--muted); }
+select, input[type="search"] { font: inherit; font-size: 13px; color: var(--fg); background: var(--bg);
+  border: 1px solid var(--line); border-radius: var(--radius); padding: 5px 8px; min-width: 0; }
+input[type="search"] { width: 16rem; max-width: 100%; }
+select:focus-visible, input:focus-visible, button:focus-visible, .item:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.families { display: flex; flex-wrap: wrap; gap: 6px; }
+.fam { font: inherit; font-size: 12px; border: 1px solid var(--line); background: var(--bg); color: var(--fg);
+  border-radius: 999px; padding: 2px 10px; cursor: pointer; font-variant-numeric: tabular-nums; }
+.fam b { font-weight: 500; color: var(--muted); margin-left: 4px; }
+.fam[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+
+main { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(16rem, 22rem) minmax(0, 1fr); }
+.list { overflow-y: auto; border-right: 1px solid var(--line); background: var(--surface); }
+.count { padding: 8px 16px; font-size: 12px; color: var(--muted); border-bottom: 1px solid var(--line); }
+.item { display: grid; gap: 3px; padding: 9px 16px; border-bottom: 1px solid var(--line); cursor: pointer; }
+.item:hover { background: var(--bg); }
+.item[aria-selected="true"] { background: var(--accent-soft); box-shadow: inset 3px 0 0 var(--accent); }
+.item .top { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--muted); }
+.item .id { font-family: var(--font-text); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.item .snip { font-family: var(--font-text); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.item .bm { font-size: 11.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.ratio { font-variant-numeric: tabular-nums; font-size: 11.5px; font-weight: 500; border-radius: 4px; padding: 0 6px;
+  background: var(--bg); color: var(--muted); white-space: nowrap; }
+.ratio.mid { background: var(--mid-soft); color: var(--mid); }
+.ratio.hi { background: var(--hi-soft); color: var(--hi); }
+
+.detail { overflow-y: auto; padding: 16px; display: grid; gap: 14px; align-content: start; min-width: 0; }
+.dhead { display: grid; gap: 6px; }
+.dhead .id { font-family: var(--font-text); font-size: 13px; word-break: break-all; }
+.tabs { display: flex; flex-wrap: wrap; gap: 6px; }
+.tab { font: inherit; font-size: 12px; text-align: left; border: 1px solid var(--line); background: var(--surface); color: var(--fg);
+  border-radius: var(--radius); padding: 4px 8px; cursor: pointer; display: flex; gap: 8px; align-items: center; }
+.tab[aria-selected="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.facts { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.facts b { color: var(--fg); font-weight: 500; }
+.panes { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 14px; align-items: start; }
+.pane { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); min-width: 0; display: grid; }
+.pane h2 { margin: 0; font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted);
+  padding: 8px 12px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; gap: 8px; }
+.pane h2 span { text-transform: none; letter-spacing: 0; font-weight: 400; }
+.text { font-family: var(--font-text); font-size: 12.5px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere;
+  margin: 0; padding: 10px 12px; max-height: 60vh; overflow-y: auto; }
+mark { background: var(--mark); color: var(--mark-fg); border-radius: 2px; padding: 0 1px; }
+.note { font-size: 12px; color: var(--muted); }
+.note.warn { color: var(--mid); margin: 0; }
+.empty { padding: 24px 16px; color: var(--muted); }
+kbd { font-family: var(--font-text); font-size: 11px; border: 1px solid var(--line); border-radius: 3px; padding: 0 4px; background: var(--bg); }
+
+@media (max-width: 760px) {
+  main { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto; overflow-y: auto; }
+  .list { max-height: 38vh; border-right: 0; border-bottom: 1px solid var(--line); }
+  .detail { overflow: visible; }
+  .panes { grid-template-columns: minmax(0, 1fr); }
+}
+</style>
+
+<div class="app">
+  <header>
+    <div class="row">
+      <h1>Decontamination removals</h1>
+      <span class="sub" id="meta"></span>
+    </div>
+    <div class="row">
+      <label class="ctl" for="ds">Dataset <select id="ds"></select></label>
+      <label class="ctl" for="mode">View <select id="mode"></select></label>
+      <label class="ctl" for="q">Search <input id="q" type="search" placeholder="Text in either prompt"></label>
+      <label class="ctl" for="sort">Sort
+        <select id="sort">
+          <option value="sample">Sample order</option>
+          <option value="ratio-desc">Highest match ratio</option>
+          <option value="ratio-asc">Lowest match ratio</option>
+          <option value="longest-desc">Longest matched run</option>
+          <option value="bench-asc">Shortest benchmark prompt</option>
+        </select>
+      </label>
+      <span class="sub">Move with <kbd>j</kbd> <kbd>k</kbd></span>
+    </div>
+    <div class="families" id="families" aria-label="Filter by benchmark"></div>
+  </header>
+  <main>
+    <div class="list" id="list" role="listbox" aria-label="Removed samples"></div>
+    <section class="detail" id="detail"></section>
+  </main>
+</div>
+
+<script id="data" type="application/json">/*__DATA__*/null</script>
+<script>
+const DATA = JSON.parse(document.getElementById("data").textContent);
+const $ = (id) => document.getElementById(id);
+const store = {
+  get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} },
+};
+const state = { ds: 0, mode: "new", family: null, q: "", sort: "sample", sel: 0, tab: 0, view: [] };
+const MODES = DATA.compared ? {
+  new: { label: "Removed by new code", meta: "removed by the new code" },
+  old: { label: "Removed by old code", meta: "removed by the old code" },
+  new_only: { label: "Removed only by new code", meta: "removed by the new code but not by the old code" },
+  old_only: { label: "Removed only by old code", meta: "removed by the old code but not by the new code" },
+} : { new: { label: "Removed", meta: "removed" } };
+const hasFamily = (it, f) => (f === DATA.no_own_match ? !it.own : it.matches.some((m) => m.family === f));
+const cur = () => DATA.datasets[state.ds].views[state.mode];
+const showId = (id) => (id === "" || id == null ? "(empty conversation_id)" : String(id));
+
+function el(tag, attrs = {}, ...kids) {
+  const n = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k === "class") n.className = v; else if (k.startsWith("on")) n.addEventListener(k.slice(2), v); else n.setAttribute(k, v);
+  }
+  for (const c of kids) n.append(c);
+  return n;
+}
+const fmt = (n) => n.toLocaleString("en-US");
+const shortBench = (b) => b.split("__").slice(1).join(" / ");
+function ratioChip(r) {
+  const cls = r >= 0.9 ? "ratio hi" : r >= 0.7 ? "ratio mid" : "ratio";
+  return el("span", { class: cls, title: "Share of the benchmark prompt's tokens matched" }, r.toFixed(2));
+}
+function highlighted(text, spans) {
+  const s = [...spans].sort((a, b) => a[0] - b[0]);
+  const merged = [];
+  for (const [a, b] of s) {
+    if (merged.length && a <= merged[merged.length - 1][1]) merged[merged.length - 1][1] = Math.max(merged[merged.length - 1][1], b);
+    else merged.push([a, b]);
+  }
+  const pre = el("pre", { class: "text" });
+  let pos = 0;
+  for (const [a, b] of merged) {
+    if (a > pos) pre.append(text.slice(pos, a));
+    pre.append(el("mark", {}, text.slice(a, b)));
+    pos = b;
+  }
+  pre.append(text.slice(pos));
+  return pre;
+}
+function primary(item) {
+  if (state.family) { const i = item.matches.findIndex((m) => m.family === state.family); if (i >= 0) return i; }
+  return 0;
+}
+
+function buildView() {
+  const q = state.q.toLowerCase();
+  let v = cur().items.filter((it) =>
+    (!state.family || hasFamily(it, state.family)) &&
+    (!q || it.train.toLowerCase().includes(q) || it.matches.some((m) => m.bench.toLowerCase().includes(q))));
+  const key = {
+    "ratio-desc": (it) => -it.matches[primary(it)].ratio,
+    "ratio-asc": (it) => it.matches[primary(it)].ratio,
+    "longest-desc": (it) => -it.matches[primary(it)].longest,
+    "bench-asc": (it) => it.matches[primary(it)].bench_tokens,
+  }[state.sort];
+  if (key) v = [...v].sort((a, b) => key(a) - key(b));
+  state.view = v;
+}
+
+function renderHeader() {
+  const d = DATA.datasets[state.ds], v = cur();
+  const shown = v.items.length;
+  $("meta").textContent = `${fmt(v.removed)} ${MODES[state.mode].meta} in ${d.name}` +
+    (shown < v.removed ? ` · random sample of ${fmt(shown)} shown` : " · all shown") + ` · tokenizer ${DATA.tokenizer}`;
+  const fams = $("families");
+  fams.replaceChildren(el("span", { class: "sub" }, "Samples by matched benchmark:"));
+  for (const [f, c] of v.families.slice(0, 14)) {
+    fams.append(el("button", {
+      class: "fam", type: "button", "aria-pressed": String(state.family === f),
+      title: f === DATA.no_own_match ? "Show only samples removed without a match of their own" : "Show only samples matched by this benchmark",
+      onclick: () => { state.family = state.family === f ? null : f; state.sel = 0; render(); },
+    }, f.replace("__", " / "), el("b", {}, fmt(c))));
+  }
+}
+
+function renderList() {
+  const list = $("list");
+  list.replaceChildren(el("div", { class: "count" }, `${fmt(state.view.length)} samples`));
+  if (!state.view.length) {
+    list.append(el("div", { class: "empty" }, cur().removed ? "No samples match. Clear the search or the benchmark filter." : "Nothing removed."));
+    return;
+  }
+  state.view.forEach((it, i) => {
+    const m = it.matches[primary(it)];
+    const row = el("div", {
+      class: "item", role: "option", tabindex: "0", "aria-selected": String(i === state.sel),
+      onclick: () => { state.sel = i; state.tab = primary(it); renderList(); renderDetail(); },
+    },
+      el("div", { class: "top" }, el("span", { class: "id" }, showId(it.id)), ratioChip(m.ratio)),
+      el("div", { class: "snip" }, m.bench),
+      el("div", { class: "bm" }, shortBench(m.benchmark) + (it.matches_total > 1 ? ` · +${it.matches_total - 1} more` : "")));
+    list.append(row);
+  });
+  const cur = list.querySelector('[aria-selected="true"]');
+  if (cur) cur.scrollIntoView({ block: "nearest" });
+}
+
+function renderDetail() {
+  const det = $("detail");
+  const it = state.view[state.sel];
+  if (!it) { det.replaceChildren(el("div", { class: "empty" }, "Select a sample on the left.")); return; }
+  const m = it.matches[Math.min(state.tab, it.matches.length - 1)];
+  const tabs = el("div", { class: "tabs", role: "tablist", "aria-label": "Matched benchmarks" });
+  it.matches.forEach((mm, i) => tabs.append(el("button", {
+    class: "tab", type: "button", role: "tab", "aria-selected": String(mm === m),
+    onclick: () => { state.tab = i; renderDetail(); },
+  }, shortBench(mm.benchmark), ratioChip(mm.ratio))));
+  const facts = el("div", { class: "facts" },
+    el("span", {}, "Benchmark ", el("b", {}, m.benchmark), ` #${m.eval_idx}`),
+    el("span", {}, "Match ratio ", el("b", {}, m.ratio.toFixed(3))),
+    el("span", {}, "Longest run ", el("b", {}, `${m.longest} tokens`)),
+    el("span", {}, "Benchmark prompt ", el("b", {}, `${m.bench_tokens} tokens`)));
+  const trainPre = highlighted(it.train, m.train_spans);
+  const trainPane = el("div", { class: "pane" },
+    el("h2", {}, "Training prompt", el("span", {}, `${fmt(it.train_chars)} chars${it.excerpt ? ", excerpt around the matches" : ""}`)),
+    trainPre);
+  const benchPane = el("div", { class: "pane" },
+    el("h2", {}, "Benchmark prompt", el("span", {}, "complete")),
+    highlighted(m.bench, m.bench_spans));
+  const notes = [];
+  if (it.matches_total > it.matches.length)
+    notes.push(`${fmt(it.matches_total - it.matches.length)} more matched benchmarks not included (only the ${it.matches.length} highest match ratios are kept).`);
+  if (!it.own)
+    notes.push(`No match of this sample reaches the threshold of ${DATA.threshold}, so it was not removed for its own content: ` +
+      "the report entries belong to another sample with the same conversation_id.");
+  det.replaceChildren(
+    el("div", { class: "dhead" }, el("div", { class: "id" }, showId(it.id) + (it.split ? `  (${it.split})` : "")), tabs, facts),
+    ...notes.map((t) => el("p", { class: "note warn" }, t)),
+    el("div", { class: "panes" }, trainPane, benchPane),
+    el("p", { class: "note" }, "Highlighted: token runs of 5 or more that match between the two prompts, as counted by the decontamination check."));
+  const first = trainPre.querySelector("mark");
+  if (first) trainPre.scrollTop = Math.max(0, first.offsetTop - trainPre.offsetTop - 60);
+}
+
+function render() { buildView(); renderHeader(); renderList(); const it = state.view[state.sel]; if (it) state.tab = primary(it); renderDetail(); }
+
+const dsSel = $("ds"), modeSel = $("mode");
+DATA.datasets.forEach((d, i) => {
+  const n = (k) => (d.views[k] ? fmt(d.views[k].removed) : "0");
+  const label = DATA.compared ? `${d.name} (new ${n("new")} · old ${n("old")})` : `${d.name} (${n("new")})`;
+  dsSel.append(el("option", { value: String(i) }, label));
+});
+function fillModes() {  // the views of the current dataset; keep the chosen view if it exists there
+  const views = DATA.datasets[state.ds].views;
+  if (!views[state.mode]) state.mode = views[store.get("removals.mode")] ? store.get("removals.mode") : Object.keys(views)[0];
+  modeSel.replaceChildren(...Object.keys(MODES).map((k) => el("option", views[k] ? { value: k } : { value: k, disabled: "" },
+    `${MODES[k].label} (${views[k] ? fmt(views[k].removed) : 0})`)));
+  modeSel.value = state.mode;
+}
+const saved = DATA.datasets.findIndex((d) => d.name === store.get("removals.dataset"));
+if (saved >= 0) state.ds = saved;
+dsSel.value = String(state.ds);
+fillModes();
+dsSel.addEventListener("change", () => { state.ds = +dsSel.value; state.family = null; state.sel = 0; store.set("removals.dataset", DATA.datasets[state.ds].name); fillModes(); render(); });
+modeSel.addEventListener("change", () => { state.mode = modeSel.value; state.family = null; state.sel = 0; store.set("removals.mode", state.mode); render(); });
+$("q").addEventListener("input", (e) => { state.q = e.target.value; state.sel = 0; render(); });
+$("sort").addEventListener("change", (e) => { state.sort = e.target.value; state.sel = 0; render(); });
+document.addEventListener("keydown", (e) => {
+  if (e.target.matches("input, select")) return;
+  if (e.key === "j" || e.key === "ArrowDown") { if (state.sel < state.view.length - 1) { state.sel++; state.tab = primary(state.view[state.sel]); renderList(); renderDetail(); e.preventDefault(); } }
+  if (e.key === "k" || e.key === "ArrowUp") { if (state.sel > 0) { state.sel--; state.tab = primary(state.view[state.sel]); renderList(); renderDetail(); e.preventDefault(); } }
+});
+render();
+</script>
