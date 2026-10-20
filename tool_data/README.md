@@ -1,92 +1,35 @@
 # Tool Data
 
-Scripts and reports for tool-calling data: validating linearised datasets, filtering flagged samples, injecting tool definitions into non-tool-calling samples, and cross-checking results.
+Scripts and reports used to validate and fix the tool-calling data of the Apertus 1.5 text SFT mix,
+on the linearised format (`linearisation-format.md`).
 
-## Scripts
+| Script | Purpose |
+|---|---|
+| `validate-linearised.py` | Check a linearised dataset against the format spec; writes issue counts and flagged IDs per code |
+| `filter-flagged.py` | Remove samples flagged with given codes |
+| `strip-display-answers.py` | Remove undeclared `display_answers` call/output blocks created from `verifiable-responses` |
+| `inject-tool-definitions.py` | Add tool definitions to non-tool samples, so the model learns when not to call a tool |
+| `cross-check-injection.py` | Compare random samples before and after injection |
+| `find-display-answers-datasets.py` | Count `display_answers` calls per source, declared or not |
+| `analyze-undeclared-tool-usage.py` | Statistics on calls to undeclared tools |
+| `analyze-unknown-tool-corrections.py` | What follows a call to an unknown tool: retry, other tool, or answer |
 
-| Script                                 | Purpose                                                                                           |
-|----------------------------------------|---------------------------------------------------------------------------------------------------|
-| `validate-linearised.py`              | Validate linearised datasets against the full Apertus format spec (general structure + tool use). |
-| `filter-flagged.py`                   | Remove samples by validation error codes (uses flagged IDs from `validate-linearised.py`).        |
-| `inject-tool-definitions.py`          | Inject tool definitions into non-tool-calling SFT samples ("tools-aware but not tool-calling").   |
-| `cross-check-injection.py`            | Compare N random samples between original and augmented datasets to verify injection correctness. |
-
-### validate-linearised.py — details
-
-Checks the full linearised format, not only tool-related fields. Validation covers:
-
-- **General structure**: required fields, message roles, role ordering, consecutive roles
-- **System/developer messages**: presence, position, content types, duplicates
-- **User messages**: parts structure, text types
-- **Assistant messages**: block structure, block ordering, response/thoughts content
-- **Tool definitions**: JSON validity, required fields (name, description, parameters), parameter schemas, formatted_tools consistency
-- **Tool calls**: name presence, arguments validity, calls to undeclared tools (`call_unknown_tool`), call/output count mismatches
-- **Tool outputs**: orphaned outputs, missing fields, type checks
-- **Thinking**: has_thinking flag consistency with actual thoughts blocks
-
-Each check has a unique code (e.g. `call_unknown_tool`, `empty_response`, `consecutive_roles`) classified as error `[E]` or warning `[W]`. Outputs:
-
-- `--report-json`: per-code counts and per-sample issue details
-- `--flagged-ids`: `{code: [conversation_id, ...]}` mapping for use with `filter-flagged.py`
-- `--dump-code <code>`: print all samples matching a specific error/warning code
-
-## Reports
-
-| File                        | Contents                                                                              |
-|-----------------------------|---------------------------------------------------------------------------------------|
-| `tool-injection-report.md`  | Documents the injection run: datasets, algorithm, results, and reproduction commands. |
-| `tool-datasets-validation-report.md`   | Validation results for tool-calling datasets (error/warning counts).          |
-| `tool-datasets-validation-report.html` | HTML version of the validation report.                                        |
-| `tool-datasets-filtering-report.md`  | Report on which samples were filtered and why.                                 |
-| `validation-results/`       | Per-dataset validation outputs (flagged IDs, reports).                                |
-
-## Typical Workflow
-
-### 1. Validate a linearised dataset
+Tool datasets (Toucan, EnvScaler, OpenSeeker):
 
 ```bash
-python validate-linearised.py /path/to/linearised-dataset \
-    --report-json validation-report.json \
-    --flagged-ids flagged.json
+python tool_data/validate-linearised.py TOOLS --report-json report.json --flagged-ids flagged.json
+python tool_data/filter-flagged.py TOOLS --flagged-ids flagged.json --remove-codes call_unknown_tool call_arguments_json empty_outputs --output TOOLS_FILTERED
 ```
 
-### 2. Inspect specific errors
+SFT mix:
 
 ```bash
-# Dump all samples with a specific error code
-python validate-linearised.py /path/to/dataset --dump-code call_unknown_tool
+python tool_data/validate-linearised.py MIX --report-json report.json --flagged-ids flagged.json
+python tool_data/strip-display-answers.py MIX --flagged-ids flagged.json --output FIXED
+python tool_data/inject-tool-definitions.py FIXED --tool-sources TOOLS_FILTERED ... --seed 42 --dry-run --dry-run-output indices.json
+python tool_data/inject-tool-definitions.py FIXED --tool-sources TOOLS_FILTERED ... --seed 42 --output INJECTED
+python tool_data/cross-check-injection.py indices.json --original FIXED --augmented INJECTED --output check.json
 ```
 
-### 3. Filter out problematic samples
-
-```bash
-python filter-flagged.py /path/to/dataset \
-    --flagged-ids flagged.json \
-    --remove-codes call_unknown_tool empty_response \
-    --output /path/to/filtered-dataset
-```
-
-### 4. Inject tool definitions into non-tool-calling samples
-
-```bash
-# Full run
-python inject-tool-definitions.py /path/to/sft-mix \
-    --tool-sources /path/to/Toucan /path/to/EnvScaler /path/to/OpenSeeker \
-    --output /path/to/output \
-    --seed 42 --save-indices
-
-# Dry run (preview only, no dataset written)
-python inject-tool-definitions.py /path/to/sft-mix \
-    --tool-sources /path/to/Toucan /path/to/EnvScaler /path/to/OpenSeeker \
-    --seed 42 --dry-run --dry-run-output dry_run.json
-```
-
-### 5. Cross-check injection results
-
-```bash
-python cross-check-injection.py dry_run.json \
-    --original /path/to/original \
-    --augmented /path/to/augmented \
-    --num-samples 5 \
-    --output comparison.json
-```
+Results and exact commands of the Apertus 1.5 run: `tool-datasets-validation-report.md`,
+`tool-datasets-filtering-report.md` and `tool-injection-report.md`.

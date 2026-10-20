@@ -6,12 +6,8 @@ samples from both the original and augmented datasets, prints a side-by-side
 comparison, and saves the full comparison to a JSON file.
 
 Usage:
-    python cross-check-injection.py injection_dry_run.json \
-        --original /path/to/original \
-        --augmented /path/to/augmented \
-        --num-samples 5 \
-        --output comparison.json \
-        --seed 123
+    python tool_data/cross-check-injection.py indices.json --original /path/to/original \
+        --augmented /path/to/augmented --num-samples 5 --output comparison.json
 """
 
 import argparse
@@ -60,7 +56,6 @@ def compare_sample(idx, orig_sample, aug_sample):
 
     aug_has_tool_calls = has_tool_calls(aug_sample["messages"])
 
-    # Parse injected tools
     injected_tools = []
     if not aug_tools_empty:
         try:
@@ -70,7 +65,6 @@ def compare_sample(idx, orig_sample, aug_sample):
 
     tool_names = [t.get("name", "?") for t in injected_tools]
 
-    # First user message snippet
     first_user = next((m for m in orig_sample["messages"] if m["role"] == "user"), None)
     user_snippet = ""
     if first_user:
@@ -78,7 +72,6 @@ def compare_sample(idx, orig_sample, aug_sample):
         if parts:
             user_snippet = parts[0].get("text", "")[:200]
 
-    # Print
     print(f"\n{'='*70}")
     print(f"Sample index: {idx}")
     print(f"{'='*70}")
@@ -100,7 +93,6 @@ def compare_sample(idx, orig_sample, aug_sample):
     if user_snippet:
         print(f"  User message snippet:     {user_snippet[:120]}...")
 
-    # Build comparison record
     return {
         "index": idx,
         "original_tools_empty": orig_tools_empty,
@@ -157,7 +149,6 @@ def main():
     )
     args = parser.parse_args()
 
-    # Load indices
     with open(args.indices_json) as f:
         indices_data = json.load(f)
     augmented_indices = indices_data["augmented_indices"]
@@ -170,13 +161,11 @@ def main():
 
     print(f"Selected {n} augmented indices: {selected}")
 
-    # Load datasets
     print(f"\nLoading original dataset: {args.original}")
     orig_ds = load_dataset_train(args.original)
     print(f"Loading augmented dataset: {args.augmented}")
     aug_ds = load_dataset_train(args.augmented)
 
-    # Compare
     comparisons = []
     all_ok = True
     for idx in selected:
@@ -198,14 +187,12 @@ def main():
             print(f"  [WARN] Assistant has tool calls at index {idx}")
             all_ok = False
 
-    # Summary
     print(f"\n{'='*70}")
     if all_ok:
         print(f"All {n} samples passed cross-check.")
     else:
         print(f"Some samples had warnings or failures — see above.")
 
-    # Save
     output = {
         "indices_json": args.indices_json,
         "original_path": args.original,

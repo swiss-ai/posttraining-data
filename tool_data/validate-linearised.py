@@ -7,13 +7,13 @@ manual inspection. Supports exporting flagged sample IDs grouped by error
 code for downstream processing.
 
 Usage:
-    python 07-dataset-aggregation/validate-linearised.py data/07-linearised/MyDataset
-    python 07-dataset-aggregation/validate-linearised.py data/07-linearised/MyDataset --verbose
-    python 07-dataset-aggregation/validate-linearised.py data/07-linearised/MyDataset --sample 5
-    python 07-dataset-aggregation/validate-linearised.py data/07-linearised/MyDataset --dump-idx 0
-    python 07-dataset-aggregation/validate-linearised.py data/07-linearised/MyDataset --dump-code consecutive_roles --limit 5
-    python 07-dataset-aggregation/validate-linearised.py data/07-linearised/MyDataset --report-json report.json
-    python 07-dataset-aggregation/validate-linearised.py data/07-linearised/MyDataset --flagged-ids flagged.json
+    python tool_data/validate-linearised.py data/07-linearised/MyDataset
+    python tool_data/validate-linearised.py data/07-linearised/MyDataset --verbose
+    python tool_data/validate-linearised.py data/07-linearised/MyDataset --sample 5
+    python tool_data/validate-linearised.py data/07-linearised/MyDataset --dump-idx 0
+    python tool_data/validate-linearised.py data/07-linearised/MyDataset --dump-code consecutive_roles --limit 5
+    python tool_data/validate-linearised.py data/07-linearised/MyDataset --report-json report.json
+    python tool_data/validate-linearised.py data/07-linearised/MyDataset --flagged-ids flagged.json
 
 Checks performed (error = structural violation, warning = suspicious but valid):
 
@@ -117,17 +117,9 @@ from typing import Dict, List, Any, Optional, Tuple, Set
 from datasets import load_from_disk, DatasetDict
 
 
-# ---------------------------------------------------------------------------
-# Constants
-# ---------------------------------------------------------------------------
-
 VALID_ROLES = {"system", "developer", "user", "assistant", "tool"}
 VALID_BLOCK_TYPES = {"thoughts", "tool_calls", "tool_outputs", "response"}
 
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
 
 def truncate(text: str, max_len: int) -> str:
     """Truncate text with ellipsis if longer than max_len."""
@@ -135,10 +127,6 @@ def truncate(text: str, max_len: int) -> str:
         return text[:max_len] + "..."
     return text
 
-
-# ---------------------------------------------------------------------------
-# Issue dataclass
-# ---------------------------------------------------------------------------
 
 class Issue:
     """Single validation issue."""
@@ -154,10 +142,6 @@ class Issue:
         return f"{self.level.upper()}: {prefix}{self.code}: {self.msg}"
 
 
-# ---------------------------------------------------------------------------
-# Per-sample validation
-# ---------------------------------------------------------------------------
-
 def validate_sample(sample: Dict[str, Any]) -> List[Issue]:
     """Validate a single linearised sample. Returns a list of issues."""
     issues: List[Issue] = []
@@ -168,7 +152,6 @@ def validate_sample(sample: Dict[str, Any]) -> List[Issue]:
     def warn(code, msg, loc=""):
         issues.append(Issue("warning", code, msg, loc))
 
-    # -- 1. top-level fields -----------------------------------------------
     for field in ("conversation_id", "dataset_source", "messages"):
         if field not in sample:
             err("missing_field", f"Missing required top-level field '{field}'")
@@ -181,7 +164,6 @@ def validate_sample(sample: Dict[str, Any]) -> List[Issue]:
         err("empty_messages", "messages must be a non-empty list")
         return issues
 
-    # -- 2. per-message validation -----------------------------------------
     developer_content = None
     developer_count = 0
     system_count = 0
@@ -203,7 +185,6 @@ def validate_sample(sample: Dict[str, Any]) -> List[Issue]:
             err("missing_content", "Message has no content", loc)
             continue
 
-        # -- system --------------------------------------------------------
         if role == "system":
             system_count += 1
             if system_count > 1:
@@ -217,7 +198,6 @@ def validate_sample(sample: Dict[str, Any]) -> List[Issue]:
             elif not isinstance(content["text"], str):
                 err("system_text_type", f"system.text should be str, got {type(content['text']).__name__}", loc)
 
-        # -- developer -----------------------------------------------------
         elif role == "developer":
             developer_count += 1
             if developer_count > 1:
@@ -229,13 +209,10 @@ def validate_sample(sample: Dict[str, Any]) -> List[Issue]:
             for f in ("tools", "has_thinking", "formatted_tools"):
                 if f not in content:
                     err("developer_missing", f"developer content missing '{f}'", loc)
-            # has_thinking type
             if "has_thinking" in content and not isinstance(content["has_thinking"], bool):
                 err("has_thinking_type", f"has_thinking should be bool, got {type(content['has_thinking']).__name__}", loc)
-            # tools parsing and per-tool validation
             _validate_developer_tools(content, loc, declared_tool_names, issues)
 
-        # -- user ----------------------------------------------------------
         elif role == "user":
             if not isinstance(content, dict):
                 if not isinstance(content, str):
@@ -260,7 +237,6 @@ def validate_sample(sample: Dict[str, Any]) -> List[Issue]:
                     elif not isinstance(part["text"], str):
                         err("user_part_text_type", f"User part text should be str, got {type(part['text']).__name__}", ploc)
 
-        # -- assistant -----------------------------------------------------
         elif role == "assistant":
             if not isinstance(content, dict):
                 if isinstance(content, str):
@@ -290,11 +266,9 @@ def validate_sample(sample: Dict[str, Any]) -> List[Issue]:
                         if any(isinstance(c, dict) and c.get("name") for c in calls):
                             has_tool_use_in_data = True
 
-        # -- tool ----------------------------------------------------------
         elif role == "tool":
             warn("standalone_tool", "Standalone tool message (linearised format embeds outputs in blocks)", loc)
 
-    # -- 3. cross-message consistency --------------------------------------
 
     if developer_content is None:
         warn("no_developer", "No developer message found (linearised format always includes one)")
@@ -334,15 +308,12 @@ def _validate_developer_tools(
     tools_str = content.get("tools", "")
     formatted_tools = content.get("formatted_tools", "")
 
-    # formatted_tools type check
     if "formatted_tools" in content and not isinstance(formatted_tools, str):
         err("formatted_tools_type", f"formatted_tools should be str, got {type(formatted_tools).__name__}")
 
-    # No tools declared — nothing more to check
     if not tools_str:
         return
 
-    # Parse tools JSON
     try:
         parsed_tools = json.loads(tools_str)
     except (json.JSONDecodeError, TypeError) as e:
@@ -353,19 +324,16 @@ def _validate_developer_tools(
         err("tools_not_list", "developer.tools should parse to a list")
         return
 
-    # Per-tool validation
     for ti, tool in enumerate(parsed_tools):
         tloc = f"{loc}.tools[{ti}]"
         if not isinstance(tool, dict):
             err("tool_not_dict", "Each tool should be a dict", tloc)
             continue
 
-        # Required fields
         for tf in ("name", "description", "parameters"):
             if tf not in tool:
                 err("tool_missing_field", f"Tool missing '{tf}'", tloc)
 
-        # name
         name = tool.get("name")
         if "name" in tool:
             if not name or not isinstance(name, str):
@@ -373,7 +341,6 @@ def _validate_developer_tools(
             else:
                 declared_tool_names.add(name)
 
-        # description
         if "description" in tool:
             desc = tool["description"]
             if not isinstance(desc, str):
@@ -381,7 +348,6 @@ def _validate_developer_tools(
             elif not desc.strip():
                 warn("tool_empty_description", "Tool description is empty", tloc)
 
-        # parameters (should be a dict with JSON Schema structure in linearised format)
         if "parameters" in tool:
             params = tool["parameters"]
             if not isinstance(params, dict):
@@ -390,7 +356,6 @@ def _validate_developer_tools(
             elif "type" not in params:
                 warn("tool_params_no_type", "Tool parameters dict missing 'type' field", tloc)
 
-    # formatted_tools — must be non-empty when tools exist, and should mention tool names
     if isinstance(formatted_tools, str):
         if not formatted_tools.strip():
             err("formatted_tools_empty", "Tools declared but formatted_tools is empty")
@@ -420,7 +385,7 @@ def validate_assistant_blocks(
 
     saw_response = False
     expects_output = False
-    last_calls_count = 0  # number of calls in last tool_calls block (for count matching)
+    last_calls_count = 0
 
     for bi, block in enumerate(blocks):
         bloc = f"{base_loc}.blocks[{bi}]"
@@ -434,7 +399,6 @@ def validate_assistant_blocks(
             err("invalid_block_type", f"Invalid block type '{btype}'", bloc)
             continue
 
-        # -- thoughts ------------------------------------------------------
         if btype == "thoughts":
             if expects_output:
                 err("thoughts_after_calls",
@@ -446,7 +410,6 @@ def validate_assistant_blocks(
             if not text or (isinstance(text, str) and not text.strip()):
                 warn("empty_thoughts", "thoughts block has empty text", bloc)
 
-        # -- tool_calls ----------------------------------------------------
         elif btype == "tool_calls":
             if expects_output:
                 err("consecutive_calls",
@@ -487,7 +450,7 @@ def validate_assistant_blocks(
                                  f"Call to '{cname}' not found in declared tools", cloc)
 
                     if "arguments" not in call:
-                        if cname:  # skip check for placeholder
+                        if cname:
                             err("call_no_arguments", "Call missing 'arguments'", cloc)
                     elif not isinstance(call["arguments"], str):
                         err("call_arguments_type",
@@ -499,7 +462,6 @@ def validate_assistant_blocks(
                             warn("call_arguments_json",
                                  f"Call arguments not valid JSON: {truncate(call['arguments'], 60)}", cloc)
 
-        # -- tool_outputs --------------------------------------------------
         elif btype == "tool_outputs":
             if not expects_output:
                 err("orphan_outputs", "tool_outputs block without preceding tool_calls", bloc)
@@ -515,7 +477,6 @@ def validate_assistant_blocks(
                     warn("empty_outputs",
                          "tool_outputs block has no actual outputs (placeholder)", bloc)
                 else:
-                    # Count match with preceding tool_calls
                     if last_calls_count and len(real_outputs) != last_calls_count:
                         warn("calls_outputs_count",
                              f"tool_calls had {last_calls_count} calls but tool_outputs has "
@@ -531,13 +492,11 @@ def validate_assistant_blocks(
                     elif not isinstance(out["output"], str):
                         err("output_type",
                             f"Output should be str, got {type(out['output']).__name__}", oloc)
-                    # Validate name field type when present
                     if "name" in out and not isinstance(out["name"], str):
                         err("output_name_type",
                             f"Output name should be str, got {type(out['name']).__name__}", oloc)
             last_calls_count = 0
 
-        # -- response ------------------------------------------------------
         elif btype == "response":
             if expects_output:
                 err("response_after_calls",
@@ -570,17 +529,12 @@ def validate_role_sequence(roles: List[str], issues: List[Issue]):
             issues.append(Issue("warning", "developer_late",
                                 f"developer message at index {dev_idx}, expected 0 or 1"))
 
-    # Consecutive same-role check (excluding system/developer)
     conv_roles = [r for r in roles if r not in ("system", "developer")]
     for i in range(1, len(conv_roles)):
         if conv_roles[i] == conv_roles[i - 1] and conv_roles[i] in ("user", "assistant"):
             issues.append(Issue("warning", "consecutive_roles",
                                 f"Consecutive {conv_roles[i]} messages in conversation"))
 
-
-# ---------------------------------------------------------------------------
-# Batch validation
-# ---------------------------------------------------------------------------
 
 def validate_dataset(
     dataset, max_samples: Optional[int] = None, verbose: bool = False
@@ -599,7 +553,6 @@ def validate_dataset(
     samples_with_errors = 0
     samples_with_warnings = 0
     sample_issues: List[Tuple[int, str, List[Issue]]] = []
-    # Always collected: code -> [(idx, conversation_id)]
     flagged_by_code: Dict[str, List[Tuple[int, str]]] = defaultdict(list)
 
     for idx in range(total):
@@ -638,10 +591,6 @@ def validate_dataset(
         "flagged_by_code": dict(flagged_by_code),
     }
 
-
-# ---------------------------------------------------------------------------
-# Sample dumper
-# ---------------------------------------------------------------------------
 
 def dump_sample(sample: Dict[str, Any]):
     """Pretty-print a single linearised sample for manual inspection."""
@@ -726,10 +675,6 @@ def dump_sample(sample: Dict[str, Any]):
         print()
 
 
-# ---------------------------------------------------------------------------
-# Main
-# ---------------------------------------------------------------------------
-
 def main():
     parser = argparse.ArgumentParser(
         description="Validate a linearised dataset against the Apertus format spec",
@@ -774,7 +719,6 @@ def main():
     if not isinstance(dataset, DatasetDict):
         dataset = DatasetDict({"train": dataset})
 
-    # -- dump-idx mode -----------------------------------------------------
     if args.dump_idx is not None:
         split = args.split or list(dataset.keys())[0]
         if split not in dataset:
@@ -800,7 +744,6 @@ def main():
             print("  No issues found.")
         sys.exit(0)
 
-    # -- batch validation --------------------------------------------------
     splits_to_check = [args.split] if args.split else list(dataset.keys())
     all_clean = True
     all_results: Dict[str, Dict[str, Any]] = {}
@@ -840,7 +783,6 @@ def main():
 
         print(f"{'='*60}")
 
-    # -- dump-code mode (runs after validation) ----------------------------
     if args.dump_code:
         code = args.dump_code
         for split_name, result in all_results.items():
@@ -864,7 +806,6 @@ def main():
                         print(f"    {iss}")
                 print()
 
-    # -- export: report-json -----------------------------------------------
     if args.report_json:
         report = {}
         for split_name, result in all_results.items():
@@ -884,7 +825,6 @@ def main():
         except OSError as e:
             print(f"Error: could not write report to {report_path}: {e}", file=sys.stderr)
 
-    # -- export: flagged-ids -----------------------------------------------
     if args.flagged_ids:
         flagged_export: Dict[str, Dict[str, List[str]]] = {}
         for split_name, result in all_results.items():

@@ -1,39 +1,15 @@
 #!/usr/bin/env python3
 """
-Inject tool definitions into non-tool-calling SFT samples.
+Inject tool definitions into non-tool-calling SFT samples ("tools-aware but not
+tool-calling"), so the model learns when not to call a tool.
 
-Creates "tools-aware but not tool-calling" training samples by taking tool
-definitions (tools + formatted_tools) from tool-calling source datasets and
-injecting them into the developer message of target samples that have no tools
-and no actual tool usage in their assistant messages.
+Tool sets (tools + formatted_tools) are drawn without replacement from the
+developer messages of the --tool-sources datasets and injected into randomly
+chosen target samples that declare no tools and contain no tool blocks. All
+other fields stay unchanged; the output is reloaded and checked against the input.
 
-This teaches the model when NOT to call tools.
-
-Algorithm:
-  1. Extract tool definitions from source datasets (e.g. Toucan, EnvScaler,
-     OpenSeeker) -- collects (tools, formatted_tools) pairs from developer
-     messages into a pool.
-  2. Sample num_samples tool sets from the pool without replacement.
-  3. Find eligible targets in the main SFT mix -- samples where the developer
-     message has empty tools AND assistant messages contain no tool blocks
-     (excludes display_answers / verifiable-responses samples).
-  4. Randomly select num_samples eligible indices, pair each with a sampled
-     tool set.
-  5. Augment via dataset.map(): for selected samples, inject tools and
-     formatted_tools into the developer message, preserving has_thinking and
-     all other messages untouched.
-  6. Save the full dataset (augmented + unchanged) as an HF DatasetDict with
-     updated dataset_metadata.json. Optionally (--save-indices) persist
-     augmented indices, eligible candidates, and index-to-injection-order
-     mapping to injection_indices.json in the output directory.
-  7. Validate by reloading from disk and verifying: total count unchanged,
-     augmented samples have correct tool definitions, non-augmented samples
-     are identical to input.
-
-Use --dry-run to execute only the preparation steps (extract tool sets,
-sample, find eligible candidates, select indices) and export the indices
-JSON without augmenting or saving any dataset. Useful for inspecting
-which samples would be changed before committing to a full run.
+--dry-run only selects the indices and writes them to --dry-run-output;
+--save-indices writes injection_indices.json next to the output dataset.
 """
 
 import argparse
@@ -164,8 +140,6 @@ def validate_output(
     )
     print(f"  [OK] Total sample count preserved: {len(output_ds)}")
 
-    # Serialise expected values for augmented samples into a lookup keyed by index.
-    # Each entry: (expected_tools, expected_formatted_tools)
     expected_lookup = {
         idx: (ts["tools"], ts["formatted_tools"])
         for idx, ts in index_to_toolset.items()
@@ -198,7 +172,6 @@ def validate_output(
         desc="Validating output samples",
     )
 
-    # Also check has_thinking and unchanged samples against input
     def validate_against_input(sample, idx):
         in_msgs = sample["messages"]
         in_dev = next(m for m in in_msgs if m["role"] == "developer")
@@ -219,19 +192,16 @@ def validate_output(
         desc="Reading input for comparison",
     )
 
-    # Collect statistics and errors
     errors = []
     original_with_tools = sum(in_tagged["_in_has_tools"])
     output_with_tools = sum(out_tagged["_has_tools"])
     augmented_verified = sum(out_tagged["_is_augmented"])
     unchanged_verified = len(output_ds) - augmented_verified
 
-    # Collect map-phase errors
     for err in out_tagged["_error"]:
         if err:
             errors.append(err)
 
-    # Cross-check has_thinking and unchanged developer fields.
     # Read columns once as lists to avoid per-sample random access.
     out_messages_col = output_ds["messages"]
     in_has_thinking = in_tagged["_in_has_thinking"]
@@ -245,7 +215,6 @@ def validate_output(
         if out_dev["content"]["has_thinking"] != in_has_thinking[idx]:
             errors.append(f"idx {idx}: has_thinking changed")
 
-    # Spot-check a sample of non-augmented indices for unchanged fields
     non_augmented_count = len(output_ds) - len(augmented_indices)
     check_limit = 0
     if non_augmented_count > 0:
@@ -386,7 +355,6 @@ def main() -> None:
         parser.error("--dry-run-output requires --dry-run")
     rng = random.Random(args.seed)
 
-    # Step 1: Load source tool sets
     print("=" * 60)
     print("Step 1: Loading tool sets from source datasets")
     print("=" * 60)
@@ -398,7 +366,6 @@ def main() -> None:
     pool_size = len(all_tool_sets)
     print(f"\nTotal tool set pool: {pool_size}")
 
-    # Step 2: Determine num_samples and sample tool sets
     num_samples = args.num_samples if args.num_samples is not None else pool_size
     print(f"Requested augmentation count: {num_samples}")
 
@@ -414,7 +381,6 @@ def main() -> None:
     sampled_tool_sets = rng.sample(all_tool_sets, num_samples)
     print(f"Sampled {len(sampled_tool_sets)} tool sets without replacement")
 
-    # Step 3: Load target dataset
     print("\n" + "=" * 60)
     print("Step 3: Loading target dataset")
     print("=" * 60)
@@ -426,7 +392,6 @@ def main() -> None:
         dataset = target_ds
     print(f"Target dataset size: {len(dataset)}")
 
-    # Step 4: Find eligible candidate samples
     print("\n" + "=" * 60)
     print("Step 4: Finding eligible samples")
     print("=" * 60)
@@ -439,7 +404,6 @@ def main() -> None:
             f"({len(eligible_indices)}). Not enough samples to augment."
         )
 
-    # Step 5: Select target indices
     print("\n" + "=" * 60)
     print("Step 5: Selecting target indices")
     print("=" * 60)
@@ -447,10 +411,8 @@ def main() -> None:
     selected_indices = set(selected_indices_list)
     print(f"Selected {len(selected_indices)} indices for augmentation")
 
-    # Build lookup: index -> tool set (use list to preserve deterministic pairing)
     index_to_toolset = dict(zip(selected_indices_list, sampled_tool_sets))
 
-    # Dry run: export indices and exit without augmenting
     if args.dry_run:
         dry_run_path = Path(args.dry_run_output or "injection_dry_run.json")
         indices_data = build_indices_data(
@@ -479,7 +441,6 @@ def main() -> None:
         print(f"\nNo dataset was modified or saved.")
         return
 
-    # Step 6: Apply augmentation via map
     print("\n" + "=" * 60)
     print("Step 6: Applying augmentation")
     print("=" * 60)
@@ -512,14 +473,12 @@ def main() -> None:
 
     print(f"Augmentation complete: {len(augmented_dataset)} samples")
 
-    # Step 7: Save
     print("\n" + "=" * 60)
     print("Step 7: Saving augmented dataset")
     print("=" * 60)
     output_path = Path(args.output)
     output_ds = DatasetDict({"train": augmented_dataset})
 
-    # Load existing metadata from input
     original_metadata = load_existing_metadata(Path(args.input_path))
 
     processing_entry = {
@@ -551,7 +510,6 @@ def main() -> None:
     print(f"Dataset saved to: {output_path}")
     print(f"Metadata updated with processing log entry")
 
-    # Save indices if requested
     if args.save_indices:
         indices_path = output_path / "injection_indices.json"
         indices_data = build_indices_data(
@@ -567,7 +525,7 @@ def main() -> None:
             json.dump(indices_data, f, indent=2)
         print(f"Indices saved to: {indices_path}")
 
-    # Step 8: Validation (round-trip: reload from disk to verify serialisation)
+    # Reload from disk to verify serialisation.
     print("\n" + "=" * 60)
     print("Step 8: Validation")
     print("=" * 60)
@@ -584,7 +542,6 @@ def main() -> None:
         index_to_toolset=index_to_toolset,
     )
 
-    # Final summary
     print(f"\n  Eligible candidates:            {len(eligible_indices)}")
     print(f"  Tool set pool size:             {pool_size}")
     print(f"  Tool sources:                   {len(args.tool_sources)}")

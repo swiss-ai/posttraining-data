@@ -6,19 +6,8 @@ Reads a flagged-IDs JSON (produced by validate-linearised.py --flagged-ids) and 
 all samples whose conversation_id matches any of the specified codes.
 
 Usage:
-    python 07-dataset-aggregation/filter-flagged.py \
-        /capstor/.../Toucan-1.5M \
-        --flagged-ids 07-dataset-aggregation/toucan_flagged.json \
-        --remove-codes calls_after_response call_unknown_tool \
-        --output /capstor/.../Toucan-1.5M-filtered
-
-    # Dry run (print what would be removed without writing)
-    python 07-dataset-aggregation/filter-flagged.py \
-        /capstor/.../Toucan-1.5M \
-        --flagged-ids 07-dataset-aggregation/toucan_flagged.json \
-        --remove-codes calls_after_response call_unknown_tool \
-        --output /capstor/.../Toucan-1.5M-filtered \
-        --dry-run
+    python tool_data/filter-flagged.py /path/to/linearised-dataset --flagged-ids flagged.json \
+        --remove-codes call_unknown_tool call_arguments_json --output /path/to/output [--dry-run]
 """
 
 import json
@@ -97,18 +86,15 @@ def main():
         print(f"Error: flagged-ids path does not exist: {flagged_path}")
         sys.exit(1)
 
-    # Load flagged IDs
     per_split_ids, per_code_counts, available_codes = load_remove_ids(
         flagged_path, args.remove_codes, args.split
     )
 
-    # Warn about codes not found in the JSON
     missing_codes = set(args.remove_codes) - available_codes
     if missing_codes:
         print(f"Warning: codes not found in flagged JSON: {', '.join(sorted(missing_codes))}")
         print(f"  Available codes: {', '.join(sorted(available_codes))}")
 
-    # Load dataset
     print(f"Loading dataset from: {input_path}")
     dataset = load_from_disk(str(input_path))
     if not isinstance(dataset, DatasetDict):
@@ -116,7 +102,6 @@ def main():
 
     splits_to_process = [args.split] if args.split else list(dataset.keys())
 
-    # Filter each split
     filtered_dict = {}
     for split_name in splits_to_process:
         if split_name not in dataset:
@@ -133,12 +118,10 @@ def main():
             filtered_dict[split_name] = ds
             continue
 
-        # Build keep indices in a single pass
         conversation_ids = ds["conversation_id"]
         keep_indices = [i for i, cid in enumerate(conversation_ids) if cid not in remove_set]
         removed = total - len(keep_indices)
 
-        # Per-code breakdown
         code_counts = per_code_counts.get(split_name, Counter())
         code_summary = ", ".join(
             f"{code}={count}" for code, count in code_counts.most_common()
@@ -154,7 +137,6 @@ def main():
         else:
             filtered_dict[split_name] = ds
 
-    # Include unprocessed splits (when --split targets a specific one)
     if args.split:
         for split_name in dataset:
             if split_name not in filtered_dict:
@@ -164,12 +146,10 @@ def main():
         print("\n[DRY RUN] No output written.")
         return
 
-    # Save
     result = DatasetDict(filtered_dict)
     print(f"\nSaving filtered dataset to: {output_path}")
     result.save_to_disk(str(output_path))
 
-    # Summary
     print("\nDone.")
     for split_name in splits_to_process:
         if split_name in dataset and split_name in result:
