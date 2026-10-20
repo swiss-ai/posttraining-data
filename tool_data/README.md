@@ -31,5 +31,4 @@ python tool_data/inject-tool-definitions.py FIXED --tool-sources TOOLS_FILTERED 
 python tool_data/cross-check-injection.py indices.json --original FIXED --augmented INJECTED --output check.json
 ```
 
-Results and exact commands of the Apertus 1.5 run: `tool-datasets-validation-report.md`,
-`tool-datasets-filtering-report.md` and `tool-injection-report.md`.
+Results of the Apertus 1.5 run: https://github.com/swiss-ai/apertus-program/issues/415
