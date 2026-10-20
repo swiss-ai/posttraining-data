@@ -194,7 +194,7 @@ ship with the repository; each docstring states what a row becomes:
   terminal SFT mixes of swiss-ai/apertus-tool-use, keeping `teacher`, `subset`, `task`,
   `language` and `license` as columns;
   `--input FILE...` takes the mix files (JSON Lines), and `--max-tokens N --tokenizer DIR`
-  skips samples longer than N tokens. Check and tokenize with `--loss-weights`.
+  skips samples longer than N tokens.
 
 `--help` lists the options every mapper shares (`--num-proc`, `--limit`, `--check`,
 `--strict`, `--loss-weights`, `--thinking-convention`), described in

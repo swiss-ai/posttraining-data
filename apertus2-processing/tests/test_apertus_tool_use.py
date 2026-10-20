@@ -68,15 +68,19 @@ def weights(conversation):
     return [item.loss_weight for item in conversation.items]
 
 
+def written(mapper, row):
+    """The sample as the driver writes it, with the default thinking convention."""
+    return mapping.apply_convention(mapper.to_native(row))
+
+
 def read_rows(tmp_path, *records):
     mapper = load_mapper("apertus_tool_use")
     return mapper, mapper.read([write(tmp_path / "mix.jsonl", *records)])
 
 
-def test_a_conversation_with_one_user_message_keeps_its_thinks_and_tools(tmp_path):
+def test_a_conversation_keeps_its_thinks_and_tools(tmp_path):
     mapper, rows = read_rows(tmp_path, TOOL_USE)
-    assert [row["turn"] for row in rows] == [0]
-    native = mapper.to_native(rows[0])
+    native = written(mapper, rows[0])
     assert types(native) == ["user", "think", "call", "wait", "result", "think", "reply", "wait"]
     assert native.items[2].payload == '{"q":"Zürich"}'  # compact JSON, as the profile writes it
     assert native.system.behavior == "Be brief." and native.system.thinking == "medium"
@@ -84,25 +88,24 @@ def test_a_conversation_with_one_user_message_keeps_its_thinks_and_tools(tmp_pat
     assert set(weights(native)) == {None} and clean_with_weights(native)
 
 
-def test_each_user_message_gives_a_sample_without_earlier_thinks(tmp_path):
+def test_a_multi_turn_conversation_is_one_sample_with_the_thinks_of_every_turn(tmp_path):
     mapper, rows = read_rows(tmp_path, TERMINAL)
-    assert [row["turn"] for row in rows] == [0, 1]
-    first, second = map(mapper.to_native, rows)
-    assert types(first) == ["user", "think", "reply", "wait"]
-    # The earlier turn has no think and no loss; the think-first convention fills the trained one.
-    assert types(second) == ["user", "reply", "wait", "user", "think", "reply", "wait"]
-    assert weights(second) == [None, 0, 0, None, None, None, None]
-    assert second.items[1].payload == '{"commands": []}' and second.items[4].payload == ""
-    assert clean_with_weights(first) and clean_with_weights(second)
-
-
-def test_a_conversation_without_reasoning_is_one_sample_with_low_effort(tmp_path):
-    mapper, rows = read_rows(tmp_path, NO_REASONING)
     assert len(rows) == 1
-    native = mapper.to_native(rows[0])
-    assert native.system.thinking == "low"
-    assert types(native) == ["user", "reply", "wait", "user", "reply", "wait"]
+    native = written(mapper, rows[0])
+    assert types(native) == ["user", "think", "reply", "wait", "user", "think", "reply", "wait"]
+    # The source think of the first turn stays; the second turn has none, so it gets an empty one.
+    assert native.items[1].payload == "Look first." and native.items[5].payload == ""
+    assert native.items[2].payload == '{"commands": []}'
     assert set(weights(native)) == {None} and clean_with_weights(native)
+
+
+def test_a_conversation_without_reasoning_gets_medium_and_empty_thinks(tmp_path):
+    mapper, rows = read_rows(tmp_path, NO_REASONING)
+    native = written(mapper, rows[0])
+    assert native.system.thinking == "medium"
+    assert types(native) == ["user", "think", "reply", "wait", "user", "think", "reply", "wait"]
+    assert native.items[1].payload == native.items[5].payload == ""
+    assert clean_with_weights(native)
 
 
 @pytest.mark.parametrize("content", ["", " \n"])
@@ -127,29 +130,22 @@ def test_mapper_end_to_end_keeps_the_columns_of_the_source(tmp_path):
         write(tmp_path / "b.jsonl", NO_REASONING),
     ]
     native, summary = mapping.map_dataset(
-        mapper.read(paths),
-        mapper.to_native,
-        keep_columns=mapper.KEEP_COLUMNS,
-        convention="source",
-        check=True,
-        loss_weights=True,
+        mapper.read(paths), mapper.to_native, keep_columns=mapper.KEEP_COLUMNS, check=True
     )
     assert native.column_names == [*mapper.KEEP_COLUMNS, "conversation_json"]
-    assert native["id"] == [TOOL_USE["id"], TERMINAL["id"], TERMINAL["id"], NO_REASONING["id"]]
-    assert native["turn"] == [0, 0, 1, 0]
-    assert native["teacher"] == ["GPT-OSS-120B", "Kimi-K3", "Kimi-K3", None]
-    assert native["task"] == [None, "t1", "t1", None]
-    assert native["license"] == ["MIT"] * 4
-    assert summary["written"] == 4 and summary["check"]["issues"] == []
-    assert Conversation.from_json(native["conversation_json"][2]).items[1].loss_weight == 0
+    assert native["id"] == [TOOL_USE["id"], TERMINAL["id"], NO_REASONING["id"]]
+    assert native["teacher"] == ["GPT-OSS-120B", "Kimi-K3", None]
+    assert native["task"] == [None, "t1", None]
+    assert native["license"] == ["MIT"] * 3
+    assert summary["written"] == 3 and summary["check"]["issues"] == []
+    assert types(Conversation.from_json(native["conversation_json"][2]))[1] == "think"
 
 
-def test_a_sample_longer_than_the_limit_is_skipped(tmp_path, artifact):
-    mapper, rows = read_rows(tmp_path, TERMINAL)
-    short, long = (mapper.to_native(row) for row in rows)
+def test_the_limit_counts_the_empty_thinks_of_the_written_sample(tmp_path, artifact):
+    mapper, rows = read_rows(tmp_path, NO_REASONING)
     encoding = mapper._encoding(artifact)
-    limit = len(encoding.encode_conversation(short))
-    assert len(encoding.encode_conversation(long)) > limit
-    assert mapper.to_native(rows[0], limit, artifact).items == short.items
-    with pytest.raises(ValueError, match=f"longer than {limit} tokens"):
-        mapper.to_native(rows[1], limit, artifact)
+    limit = len(encoding.encode_conversation(written(mapper, rows[0])))
+    assert len(encoding.encode_conversation(mapper.to_native(rows[0]))) < limit
+    assert mapper.to_native(rows[0], limit, artifact).items == mapper.to_native(rows[0]).items
+    with pytest.raises(ValueError, match=f"longer than {limit - 1} tokens"):
+        mapper.to_native(rows[0], limit - 1, artifact)
