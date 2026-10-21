@@ -35,7 +35,8 @@ from typing import Dict, Any, Optional
 
 from benchmark_filters import filter_benchmark_names
 from conversation_id_checks import validate_conversation_ids
-from matching_units import MATCHING_VERSION, to_units
+from matching_units import (MATCHING_VERSION, UNITS_VERSION, max_short_train_units, short_prompt_index,
+                            short_prompt_match, to_units)
 from removal_log import write_removal_log
 
 """
@@ -127,6 +128,7 @@ def get_ngrams(tokens, n):
 
 
 def process_tokens(x, ngram_length):
+    # "tokens" are the units of matching_units.py; the name is kept since the cache uses it
     return {
         "ngram": get_ngrams(x, ngram_length),
         "tokens": x
@@ -248,7 +250,7 @@ def verify_contamination_worker(args_tuple):
 
 def get_benchmark_cache_key(benchmark_name, tokenizer_name, ngram_length):
     """Generate cache key for benchmark n-grams."""
-    key_string = f"{benchmark_name}_{tokenizer_name}_{ngram_length}_{MATCHING_VERSION}"
+    key_string = f"{benchmark_name}_{tokenizer_name}_{ngram_length}_{UNITS_VERSION}"
     return hashlib.md5(key_string.encode()).hexdigest()
 
 
@@ -382,6 +384,11 @@ def main(args):
 
     elapsed = time.time() - start_time
     print(f"Training data preprocessing complete in {int(elapsed / 60)}m {elapsed % 60:.1f}s")
+    # Only training prompts this short can match a benchmark prompt shorter than the n-gram length
+    short_train_samples = [(idx, sample["tokens"]) for idx, sample in enumerate(train_ngrams)
+                           if 0 < len(sample["tokens"]) <= max_short_train_units(args.ngram_length)]
+    print(f"{len(short_train_samples)} training prompts are short enough to match a short benchmark prompt")
+    short_prompt_counts = {"empty": 0, "exact_only": 0, "contained": 0, "benchmarks_counted": 0}
     gc.collect()
 
     # Iterate over benchmarks for decontamination.
@@ -421,6 +428,11 @@ def main(args):
 
         step1_time = time.time() - step_start
         print(f"  Step 1 (Load/compute n-grams): {step1_time:.1f}s")
+
+        if args.base_report_path:  # take the n-gram matches from an earlier run: steps 2-3 find nothing
+            with open(os.path.join(args.base_report_path, os.path.basename(output_path))) as f:
+                base_report = json.load(f)
+            eval_ngram_to_eval_idx = {}
 
         # Step 2: Find n-gram matches (with pre-filtering optimization)
         step_start = time.time()
@@ -504,7 +516,27 @@ def main(args):
         print(f"  Found {len(contamination_mapping)} contaminated samples")
         print(f"  Step 3 (Verify contamination): {step3_time:.1f}s")
 
-        del eval_ngrams, train_idx_match_indices
+        if args.base_report_path:
+            contamination_mapping.update(base_report)
+            print(f"  {len(base_report)} contaminated samples from the base report")
+
+        # Step 3b: benchmark prompts shorter than the n-gram length have no n-gram (see matching_units.py)
+        short_index, counts = short_prompt_index([x["tokens"] for x in eval_ngrams], args.ngram_length)
+        lengths = sorted({len(k) for k in short_index})
+        short_found = 0
+        for train_idx, train_tokens in short_train_samples:
+            train_conversation_id = train_conversation_ids[train_idx]
+            if train_conversation_id not in contamination_mapping:
+                eval_idx = short_prompt_match(train_tokens, short_index, lengths)
+                if eval_idx is not None:
+                    contamination_mapping[train_conversation_id] = eval_idx
+                    short_found += 1
+        for k, v in counts.items():
+            short_prompt_counts[k] += v
+        short_prompt_counts["benchmarks_counted"] += 1
+        print(f"  Short benchmark prompts {counts}: {short_found} more contaminated samples")
+
+        del eval_ngrams, train_idx_match_indices, short_index
         gc.collect()
 
         # Step 4: Save report
@@ -585,6 +617,8 @@ def main(args):
     removal_summary = write_removal_log(unfiltered_data, reports, eval_data, args.tokenizer_name, Path(args.output),
                                         args.diff_threshold, args.num_proc)
     del unfiltered_data, eval_data, reports
+    removal_summary["short_benchmark_prompts"] = short_prompt_counts
+    removal_summary["base_report_path"] = args.base_report_path
 
     # Save dataset with metadata
     save_dataset_and_metadata(
@@ -647,6 +681,13 @@ if __name__ == "__main__":
         "--overwrite",
         action="store_true",
         help="Regenerate contamination reports even if they already exist. Without this flag, existing reports are skipped.",
+    )
+    parser.add_argument(
+        "--base_report_path",
+        type=str,
+        default=None,
+        help="Reports of an earlier run with the same units (UNITS_VERSION) but without the short "
+             "benchmark prompt check: their n-gram matches are used and only that check runs.",
     )
     parser.add_argument(
         "--ngram_length",

@@ -9,7 +9,8 @@ column with one entry per benchmark whose report flagged the sample:
   eval_idx                index of the matched prompt in that benchmark
   benchmark_prompt        the matched benchmark prompt
   benchmark_prompt_tokens its length in units (tokens, numbers as one unit; see matching_units.py)
-  match_ratio             share of its units matched in aligned runs of >= MIN_BLOCK units
+  match_ratio             share of its units matched in aligned runs of >= MIN_BLOCK units (or of the
+                          whole prompt, if it is shorter than MIN_BLOCK)
                           (the value thresholded by diff_threshold)
   longest_block           longest matched run in units
   matched_text            the matched runs of the normalised benchmark prompt, joined with " [...] "
@@ -17,7 +18,7 @@ column with one entry per benchmark whose report flagged the sample:
 Reports only store the first benchmark prompt above the threshold, so `benchmark_prompt` is a match
 of that benchmark, not necessarily its closest one. match_ratio is recomputed here with the same
 matching as the decontamination step, so it is only meaningful with the same tokenizer and
-matching_units.MATCHING_VERSION.
+matching_units.UNITS_VERSION.
 """
 import difflib
 from collections import defaultdict
@@ -55,7 +56,7 @@ def _score(pair):
     _, train_tokens, _ = units_with_spans(_tokenizer, train_text)
     eval_norm, eval_tokens, eval_spans = units_with_spans(_tokenizer, eval_text)
     blocks = [b for b in difflib.SequenceMatcher(None, train_tokens, eval_tokens, autojunk=False).get_matching_blocks()
-              if b.size >= MIN_BLOCK]
+              if b.size >= max(1, min(MIN_BLOCK, len(eval_tokens)))]
     return {
         "benchmark_prompt_tokens": len(eval_tokens),
         "match_ratio": sum(b.size for b in blocks) / len(eval_tokens) if eval_tokens else 0.0,

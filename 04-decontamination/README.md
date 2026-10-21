@@ -8,14 +8,24 @@ If significant overlap is detected, the sample is removed from the training data
 1. The first user turn (`initial_prompt`) of every training sample and every benchmark prompt are
    normalised (Unicode NFKC, runs of a repeated non-letter character such as `━━━━━` collapsed to one,
    whitespace collapsed to one space), tokenized (`swiss-ai/Apertus-8B-Instruct-2509`, without `<s>`)
-   and split into 8-grams of units. A unit is a token, except that a number (`1,023`, `16.482`,
-   `2'832`) counts as one unit; the tokenizer would split it into single digits (`matching_units.py`).
-2. Training samples that share at least one 8-gram with a benchmark prompt are candidates.
-3. A candidate is contaminated if at least 50% of the benchmark prompt's units appear in the training
-   prompt in aligned runs of 5 or more units (`difflib.SequenceMatcher`).
-4. For each benchmark a report `<benchmark>__contamination_report.json` is written, mapping each
+   and split into units. A unit is a token, except that a number (`1,023`, `16.482`, `2'832`) counts
+   as one unit; the tokenizer would split it into single digits (`matching_units.py`).
+2. Each training prompt is compared with each benchmark prompt. The rule depends on the length of the
+   benchmark prompt:
+
+   | Benchmark prompt (after normalisation) | Rule | A training sample is removed if … |
+   |---|---|---|
+   | **0 units** (empty or only whitespace) | skipped, counted as empty | never |
+   | **1–3 units** (e.g. "5!=", "Paris", "Yes.") | exact equality only | the training prompt is **identical** to the benchmark prompt |
+   | **4–7 units** (e.g. "Compute $\cos 225^\circ$.") | complete containment + coverage guard | the **whole** benchmark prompt appears as one continuous run in the training prompt **and** makes up **at least 50%** of the training prompt's units |
+   | **8+ units** | 8-gram candidates + share of matching runs | the training prompt shares **at least one run of 8 consecutive units** with the benchmark prompt (candidate), **and** the runs of **at least 5 consecutive units** that both have in common (`difflib.SequenceMatcher`) cover **at least 50%** of the benchmark prompt's units |
+
+   Prompts shorter than 8 units have no 8-gram, so they need their own rules. The number of
+   benchmark prompts in the classes 0, 1–3 and 4–7 is recorded in the processing log
+   (`short_benchmark_prompts`, single-job mode only).
+3. For each benchmark a report `<benchmark>__contamination_report.json` is written, mapping each
    contaminated `conversation_id` to the matched benchmark prompt.
-5. The final filter removes every `conversation_id` that appears in any report.
+4. The final filter removes every `conversation_id` that appears in any report.
 
 Only near-verbatim overlap in the first user turn is detected; system prompts, later turns and
 responses are not checked.
@@ -85,8 +95,8 @@ environment:
 `TOKENIZER_NAME` should be the tokenizer of the model being trained (currently Apertus 1.5:
 `swiss-ai/Apertus-8B-Instruct-2509`). For a new model version with a different tokenizer, update the
 default in `slurm_config.sh` (and pass the same `--tokenizer_name` when calling the Python scripts
-directly). The benchmark n-gram cache is keyed by tokenizer, so a new tokenizer builds its own cache
-entries; results from runs with different tokenizers are not directly comparable (v1.0 used
+directly). The benchmark n-gram cache is keyed by tokenizer and `UNITS_VERSION` (`matching_units.py`), so
+a new tokenizer or a change of the units builds its own cache entries; results from runs with different tokenizers are not directly comparable (v1.0 used
 `alehc/swissai-tokenizer`).
 
 `HF_HOME` is not set by the scripts; jobs inherit it from your shell. The `debug` partition allows at most
@@ -156,7 +166,9 @@ python 04-decontamination/decontamination.py <input_dataset> \
 ```
 
 Useful flags: `--overwrite` recomputes existing reports, `--show_contaminated` prints examples of
-contaminated pairs, `--benchmark_name` restricts the run to specific benchmarks.
+contaminated pairs, `--benchmark_name` restricts the run to specific benchmarks. `--base_report_path`
+takes the 8-gram matches from the reports of an earlier run with the same units but without the
+short benchmark prompt check, and runs only that check (much faster than a full run).
 
 ### Monitoring
 

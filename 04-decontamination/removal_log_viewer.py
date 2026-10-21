@@ -89,7 +89,7 @@ def char_span(spans, start, size):
 def match_spans(train, bench):
     """Highlighted spans in both shown texts; train and bench as returned by shown_units."""
     blocks = [m for m in difflib.SequenceMatcher(None, train[1], bench[1], autojunk=False)
-              .get_matching_blocks() if m.size >= MIN_BLOCK]
+              .get_matching_blocks() if m.size >= max(1, min(MIN_BLOCK, len(bench[1])))]
     return ([s for m in blocks if (s := char_span(train[2], m.a, m.size))],
             [s for m in blocks if (s := char_span(bench[2], m.b, m.size))])
 
