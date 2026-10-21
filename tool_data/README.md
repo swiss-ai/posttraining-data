@@ -41,5 +41,3 @@ python tool_data/analyze-undeclared-tool-usage.py MIX --flagged-ids flagged.json
 # display_answers per source, declared or not: why only undeclared ones are stripped
 python tool_data/find-display-answers-datasets.py MIX --output display_answers.json
 ```
-
-Results of the Apertus 1.5 run: https://github.com/swiss-ai/apertus-program/issues/415
