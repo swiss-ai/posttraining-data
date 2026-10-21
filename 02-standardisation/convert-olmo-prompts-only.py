@@ -32,6 +32,7 @@ from pathlib import Path
 from datetime import datetime
 from typing import Dict, Any, List, Optional
 from datasets import load_from_disk, DatasetDict, Dataset
+from conversation_ids import add_conversation_ids_for_output
 from tqdm import tqdm
 
 
@@ -215,6 +216,7 @@ def main():
     })
     
     print(f"Saving converted dataset to {final_output_path}...")
+    dataset_dict = add_conversation_ids_for_output(dataset_dict, final_output_path)
     dataset_dict.save_to_disk(str(final_output_path))
     
     print(f"✓ Successfully converted {len(converted_dataset)} samples")

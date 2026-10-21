@@ -19,6 +19,7 @@ from typing import Dict, Any, List, Optional, Tuple
 import pyarrow as pa
 import pandas as pd
 from datasets import Dataset, DatasetDict
+from conversation_ids import add_conversation_ids_for_output
 from tqdm import tqdm
 
 
@@ -371,6 +372,7 @@ def process_wikiqa_dataset(input_path: str, output_path: str, dataset_name: str 
     output_path.mkdir(parents=True, exist_ok=True)
     
     print(f"Saving dataset to: {output_path}")
+    dataset_dict = add_conversation_ids_for_output(dataset_dict, output_path)
     dataset_dict.save_to_disk(str(output_path))
     
     # Analyze languages if available

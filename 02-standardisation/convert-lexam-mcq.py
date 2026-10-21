@@ -37,6 +37,7 @@ from datetime import datetime, UTC
 from typing import Dict, Any, Optional
 from pathlib import Path
 from datasets import Dataset, DatasetDict, load_dataset
+from conversation_ids import add_conversation_ids_for_output
 
 SRC = "LEXam_mcq"
 
@@ -73,7 +74,7 @@ def comb_prod(choices: list, pos: int) -> str:
     for i in range(len(choices)):
         choices[i] = f'{labels[i]}{punct} {choices[i]}'
         
-    combinations = f'{random.choice([' ', "\n"])}'.join(choices)
+    combinations = random.choice([' ', "\n"]).join(choices)
 
     return combinations, verifiable, punct
 
@@ -180,6 +181,7 @@ def save_dataset_and_metadata(dataset_dict: DatasetDict, output_path: Path, args
     output_path.mkdir(parents=True, exist_ok=True)
     
     # Save dataset
+    dataset_dict = add_conversation_ids_for_output(dataset_dict, output_path)
     dataset_dict.save_to_disk(str(output_path))
     
     # Load existing metadata or create new

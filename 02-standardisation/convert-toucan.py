@@ -54,6 +54,7 @@ from typing import Dict, Any, List, Optional, Tuple
 
 from tqdm import tqdm
 from datasets import load_from_disk, DatasetDict, Dataset
+from conversation_ids import add_conversation_ids_for_output
 
 DATASET_SOURCE = "Toucan-1.5M"
 
@@ -369,6 +370,7 @@ def save_dataset_and_metadata(
 ):
     """Save converted dataset with processing metadata."""
     output_path.mkdir(parents=True, exist_ok=True)
+    dataset_dict = add_conversation_ids_for_output(dataset_dict, output_path)
     dataset_dict.save_to_disk(str(output_path))
 
     metadata = {

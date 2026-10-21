@@ -27,6 +27,7 @@ from datetime import datetime, UTC
 from typing import Dict, Any, Optional, List
 from pathlib import Path
 from datasets import Dataset, DatasetDict, load_dataset, concatenate_datasets
+from conversation_ids import add_conversation_ids_for_output
 
 SRC = "nvidia/Nemotron-Instruction-Following-Chat-v1"
 
@@ -141,6 +142,7 @@ def save_dataset_and_metadata(dataset_dict: DatasetDict, output_path: Path, args
     """Save converted dataset with processing metadata."""
     output_path.mkdir(parents=True, exist_ok=True)
 
+    dataset_dict = add_conversation_ids_for_output(dataset_dict, output_path)
     dataset_dict.save_to_disk(str(output_path))
 
     metadata = load_existing_metadata(output_path) or {}

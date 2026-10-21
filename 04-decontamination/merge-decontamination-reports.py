@@ -15,6 +15,11 @@ from datetime import datetime
 from typing import Dict, Any, Optional, List
 from datasets import load_from_disk, Dataset, DatasetDict
 
+from benchmark_filters import expected_benchmark_names, report_stem
+from conversation_id_checks import validate_conversation_ids
+from matching_units import MATCHING_VERSION
+from removal_log import write_removal_log
+
 
 def load_existing_metadata(input_path: Path) -> Optional[Dict[str, Any]]:
     """Load existing dataset metadata if it exists."""
@@ -31,7 +36,7 @@ def load_existing_metadata(input_path: Path) -> Optional[Dict[str, Any]]:
 def save_dataset_and_metadata(train_data, output_path: Path, input_path: Path,
                               contaminated_ids: set, processed_benchmarks: list,
                               tokenizer_name: str, ngram_length: int, diff_threshold: float,
-                              parallel_job_count: int):
+                              parallel_job_count: int, samples_removed: int, removal_summary: dict):
     """Save filtered dataset and update metadata with processing log."""
     # Ensure output directory exists
     output_path = Path(output_path)
@@ -64,12 +69,15 @@ def save_dataset_and_metadata(train_data, output_path: Path, input_path: Path,
         "output_path": str(output_path),
         "tokenizer_name": tokenizer_name,
         "ngram_length": ngram_length,
+        "matching_version": MATCHING_VERSION,
         "diff_threshold": diff_threshold,
         "benchmarks_processed": len(processed_benchmarks),
         "benchmark_names": processed_benchmarks,
-        "contaminated_samples_removed": len(contaminated_ids),
+        "contaminated_ids_flagged": len(contaminated_ids),
+        "contaminated_samples_removed": samples_removed,
         "samples_after_filtering": total_samples_after,
         "parallel_jobs_used": parallel_job_count,
+        **removal_summary,
         "decontamination_success": True
     }
 
@@ -88,8 +96,11 @@ def save_dataset_and_metadata(train_data, output_path: Path, input_path: Path,
     print(f"Metadata saved to {metadata_file}")
 
 
-def collect_contamination_reports(reports_dir: Path) -> Dict[str, Dict]:
-    """Collect all contamination reports from parallel jobs."""
+def collect_contamination_reports(reports_dir: Path, unreadable: Optional[List[str]] = None) -> Dict[str, Dict]:
+    """Collect all contamination reports from parallel jobs.
+
+    Names of reports that cannot be read are appended to ``unreadable``.
+    """
     reports_dir = Path(reports_dir)
     if not reports_dir.exists():
         raise FileNotFoundError(f"Reports directory does not exist: {reports_dir}")
@@ -121,6 +132,8 @@ def collect_contamination_reports(reports_dir: Path) -> Dict[str, Dict]:
 
         except (json.JSONDecodeError, IOError) as e:
             print(f"Warning: Failed to load report {report_file}: {e}")
+            if unreadable is not None:
+                unreadable.append(report_file.stem.replace("__contamination_report", ""))
             continue
 
     return all_reports
@@ -183,13 +196,15 @@ Examples:
   python merge_decontamination_reports.py \\
     /path/to/input/dataset \\
     /path/to/output/dataset \\
-    /path/to/parallel_reports
+    /path/to/parallel_reports \\
+    --decontamination_prompts /path/to/decontamination_prompts
   
   # With specific parameters
   python merge_decontamination_reports.py \\
     /path/to/input/dataset \\
     /path/to/output/dataset \\
     /path/to/parallel_reports \\
+    --decontamination_prompts /path/to/decontamination_prompts \\
     --tokenizer_name "alehc/swissai-tokenizer" \\
     --expected-jobs 20
         """
@@ -211,6 +226,13 @@ Examples:
         help="Directory containing contamination reports from parallel jobs"
     )
     parser.add_argument(
+        "--decontamination_prompts",
+        type=str,
+        required=True,
+        help="Benchmark prompts the reports were computed from. Every benchmark in it "
+             "(minus DECONTAM_EXCLUDE_BENCHMARK_PATTERNS) must have a readable report."
+    )
+    parser.add_argument(
         "--tokenizer_name",
         type=str,
         default="alehc/swissai-tokenizer",
@@ -227,6 +249,12 @@ Examples:
         type=float,
         default=0.5,
         help="Difference threshold used for decontamination (for metadata)"
+    )
+    parser.add_argument(
+        "--num_proc",
+        type=int,
+        default=16,
+        help="Number of processes for scoring the matches of the removal log"
     )
     parser.add_argument(
         "--expected-jobs",
@@ -270,15 +298,31 @@ Examples:
 
     # Collect all contamination reports
     print(f"\n=== COLLECTING CONTAMINATION REPORTS ===")
+    unreadable_reports = []
     try:
-        all_reports = collect_contamination_reports(reports_dir)
+        all_reports = collect_contamination_reports(reports_dir, unreadable_reports)
+        expected = {report_stem(name) for name in expected_benchmark_names(args.decontamination_prompts)}
     except Exception as e:
         print(f"Error collecting reports: {e}")
         return 1
 
-    if not all_reports:
-        print("Error: No valid contamination reports found")
+    # Every benchmark must have been checked against the whole dataset
+    missing = sorted(expected - set(all_reports))
+    unreadable = sorted(expected & set(unreadable_reports))
+    if missing or unreadable:
+        print(f"Error: {len(missing)} benchmarks have no report and {len(unreadable)} reports are unreadable "
+              f"(expected {len(expected)} benchmarks from {args.decontamination_prompts}).")
+        for name in missing[:20]:
+            print(f"  missing:    {name}")
+        for name in unreadable[:20]:
+            print(f"  unreadable: {name}")
+        print("Re-run the parallel jobs for these benchmarks (existing reports are reused). Not saving the filtered dataset.")
         return 1
+    ignored = sorted(set(all_reports) - expected)
+    if ignored:
+        print(f"Ignoring {len(ignored)} reports for benchmarks not in the prompt set: {ignored[:10]}")
+        all_reports = {name: report for name, report in all_reports.items() if name in expected}
+    print(f"All {len(expected)} benchmarks have a report")
 
     # Merge contamination results
     print(f"\n=== MERGING RESULTS ===")
@@ -305,6 +349,16 @@ Examples:
         print(f"Error loading training data: {e}")
         return 1
 
+    try:
+        if hasattr(train_data, 'keys'):  # DatasetDict
+            all_ids = [cid for split in train_data.values() for cid in split["conversation_id"]]
+        else:
+            all_ids = train_data["conversation_id"]
+        validate_conversation_ids(all_ids, str(input_path))
+    except ValueError as e:
+        print(f"Error: {e}")
+        return 1
+
     # Get original sample count
     if hasattr(train_data, 'keys'):  # DatasetDict
         original_samples = sum(len(split) for split in train_data.values())
@@ -313,22 +367,42 @@ Examples:
         original_samples = len(train_data)
         print(f"Original dataset: {original_samples} samples")
 
-    # Apply filtering
+    # Apply filtering (report keys are JSON strings, so compare IDs as strings)
     print("Applying contamination filtering...")
+    unfiltered_data = train_data
 
     if hasattr(train_data, 'keys'):  # DatasetDict
         train_data = DatasetDict({
-            k: v.filter(lambda x: x["conversation_id"] not in contaminated_ids)
+            k: v.filter(lambda x: str(x["conversation_id"]) not in contaminated_ids)
             for k, v in train_data.items()
         })
         final_samples = sum(len(split) for split in train_data.values())
     else:  # Single Dataset
-        train_data = train_data.filter(lambda x: x["conversation_id"] not in contaminated_ids)
+        train_data = train_data.filter(lambda x: str(x["conversation_id"]) not in contaminated_ids)
         final_samples = len(train_data)
 
     removed_samples = original_samples - final_samples
     print(f"Removed {removed_samples:,} contaminated samples ({removed_samples / original_samples * 100:.2f}%)")
     print(f"Final dataset: {final_samples:,} samples")
+    if removed_samples != len(contaminated_ids):
+        print(f"Error: removed {removed_samples:,} samples but {len(contaminated_ids):,} IDs were flagged: "
+              f"the reports in {reports_dir} do not match the conversation_ids of {input_path}. "
+              f"Not saving the filtered dataset.")
+        return 1
+
+    # Log the removed samples with their matches (reports are keyed by report stem, prompts by benchmark name)
+    print(f"\n=== WRITING REMOVAL LOG ===")
+    try:
+        prompts = load_from_disk(args.decontamination_prompts)
+        name_of = {report_stem(name): name for name in prompts.keys()}
+        removal_summary = write_removal_log(
+            unfiltered_data, {name_of[stem]: report for stem, report in all_reports.items()}, prompts,
+            args.tokenizer_name, output_path, args.diff_threshold, args.num_proc
+        )
+    except Exception as e:
+        print(f"Error writing removal log: {e}")
+        return 1
+    del unfiltered_data, prompts
 
     # Save filtered dataset with metadata
     print(f"\n=== SAVING FILTERED DATASET ===")
@@ -344,7 +418,9 @@ Examples:
             args.tokenizer_name,
             args.ngram_length,
             args.diff_threshold,
-            parallel_job_count
+            parallel_job_count,
+            removed_samples,
+            removal_summary
         )
     except Exception as e:
         print(f"Error saving dataset: {e}")

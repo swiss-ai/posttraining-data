@@ -32,6 +32,7 @@ from datetime import datetime, UTC
 from typing import Dict, Any, Optional
 from pathlib import Path
 from datasets import Dataset, DatasetDict, load_dataset
+from conversation_ids import add_conversation_ids_for_output
 
 SRC = "lipengcs_table_gpt"
 
@@ -166,6 +167,7 @@ def save_dataset_and_metadata(dataset_dict: DatasetDict, output_path: Path, args
     output_path.mkdir(parents=True, exist_ok=True)
     
     # Save dataset
+    dataset_dict = add_conversation_ids_for_output(dataset_dict, output_path)
     dataset_dict.save_to_disk(str(output_path))
     
     # Load existing metadata or create new

@@ -18,6 +18,7 @@ from pathlib import Path
 from datetime import datetime
 from typing import Dict, Any, Optional, List
 from datasets import load_from_disk, Dataset, DatasetDict
+from conversation_ids import add_conversation_ids_for_output
 
 
 def create_schema_compliant_part(part_type: str, content: str = "", metadata: Optional[Dict] = None, 
@@ -219,6 +220,7 @@ def save_dataset_and_metadata(dataset, output_path: Path, dataset_name: str, inp
     
     # Save dataset
     print(f"Saving dataset to {output_path}...")
+    output_dataset = add_conversation_ids_for_output(output_dataset, output_path)
     output_dataset.save_to_disk(str(output_path))
     
     # Load or create metadata

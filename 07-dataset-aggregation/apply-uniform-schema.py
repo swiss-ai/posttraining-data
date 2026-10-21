@@ -231,6 +231,25 @@ def main():
     
     # Calculate filtering statistics
     samples_filtered = dataset_size - len(all_transformed_samples)
+
+    # Keep the input's processing history (e.g. the decontamination entry concatenate-datasets.py checks)
+    input_metadata_path = Path(args.input_path) / "dataset_metadata.json"
+    metadata = {}
+    if input_metadata_path.exists():
+        with open(input_metadata_path) as f:
+            metadata = json.load(f)
+    metadata.setdefault("processing_log", []).append({
+        "operation": "apply_uniform_schema",
+        "script": "apply-uniform-schema.py",
+        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        "input_path": str(args.input_path),
+        "output_path": str(args.output_path),
+        "uniform_schema": str(args.uniform_schema),
+        "samples_before": dataset_size,
+        "samples_after": len(all_transformed_samples),
+    })
+    with open(Path(args.output_path) / "dataset_metadata.json", "w") as f:
+        json.dump(metadata, f, indent=2)
     
     print(f"Transformation complete! New dataset saved to {args.output_path}")
     print(f"Original samples: {dataset_size:,}")

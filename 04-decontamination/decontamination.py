@@ -34,6 +34,10 @@ from datetime import datetime
 from typing import Dict, Any, Optional
 
 from benchmark_filters import filter_benchmark_names
+from conversation_id_checks import validate_conversation_ids
+from matching_units import (MATCHING_VERSION, UNITS_VERSION, max_short_train_units, short_prompt_index,
+                            short_prompt_match, to_units)
+from removal_log import write_removal_log
 
 """
 Code modified from: https://github.com/huggingface/cosmopedia/blob/main/decontamination/decontaminate.py
@@ -57,7 +61,8 @@ def load_existing_metadata(input_path: Path) -> Optional[Dict[str, Any]]:
 
 def save_dataset_and_metadata(train_data, output_path: Path, input_path: Path,
                               contaminated_ids: set, processed_benchmarks: list,
-                              tokenizer_name: str, ngram_length: int, diff_threshold: float):
+                              tokenizer_name: str, ngram_length: int, diff_threshold: float,
+                              samples_removed: int, removal_summary: dict):
     """Save filtered dataset and update metadata with processing log."""
     # Ensure output directory exists
     output_path = Path(output_path)
@@ -91,11 +96,14 @@ def save_dataset_and_metadata(train_data, output_path: Path, input_path: Path,
         "output_path": str(output_path),
         "tokenizer_name": tokenizer_name,
         "ngram_length": ngram_length,
+        "matching_version": MATCHING_VERSION,
         "diff_threshold": diff_threshold,
         "benchmarks_processed": len(processed_benchmarks),
         "benchmark_names": processed_benchmarks,
-        "contaminated_samples_removed": len(contaminated_ids),
+        "contaminated_ids_flagged": len(contaminated_ids),
+        "contaminated_samples_removed": samples_removed,
         "samples_after_filtering": total_samples_after,
+        **removal_summary,
         "decontamination_success": True
     }
 
@@ -115,11 +123,12 @@ def save_dataset_and_metadata(train_data, output_path: Path, input_path: Path,
 
 
 def get_ngrams(tokens, n):
-    """Generate n-grams from tokens."""
-    return set(zip(*[tokens[i:-(n - i)] for i in range(n)]))
+    """All n-grams of tokens: one per start position, the last one starts at len(tokens) - n."""
+    return {tuple(tokens[i:i + n]) for i in range(len(tokens) - n + 1)}
 
 
 def process_tokens(x, ngram_length):
+    # "tokens" are the units of matching_units.py; the name is kept since the cache uses it
     return {
         "ngram": get_ngrams(x, ngram_length),
         "tokens": x
@@ -241,7 +250,7 @@ def verify_contamination_worker(args_tuple):
 
 def get_benchmark_cache_key(benchmark_name, tokenizer_name, ngram_length):
     """Generate cache key for benchmark n-grams."""
-    key_string = f"{benchmark_name}_{tokenizer_name}_{ngram_length}"
+    key_string = f"{benchmark_name}_{tokenizer_name}_{ngram_length}_{UNITS_VERSION}"
     return hashlib.md5(key_string.encode()).hexdigest()
 
 
@@ -284,7 +293,7 @@ def save_benchmark_ngrams_to_cache(ngrams, lookup_table, cache_path):
 def compute_benchmark_ngrams(eval_dataset, tokenizer, ngram_length, num_proc):
     """Compute n-grams for a benchmark dataset."""
     print(f"  Tokenizing {len(eval_dataset)} evaluation prompts...")
-    eval_data_tokens = tokenizer(eval_dataset["prompt"][:])["input_ids"]
+    eval_data_tokens = to_units(tokenizer, [str(p) for p in eval_dataset["prompt"][:]])
     print(f"  Generating n-grams...")
     with Pool(num_proc) as p:
         eval_ngrams = p.map(partial(process_tokens, ngram_length=ngram_length), eval_data_tokens)
@@ -337,6 +346,7 @@ def main(args):
             from datasets import concatenate_datasets
             train_data = concatenate_datasets(all_splits_data)
     # If single Dataset, use as-is
+    validate_conversation_ids(train_data["conversation_id"], args.dataset_path)
     if not os.path.exists(args.report_path):
         print(f"Creating contamination reports directory: {args.report_path}")
         os.makedirs(args.report_path, exist_ok=True)
@@ -344,7 +354,7 @@ def main(args):
     print("Tokenizing training prompts...")
     train_data = train_data.map(
         lambda batch: {
-            "prompt_token_ids": tokenizer([x["content"] for x in batch["initial_prompt"]])["input_ids"]
+            "prompt_token_ids": to_units(tokenizer, [x["content"] or "" for x in batch["initial_prompt"]])
         },
         batched=True,
     )
@@ -374,6 +384,11 @@ def main(args):
 
     elapsed = time.time() - start_time
     print(f"Training data preprocessing complete in {int(elapsed / 60)}m {elapsed % 60:.1f}s")
+    # Only training prompts this short can match a benchmark prompt shorter than the n-gram length
+    short_train_samples = [(idx, sample["tokens"]) for idx, sample in enumerate(train_ngrams)
+                           if 0 < len(sample["tokens"]) <= max_short_train_units(args.ngram_length)]
+    print(f"{len(short_train_samples)} training prompts are short enough to match a short benchmark prompt")
+    short_prompt_counts = {"empty": 0, "exact_only": 0, "contained": 0, "benchmarks_counted": 0}
     gc.collect()
 
     # Iterate over benchmarks for decontamination.
@@ -389,6 +404,7 @@ def main(args):
         )  # Reports are saved inside the input dataset's directory
         if os.path.exists(output_path) and not args.overwrite:
             print("contamination_report already exists, skipping decontamination")
+            processed_benchmarks.append(eval_dataset_name)  # still apply the existing report in the final filter
             continue
         # Step 1: Load/compute benchmark n-grams
         step_start = time.time()
@@ -412,6 +428,11 @@ def main(args):
 
         step1_time = time.time() - step_start
         print(f"  Step 1 (Load/compute n-grams): {step1_time:.1f}s")
+
+        if args.base_report_path:  # take the n-gram matches from an earlier run: steps 2-3 find nothing
+            with open(os.path.join(args.base_report_path, os.path.basename(output_path))) as f:
+                base_report = json.load(f)
+            eval_ngram_to_eval_idx = {}
 
         # Step 2: Find n-gram matches (with pre-filtering optimization)
         step_start = time.time()
@@ -495,7 +516,27 @@ def main(args):
         print(f"  Found {len(contamination_mapping)} contaminated samples")
         print(f"  Step 3 (Verify contamination): {step3_time:.1f}s")
 
-        del eval_ngrams, train_idx_match_indices
+        if args.base_report_path:
+            contamination_mapping.update(base_report)
+            print(f"  {len(base_report)} contaminated samples from the base report")
+
+        # Step 3b: benchmark prompts shorter than the n-gram length have no n-gram (see matching_units.py)
+        short_index, counts = short_prompt_index([x["tokens"] for x in eval_ngrams], args.ngram_length)
+        lengths = sorted({len(k) for k in short_index})
+        short_found = 0
+        for train_idx, train_tokens in short_train_samples:
+            train_conversation_id = train_conversation_ids[train_idx]
+            if train_conversation_id not in contamination_mapping:
+                eval_idx = short_prompt_match(train_tokens, short_index, lengths)
+                if eval_idx is not None:
+                    contamination_mapping[train_conversation_id] = eval_idx
+                    short_found += 1
+        for k, v in counts.items():
+            short_prompt_counts[k] += v
+        short_prompt_counts["benchmarks_counted"] += 1
+        print(f"  Short benchmark prompts {counts}: {short_found} more contaminated samples")
+
+        del eval_ngrams, train_idx_match_indices, short_index
         gc.collect()
 
         # Step 4: Save report
@@ -519,11 +560,11 @@ def main(args):
 
     # Load the contamination reports and filter the training data
     print(f"\n=== FINAL FILTERING ===\nCombining contamination reports from {len(processed_benchmarks)} processed benchmarks...")
-    del eval_data
     gc.collect()
     train_data = load_from_disk(args.dataset_path)
     contaminated_ids = set()
     contamination_summary = []
+    reports = {}
     for eval_dataset_name in processed_benchmarks:
         report_path = os.path.join(
             args.report_path,
@@ -531,6 +572,7 @@ def main(args):
         )
         with open(report_path, "r") as f:
             report = json.load(f)
+        reports[eval_dataset_name] = report
         contaminated_ids = contaminated_ids.union(set(report.keys()))
         if len(report) > 0:
             contamination_summary.append((eval_dataset_name, len(report)))
@@ -550,12 +592,33 @@ def main(args):
     # train_data.save_to_disk(args.output)
 
     # Handle DatasetDict format - filter all splits if DatasetDict, otherwise filter single dataset
+    # Report keys are JSON strings, so compare IDs as strings.
+    unfiltered_data = train_data
     if hasattr(train_data, 'keys'):  # DatasetDict
         from datasets import DatasetDict
-        train_data = DatasetDict({k: v.filter(lambda x: x["conversation_id"] not in contaminated_ids)
+        samples_before = sum(len(v) for v in train_data.values())
+        train_data = DatasetDict({k: v.filter(lambda x: str(x["conversation_id"]) not in contaminated_ids)
                                   for k, v in train_data.items()})
+        samples_after = sum(len(v) for v in train_data.values())
     else:  # Single Dataset
-        train_data = train_data.filter(lambda x: x["conversation_id"] not in contaminated_ids)
+        samples_before = len(train_data)
+        train_data = train_data.filter(lambda x: str(x["conversation_id"]) not in contaminated_ids)
+        samples_after = len(train_data)
+    samples_removed = samples_before - samples_after
+    print(f"Removed {samples_removed} samples ({len(contaminated_ids)} contaminated IDs flagged)")
+    if samples_removed != len(contaminated_ids):
+        raise ValueError(
+            f"Removed {samples_removed} samples but {len(contaminated_ids)} IDs were flagged: the reports in "
+            f"{args.report_path} do not match the conversation_ids of {args.dataset_path}. "
+            f"Not saving the filtered dataset."
+        )
+
+    # Log the removed samples with their matches
+    removal_summary = write_removal_log(unfiltered_data, reports, eval_data, args.tokenizer_name, Path(args.output),
+                                        args.diff_threshold, args.num_proc)
+    del unfiltered_data, eval_data, reports
+    removal_summary["short_benchmark_prompts"] = short_prompt_counts
+    removal_summary["base_report_path"] = args.base_report_path
 
     # Save dataset with metadata
     save_dataset_and_metadata(
@@ -566,7 +629,9 @@ def main(args):
         processed_benchmarks,
         args.tokenizer_name,
         args.ngram_length,
-        args.diff_threshold
+        args.diff_threshold,
+        samples_removed,
+        removal_summary
     )
 
 
@@ -616,6 +681,13 @@ if __name__ == "__main__":
         "--overwrite",
         action="store_true",
         help="Regenerate contamination reports even if they already exist. Without this flag, existing reports are skipped.",
+    )
+    parser.add_argument(
+        "--base_report_path",
+        type=str,
+        default=None,
+        help="Reports of an earlier run with the same units (UNITS_VERSION) but without the short "
+             "benchmark prompt check: their n-gram matches are used and only that check runs.",
     )
     parser.add_argument(
         "--ngram_length",
