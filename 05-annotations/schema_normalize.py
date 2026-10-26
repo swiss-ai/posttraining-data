@@ -291,13 +291,13 @@ def parse_arguments():
         epilog="""
 Examples:
   # Normalize dataset using extracted schemas
-  venv/bin/python 05-annotations/schema_normalize.py \\
+  .venv/bin/python 05-annotations/schema_normalize.py \\
     data/02-standardised-newformat/dataset \\
     data/02-standardised-newformat/dataset-normalized \\
     --schema-dir schemas/
   
   # With custom processing settings
-  venv/bin/python 05-annotations/schema_normalize.py \\
+  .venv/bin/python 05-annotations/schema_normalize.py \\
     data/path/input \\
     data/path/output \\
     --schema-dir schemas/ \\
@@ -305,7 +305,7 @@ Examples:
     --batch-size 5000
   
   # Single process for debugging
-  venv/bin/python 05-annotations/schema_normalize.py \\
+  .venv/bin/python 05-annotations/schema_normalize.py \\
     data/path/input \\
     data/path/output \\
     --schema-dir schemas/ \\

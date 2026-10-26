@@ -476,12 +476,12 @@ def parse_arguments():
         epilog="""
 Examples:
   # Convert APIGen dataset to chat format
-  venv/bin/python 02-standardisation/convert_apigen_function_calling.py \\
+  .venv/bin/python 02-standardisation/convert_apigen_function_calling.py \\
     /capstor/store/cscs/swissai/infra01/posttrain_data/01_raw_hf_data/APIGen-MT-5k \\
     --output data/02-standardised/apigen-mt-5k
   
   # With custom chunk size
-  venv/bin/python 02-standardisation/convert_apigen_function_calling.py \\
+  .venv/bin/python 02-standardisation/convert_apigen_function_calling.py \\
     /path/to/apigen/dataset \\
     --output /path/to/output \\
     --batch-size 500

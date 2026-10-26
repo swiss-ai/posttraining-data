@@ -108,7 +108,7 @@ environment:
 | `SLURM_RESERVATION` | unset |
 | `SLURM_LOG_DIR` | `/iopsstor/scratch/cscs/$USER/posttraining-data/slurm_logs` |
 | `DECONTAM_TIME_LIMIT` / `PARALLEL_TIME_LIMIT` / `MERGE_TIME_LIMIT` | `12:00:00` / `8:00:00` / `2:00:00` |
-| `PYTHON_ENV_ACTIVATE` | `<repo>/venv/bin/activate` |
+| `PYTHON_ENV_ACTIVATE` | `<repo>/.venv/bin/activate` (created by `uv sync`) |
 | `DECONTAMINATION_PROMPTS` | `/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/decontamination_prompts` |
 | `DECONTAMINATION_CACHE_DIR` | `/iopsstor/scratch/cscs/$USER/posttraining-data/decontamination_cache` |
 | `TOKENIZER_NAME` | `swiss-ai/Apertus-8B-Instruct-2509` |

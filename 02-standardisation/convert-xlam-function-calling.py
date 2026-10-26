@@ -422,12 +422,12 @@ def parse_arguments():
         epilog="""
 Examples:
   # Convert XLAM dataset to chat format
-  venv/bin/python 02-standardisation/convert_xlam_function_calling.py \\
+  .venv/bin/python 02-standardisation/convert_xlam_function_calling.py \\
     /users/schlag/store/posttrain_data/01_raw_hf_data/xlam-function-calling-60k \\
     --output data/02-standardised/xlam-function-calling-60k
   
   # With custom chunk size
-  venv/bin/python 02-standardisation/convert_xlam_function_calling.py \\
+  .venv/bin/python 02-standardisation/convert_xlam_function_calling.py \\
     /path/to/xlam/dataset \\
     --output /path/to/output \\
     --batch-size 5000

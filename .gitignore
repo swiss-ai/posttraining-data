@@ -1,5 +1,6 @@
 old_codebase_read_only/
 venv/
+.venv/
 data/
 claude/
 CLAUDE.md

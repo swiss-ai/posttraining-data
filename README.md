@@ -18,10 +18,14 @@ A few additional running scripts and miscellaneous commands are also provided in
 
 ## Setup
 
-Create virtual environment and install dependencies:
+The project is managed with [uv](https://docs.astral.sh/uv/). `pyproject.toml` lists the dependencies,
+`uv.lock` pins every package version and `.python-version` the Python version (3.11.13). Create the
+environment in `.venv/`:
 
 ```bash
-python -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
+uv sync
+source .venv/bin/activate   # or run scripts with .venv/bin/python, or uv run python
 ```
+
+Add or update a dependency with `uv add <package>==<version>` (updates `pyproject.toml` and `uv.lock`);
+commit both files.

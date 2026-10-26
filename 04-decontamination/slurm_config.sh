@@ -14,7 +14,7 @@ DECONTAM_TIME_LIMIT="${DECONTAM_TIME_LIMIT:-12:00:00}"   # single-job mode (repo
 PARALLEL_TIME_LIMIT="${PARALLEL_TIME_LIMIT:-8:00:00}"    # each parallel array job
 MERGE_TIME_LIMIT="${MERGE_TIME_LIMIT:-2:00:00}"          # merge job
 
-PYTHON_ENV_ACTIVATE="${PYTHON_ENV_ACTIVATE:-${REPO_ROOT}/venv/bin/activate}"
+PYTHON_ENV_ACTIVATE="${PYTHON_ENV_ACTIVATE:-${REPO_ROOT}/.venv/bin/activate}"   # uv sync in the repo root
 DECONTAMINATION_PROMPTS="${DECONTAMINATION_PROMPTS:-/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/decontamination_prompts}"
 DECONTAMINATION_CACHE_DIR="${DECONTAMINATION_CACHE_DIR:-/iopsstor/scratch/cscs/${USER}/posttraining-data/decontamination_cache}"
 TOKENIZER_NAME="${TOKENIZER_NAME:-swiss-ai/Apertus-8B-Instruct-2509}"
@@ -27,7 +27,7 @@ SBATCH_RESERVATION_LINE=""
 
 check_slurm_config() {
     if [ ! -f "$PYTHON_ENV_ACTIVATE" ]; then
-        echo "Error: Python environment not found: $PYTHON_ENV_ACTIVATE (set PYTHON_ENV_ACTIVATE)"
+        echo "Error: Python environment not found: $PYTHON_ENV_ACTIVATE (run uv sync in ${REPO_ROOT} or set PYTHON_ENV_ACTIVATE)"
         exit 1
     fi
     if [ ! -d "$DECONTAMINATION_PROMPTS" ]; then

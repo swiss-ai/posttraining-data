@@ -255,20 +255,20 @@ def parse_arguments():
         epilog="""
 Examples:
   # Auto-generate output name with -systemPromptFix suffix
-  venv/bin/python 05-annotations/fix_system_prompts.py \\
+  .venv/bin/python 05-annotations/fix_system_prompts.py \\
     /capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/smoltalk2-smoltalk_smollm3_systemchats_30k_no_think \\
     --output data/05-annotations/
   # Creates: data/05-annotations/smoltalk2-smoltalk_smollm3_systemchats_30k_no_think-systemPromptFix
 
   # Specify custom output name
-  venv/bin/python 05-annotations/fix_system_prompts.py \\
+  .venv/bin/python 05-annotations/fix_system_prompts.py \\
     data/02-standardised/dataset-with-bad-prompts \\
     --output data/05-annotations/my-custom-name \\
     --batch-size 50000 \\
     --num-proc 16
 
   # Single process (for debugging)
-  venv/bin/python 05-annotations/fix_system_prompts.py \\
+  .venv/bin/python 05-annotations/fix_system_prompts.py \\
     data/02-standardised/test-dataset \\
     --output data/05-annotations/test-fixed \\
     --num-proc 1

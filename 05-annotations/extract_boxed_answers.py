@@ -393,20 +393,20 @@ def parse_arguments():
         epilog="""
 Examples:
   # Auto-generate output name with -boxedRemoved suffix (new format)
-  venv/bin/python 05-annotations/extract_boxed_answers.py \\
+  .venv/bin/python 05-annotations/extract_boxed_answers.py \\
     /capstor/store/cscs/swissai/infra01/posttrain_data/05_annotated/tulu-3-sft-olmo-2-mixture-0225-ai2-adapt-dev_numinamath_tir_math_decontaminated-toolExtracted \\
     --output data/05-annotations/
   # Creates: data/05-annotations/tulu-3-sft-olmo-2-mixture-0225-ai2-adapt-dev_numinamath_tir_math_decontaminated-toolExtracted-boxedRemoved
 
   # Specify custom output name
-  venv/bin/python 05-annotations/extract_boxed_answers.py \\
+  .venv/bin/python 05-annotations/extract_boxed_answers.py \\
     data/newformat/math-dataset-with-parts \\
     --output data/05-annotations/math-extracted-newformat \\
     --batch-size 50000 \\
     --num-proc 16
 
   # Single process (for debugging)
-  venv/bin/python 05-annotations/extract_boxed_answers.py \\
+  .venv/bin/python 05-annotations/extract_boxed_answers.py \\
     data/newformat/math-dataset \\
     --output data/05-annotations/math-extracted \\
     --num-proc 1

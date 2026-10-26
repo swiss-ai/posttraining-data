@@ -180,10 +180,10 @@ def main():
         epilog=f"""
 Examples:
   # Default keywords (AI model references)
-  venv/bin/python 05-annotations/keyword_filter_parallel.py input_dataset output_dataset
+  .venv/bin/python 05-annotations/keyword_filter_parallel.py input_dataset output_dataset
   
   # Custom keywords
-  venv/bin/python 05-annotations/keyword_filter_parallel.py input_dataset output_dataset --keywords word1 word2 word3
+  .venv/bin/python 05-annotations/keyword_filter_parallel.py input_dataset output_dataset --keywords word1 word2 word3
 
 Default keywords: {', '.join(FILTER_KEYWORDS)}
         """
