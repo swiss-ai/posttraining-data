@@ -43,26 +43,6 @@ def normalize(text: str) -> str:
     return WHITESPACE.sub(" ", REPEATED.sub(r"\1", text)).strip()
 
 
-def normalize_with_positions(text: str):
-    """(NFKC form of text, normalize(text), position of every normalised character in the NFKC form).
-
-    For showing matches in readable text: the NFKC form keeps line breaks and repeated characters."""
-    nfkc = unicodedata.normalize("NFKC", text)
-    out, pos = [], []
-    for i, c in enumerate(nfkc):
-        if c.isspace():
-            if out and out[-1] != " ":
-                out.append(" ")
-                pos.append(i)
-        elif not (i and c == nfkc[i - 1] and (c == "_" or not (c.isalnum() or c.isspace()))):
-            out.append(c)
-            pos.append(i)
-    if out and out[-1] == " ":
-        out.pop()
-        pos.pop()
-    return nfkc, "".join(out), pos
-
-
 def number_id(number: str) -> int:
     return -1 - int(hashlib.md5(number.encode()).hexdigest()[:15], 16)
 
