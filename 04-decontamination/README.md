@@ -30,6 +30,27 @@ If significant overlap is detected, the sample is removed from the training data
 Only near-verbatim overlap in the first user turn is detected; system prompts, later turns and
 responses are not checked.
 
+## Test set for the decontamination strategy
+
+`contamination_dataset.jsonl` is a synthetically generated, labelled test set for measuring how many false positives and false
+negatives the decontamination produces. It has 720 samples (`id`, `question`, `choices`, `answer`,
+`item_type`):
+
+- **360 contaminated** (`is_contaminated: true`): 60 each from MMLU, MATH (`EleutherAI/hendrycks_math`),
+  ARC-Challenge, TruthfulQA, HellaSwag and GSM8K. `benchmark_hf_dir`, `benchmark_config`,
+  `benchmark_split` and `benchmark_row` point to the source item, and `contamination_type` says how it was
+  altered: `exact_copy` (110), `surface_change` (120), `light_rewording` (80) or `option_shuffle` (50).
+- **360 clean** (`is_contaminated: false`): 60 per benchmark, written in the style of that benchmark
+  (`item_type` names it) but not taken from it, so they are near misses that test for false positives.
+
+A clean sample that is removed is a false positive; a contaminated sample that is kept is a false
+negative. The file is not in the unified schema, so convert it first (`question` as `initial_prompt`,
+`id` as `conversation_id`).
+
+`contamination_dataset_v1_old.jsonl` is the earlier version: the same 360 contaminated samples, but its
+360 clean samples are short, generic math, multiple-choice, QA and completion items (`item_type` `math`,
+`mcq`, `qa`, `completion`).
+
 ## Available Scripts
 
 ### Python Scripts
