@@ -47,9 +47,9 @@ A clean sample that is removed is a false positive; a contaminated sample that i
 negative. The file is not in the unified schema, so convert it first (`question` as `initial_prompt`,
 `id` as `conversation_id`).
 
-`contamination_dataset_v1_old.jsonl` is the earlier version: the same 360 contaminated samples, but its
-360 clean samples are short, generic math, multiple-choice, QA and completion items (`item_type` `math`,
-`mcq`, `qa`, `completion`).
+An earlier version, `contamination_dataset_v1_old.jsonl` (removed, still in commit `7564cae`), has the
+same 360 contaminated samples, but its 360 clean samples are short, generic math, multiple-choice, QA and
+completion items (`item_type` `math`, `mcq`, `qa`, `completion`).
 
 ## Available Scripts
 

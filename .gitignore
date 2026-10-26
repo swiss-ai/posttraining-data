@@ -13,3 +13,5 @@ tests/
 judge-analysis/*.jsonl
 judge-analysis/*.json
 08-judge-evaluation/judge-analysis/
+trash/
+04-decontamination/report_decontamination_v3.md
