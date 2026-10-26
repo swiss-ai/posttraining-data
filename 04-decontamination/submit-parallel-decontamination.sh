@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# Script to submit parallel decontamination SLURM job arrays
-# Usage: ./submit_parallel_decontamination.sh <input_dataset_path> <output_dataset_path> [chunk_size|single] [max_parallel_jobs]
+# Submits decontamination as a SLURM job array plus a merge job, or as one job running both ('single')
+# Usage: ./submit-parallel-decontamination.sh <input_dataset_path> <output_dataset_path> [chunk_size|single] [max_parallel_jobs]
 
 # Get the directory where this script is located
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"

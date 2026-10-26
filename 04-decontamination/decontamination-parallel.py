@@ -2,18 +2,16 @@
 """
 decontamination-parallel.py
 ───────────────────────────
-High-performance parallel decontamination for large datasets.
+Writes a contamination report for each benchmark of a subset (one array job), or of all benchmarks.
 
-This script provides parallelised decontamination processing for datasets that
-are too large for single-threaded processing. Uses multiprocessing to distribute
-contamination detection across multiple cores while maintaining memory efficiency.
+For every benchmark, the training prompts are matched against the benchmark prompts (see
+matching_units.py for the units and rules) and `<report_path>/<benchmark>__contamination_report.json`
+maps each contaminated conversation_id to the matched benchmark prompt. Existing reports are reused.
+merge-decontamination-reports.py combines the reports and filters the dataset.
 
-Key features:
-- Parallel processing with configurable worker count
-- Chunk-based processing for memory management
-- Progress tracking across parallel workers
-- Detailed contamination reporting and statistics
-- Optimised for datasets with millions of samples
+Code modified from: https://github.com/huggingface/cosmopedia/blob/main/decontamination/decontaminate.py
+(training samples without any n-gram overlap are skipped before the verification, which runs in
+parallel with the benchmark n-grams shared by the worker processes).
 """
 import argparse
 from datasets import load_from_disk
@@ -25,7 +23,7 @@ import os
 import time
 import gc
 
-from benchmark_filters import filter_benchmark_names
+from benchmark_filters import filter_benchmark_names, report_stem
 from conversation_id_checks import validate_conversation_ids
 from decontamination_common import (compute_benchmark_ngrams, get_benchmark_cache_key, get_benchmark_cache_path,
                                     get_eval_match_indices, init_contamination_worker, init_get_eval_match_indices,
@@ -33,23 +31,10 @@ from decontamination_common import (compute_benchmark_ngrams, get_benchmark_cach
                                     verify_contamination_worker_optimized)
 from matching_units import max_short_train_units, short_prompt_index, short_prompt_match, to_units
 
-"""
-Parallel decontamination script for processing benchmark subsets.
 
-Code modified from: https://github.com/huggingface/cosmopedia/blob/main/decontamination/decontaminate.py
-Enhanced with pre-filtering and parallelization optimizations.
-V2: Optimizes n-gram matching by pre-filtering training samples that have no n-gram overlap.
-V3: Parallelizes Step 3 (contamination verification) using shared memory to avoid serialization overhead.
-V4: Adds benchmark subsetting for parallel job processing across multiple benchmark chunks.
-"""
-
-
-def get_benchmark_subset(all_benchmarks, start_idx=None, end_idx=None, benchmark_list=None):
+def get_benchmark_subset(all_benchmarks, start_idx=None, end_idx=None):
     """Get a subset of benchmarks for parallel processing."""
-    if benchmark_list:
-        # Use explicitly provided list
-        return benchmark_list
-    elif start_idx is not None and end_idx is not None:
+    if start_idx is not None and end_idx is not None:
         # Use range-based subsetting
         return all_benchmarks[start_idx:end_idx]
     else:
@@ -179,7 +164,7 @@ def main(args):
         # Load and process evaluation prompts
         output_path = os.path.join(
             args.report_path,
-            eval_dataset_name.replace("/", "_") + "__contamination_report.json"
+            report_stem(eval_dataset_name) + "__contamination_report.json"
         )  # Reports are saved inside the input dataset's directory
         if os.path.exists(output_path) and not args.overwrite:
             print("contamination_report already exists, skipping decontamination")
@@ -344,7 +329,7 @@ def main(args):
         for eval_dataset_name in processed_benchmarks:
             report_path = os.path.join(
                 args.report_path,
-                eval_dataset_name.replace("/", "_") + "__contamination_report.json"
+                report_stem(eval_dataset_name) + "__contamination_report.json"
             )
             if os.path.exists(report_path):
                 with open(report_path, "r") as f:
@@ -354,7 +339,7 @@ def main(args):
                 print(f"  - {eval_dataset_name}: report missing")
     
     print(f"\nContamination reports saved to: {args.report_path}")
-    print(f"Use merge_decontamination_reports.py to combine all parallel job results and filter the dataset.")
+    print("Use merge-decontamination-reports.py to combine all reports and filter the dataset.")
     
     del eval_data
     gc.collect()
@@ -368,12 +353,6 @@ if __name__ == "__main__":
         type=str,
         help="Path or name of the training dataset to process. Must include a column with 'messages' that "
              "contains the standard HuggingFace chat format of List[Dict[str, str]]",
-    )
-    parser.add_argument(
-        "--output", "-o",
-        type=str,
-        required=False,
-        help="Output directory for filtered dataset (unused in parallel mode - use merge script)",
     )
     parser.add_argument(
         "--decontamination_prompts",

@@ -6,14 +6,12 @@ This script combines contamination reports from multiple parallel decontaminatio
 and applies the final filtering to create a clean dataset.
 """
 
-import os
 import json
 import argparse
-import glob
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, Any, Optional, List
-from datasets import load_from_disk, Dataset, DatasetDict
+from datasets import load_from_disk, DatasetDict
 
 from benchmark_filters import expected_benchmark_names, report_stem
 from conversation_id_checks import validate_conversation_ids
@@ -52,7 +50,7 @@ def save_dataset_and_metadata(train_data, output_path: Path, input_path: Path,
     # Add processing log entry
     processing_entry = {
         "operation": "parallel_decontamination",
-        "script": "merge_decontamination_reports.py",
+        "script": "merge-decontamination-reports.py",
         "timestamp": datetime.now().isoformat(),
         "input_path": str(input_path),
         "output_path": str(output_path),
@@ -207,19 +205,19 @@ def main():
         epilog="""
 Examples:
   # Merge reports and create filtered dataset
-  python merge_decontamination_reports.py \\
+  python 04-decontamination/merge-decontamination-reports.py \\
     /path/to/input/dataset \\
     /path/to/output/dataset \\
     /path/to/parallel_reports \\
     --decontamination_prompts /path/to/decontamination_prompts
   
   # With specific parameters
-  python merge_decontamination_reports.py \\
+  python 04-decontamination/merge-decontamination-reports.py \\
     /path/to/input/dataset \\
     /path/to/output/dataset \\
     /path/to/parallel_reports \\
     --decontamination_prompts /path/to/decontamination_prompts \\
-    --tokenizer_name "alehc/swissai-tokenizer" \\
+    --tokenizer_name "swiss-ai/Apertus-8B-Instruct-2509" \\
     --expected-jobs 20
         """
     )

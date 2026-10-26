@@ -54,7 +54,6 @@ def init_get_eval_match_indices(ngram_to_eval_idx, ):
 
 
 def get_eval_match_indices(train_sample):
-    global shared_eval_ngram_to_eval_idx, shared_eval_ngram_to_eval_idx_key_arr
     shared_ngrams = train_sample["ngram"] & shared_eval_ngram_to_eval_idx_key_set
     if len(shared_ngrams) == 0:
         return tuple([])
@@ -81,7 +80,6 @@ def verify_contamination_worker_optimized(args_tuple):
     Returns:
         tuple: (train_conversation_id, eval_idx, match_ratio, train_tokens_full, eval_tokens_full) if contaminated, None otherwise
     """
-    global shared_eval_ngrams_dict
     train_idx, eval_indices, train_tokens, threshold, train_conversation_id = args_tuple
 
     for eval_idx in eval_indices:
