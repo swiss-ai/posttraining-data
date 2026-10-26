@@ -113,7 +113,7 @@ environment:
 | `DECONTAM_TIME_LIMIT` / `PARALLEL_TIME_LIMIT` / `MERGE_TIME_LIMIT` | `12:00:00` / `8:00:00` / `2:00:00` |
 | `PYTHON_ENV_ACTIVATE` | `<repo>/venv/bin/activate` |
 | `DECONTAMINATION_PROMPTS` | `/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/decontamination_prompts` |
-| `DECONTAMINATION_CACHE_DIR` | `/capstor/store/cscs/swissai/infra01/posttrain_data/decontamination_cache` |
+| `DECONTAMINATION_CACHE_DIR` | `/iopsstor/scratch/cscs/$USER/posttraining-data/decontamination_cache` |
 | `TOKENIZER_NAME` | `swiss-ai/Apertus-8B-Instruct-2509` |
 
 **Tokenizer: adjust it for new model versions.** The n-grams are built from token IDs, so
@@ -189,7 +189,7 @@ python 04-decontamination/decontamination.py <input_dataset> \
   --decontamination_prompts /capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/decontamination_prompts \
   --tokenizer_name "swiss-ai/Apertus-8B-Instruct-2509" \
   --report_path <output_dataset>/contamination_reports \
-  --cache_dir /capstor/store/cscs/swissai/infra01/posttrain_data/decontamination_cache \
+  --cache_dir /iopsstor/scratch/cscs/$USER/posttraining-data/decontamination_cache \
   --ngram_length 8 --diff_threshold 0.5 --num_proc 16
 ```
 

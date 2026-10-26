@@ -16,7 +16,7 @@ MERGE_TIME_LIMIT="${MERGE_TIME_LIMIT:-2:00:00}"          # merge job
 
 PYTHON_ENV_ACTIVATE="${PYTHON_ENV_ACTIVATE:-${REPO_ROOT}/venv/bin/activate}"
 DECONTAMINATION_PROMPTS="${DECONTAMINATION_PROMPTS:-/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/decontamination_prompts}"
-DECONTAMINATION_CACHE_DIR="${DECONTAMINATION_CACHE_DIR:-/capstor/store/cscs/swissai/infra01/posttrain_data/decontamination_cache}"
+DECONTAMINATION_CACHE_DIR="${DECONTAMINATION_CACHE_DIR:-/iopsstor/scratch/cscs/${USER}/posttraining-data/decontamination_cache}"
 TOKENIZER_NAME="${TOKENIZER_NAME:-swiss-ai/Apertus-8B-Instruct-2509}"
 
 # Optional #SBATCH lines (empty when the setting is empty)
