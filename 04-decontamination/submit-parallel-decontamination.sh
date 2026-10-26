@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Script to submit parallel decontamination SLURM job arrays
-# Usage: ./submit_parallel_decontamination.sh <input_dataset_path> <output_dataset_path> [chunk_size] [max_parallel_jobs]
+# Usage: ./submit_parallel_decontamination.sh <input_dataset_path> <output_dataset_path> [chunk_size|single] [max_parallel_jobs]
 
 # Get the directory where this script is located
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
@@ -16,12 +16,13 @@ DEFAULT_MAX_PARALLEL=64
 
 # Check if correct number of arguments provided
 if [ $# -lt 2 ] || [ $# -gt 4 ]; then
-    echo "Usage: $0 <input_dataset_path> <output_dataset_path> [chunk_size] [max_parallel_jobs]"
+    echo "Usage: $0 <input_dataset_path> <output_dataset_path> [chunk_size|single] [max_parallel_jobs]"
     echo ""
     echo "Arguments:"
     echo "  input_dataset_path   Path to input dataset directory"
     echo "  output_dataset_path  Path for final output dataset directory"
-    echo "  chunk_size          Benchmarks per parallel job (default: $DEFAULT_CHUNK_SIZE)"
+    echo "  chunk_size          Benchmarks per parallel job (default: $DEFAULT_CHUNK_SIZE), or 'single' for one"
+    echo "                      job that checks all benchmarks and then merges (e.g. on the debug partition)"
     echo "  max_parallel_jobs   Maximum parallel jobs (default: $DEFAULT_MAX_PARALLEL)"
     echo ""
     echo "Example: $0 /path/to/input/dataset /path/to/output/dataset 25 16"
@@ -67,6 +68,13 @@ if [ -z "$TOTAL_BENCHMARKS" ] || [ "$TOTAL_BENCHMARKS" -eq 0 ]; then
     exit 1
 fi
 
+# Single-job mode: one chunk with all benchmarks, run together with the merge in one job
+SINGLE_JOB=false
+if [ "$CHUNK_SIZE" = "single" ]; then
+    SINGLE_JOB=true
+    CHUNK_SIZE=$TOTAL_BENCHMARKS
+fi
+
 NUM_JOBS=$(( (TOTAL_BENCHMARKS + CHUNK_SIZE - 1) / CHUNK_SIZE ))  # Ceiling division
 if [ "$NUM_JOBS" -gt "$MAX_PARALLEL" ]; then
     echo "Warning: Need $NUM_JOBS jobs for $TOTAL_BENCHMARKS benchmarks, but max parallel is $MAX_PARALLEL"
@@ -79,37 +87,26 @@ echo "Input:   $INPUT_PATH"
 echo "Output:  $OUTPUT_PATH"
 echo "Reports: $REPORTS_DIR"
 echo "Total benchmarks: $TOTAL_BENCHMARKS"
-echo "Chunk size: $CHUNK_SIZE benchmarks per job"  
-echo "Array jobs: $NUM_JOBS jobs (0-$((NUM_JOBS-1)))"
-echo "Max parallel: $MAX_PARALLEL jobs"
+if [ "$SINGLE_JOB" = true ]; then
+    echo "Single job: all benchmarks, then the merge"
+else
+    echo "Chunk size: $CHUNK_SIZE benchmarks per job"
+    echo "Array jobs: $NUM_JOBS jobs (0-$((NUM_JOBS-1)))"
+    echo "Max parallel: $MAX_PARALLEL jobs"
+fi
 echo "======================================="
 
-# Create the parallel processing job array script
-JOB_SCRIPT="${SLURM_LOG_DIR}/parallel_decontam_${DATASET_NAME}_${TIMESTAMP}.slurm"
-
-cat > "$JOB_SCRIPT" << EOF
-#!/bin/bash
-
-#SBATCH -J pdecontam_${DATASET_NAME}
-#SBATCH -t ${PARALLEL_TIME_LIMIT}
-#SBATCH --account=${SLURM_ACCOUNT}
-#SBATCH --partition=${SLURM_PARTITION}
-${SBATCH_QOS_LINE}
-${SBATCH_RESERVATION_LINE}
-#SBATCH --output=${SLURM_LOG_DIR}/pdecontam_${DATASET_NAME}_${TIMESTAMP}_%a.out
-#SBATCH --error=${SLURM_LOG_DIR}/pdecontam_${DATASET_NAME}_${TIMESTAMP}_%a.out
-#SBATCH --array=0-$((NUM_JOBS-1))%${MAX_PARALLEL}
-#SBATCH --nodes 1
-#SBATCH --ntasks-per-node=1
-#SBATCH --cpus-per-task=72
-#SBATCH --exclusive
-
+# Body of a job that writes the reports of one benchmark chunk (TASK_ID: array index, 0 in single-job mode)
+decontamination_body() {
+cat << EOF
 # Set environment variables
 export TOKENIZERS_PARALLELISM=true
 export OMP_NUM_THREADS=1
 
+TASK_ID=\${SLURM_ARRAY_TASK_ID:-0}
+
 # Calculate benchmark range for this job
-BENCHMARK_START=\$((SLURM_ARRAY_TASK_ID * $CHUNK_SIZE))
+BENCHMARK_START=\$((TASK_ID * $CHUNK_SIZE))
 BENCHMARK_END=\$((BENCHMARK_START + $CHUNK_SIZE))
 
 # Don't exceed total benchmarks
@@ -117,7 +114,7 @@ if [ \$BENCHMARK_END -gt $TOTAL_BENCHMARKS ]; then
     BENCHMARK_END=$TOTAL_BENCHMARKS
 fi
 
-echo "=== JOB \$SLURM_ARRAY_TASK_ID/$((NUM_JOBS-1)) ==="
+echo "=== JOB \$TASK_ID/$((NUM_JOBS-1)) ==="
 echo "Processing benchmarks \$BENCHMARK_START to \$((\$BENCHMARK_END-1))"
 echo "Chunk size: \$((\$BENCHMARK_END - \$BENCHMARK_START)) benchmarks"
 
@@ -140,33 +137,19 @@ python 04-decontamination/decontamination-parallel.py \\
 
 # Check exit status
 if [ \$? -eq 0 ]; then
-    echo "Parallel job \$SLURM_ARRAY_TASK_ID completed successfully."
+    echo "Parallel job \$TASK_ID completed successfully."
     # Create completion marker
-    touch "${REPORTS_DIR}/job_\${SLURM_ARRAY_TASK_ID}.completed"
+    touch "${REPORTS_DIR}/job_\${TASK_ID}.completed"
 else
-    echo "Parallel job \$SLURM_ARRAY_TASK_ID failed with exit code \$?"
+    echo "Parallel job \$TASK_ID failed with exit code \$?"
     exit 1
 fi
 EOF
+}
 
-# Create the merge job script (runs after all parallel jobs complete)
-MERGE_SCRIPT="${SLURM_LOG_DIR}/merge_decontam_${DATASET_NAME}_${TIMESTAMP}.slurm"
-
-cat > "$MERGE_SCRIPT" << EOF
-#!/bin/bash
-
-#SBATCH -J merge_${DATASET_NAME}
-#SBATCH -t ${MERGE_TIME_LIMIT}
-#SBATCH --account=${SLURM_ACCOUNT}
-#SBATCH --partition=${SLURM_PARTITION}
-${SBATCH_QOS_LINE}
-${SBATCH_RESERVATION_LINE}
-#SBATCH --output=${SLURM_LOG_DIR}/merge_${DATASET_NAME}_${TIMESTAMP}.out
-#SBATCH --error=${SLURM_LOG_DIR}/merge_${DATASET_NAME}_${TIMESTAMP}.out
-#SBATCH --nodes 1
-#SBATCH --ntasks-per-node=1
-#SBATCH --cpus-per-task=36
-
+# Body of the job that combines all reports and writes the filtered dataset
+merge_body() {
+cat << EOF
 echo "=== MERGING PARALLEL DECONTAMINATION RESULTS ==="
 echo "Dataset: ${DATASET_NAME}"
 echo "Reports directory: ${REPORTS_DIR}"
@@ -195,6 +178,91 @@ else
     echo "Merge failed with exit code \$?"
     exit 1
 fi
+EOF
+}
+
+if [ "$SINGLE_JOB" = true ]; then
+    # One job: the reports of all benchmarks, then the merge
+    JOB_SCRIPT="${SLURM_LOG_DIR}/single_decontam_${DATASET_NAME}_${TIMESTAMP}.slurm"
+    LOG_FILE="${SLURM_LOG_DIR}/decontam_${DATASET_NAME}_${TIMESTAMP}.out"
+
+    cat > "$JOB_SCRIPT" << EOF
+#!/bin/bash
+
+#SBATCH -J decontam_${DATASET_NAME}
+#SBATCH -t ${DECONTAM_TIME_LIMIT}
+#SBATCH --account=${SLURM_ACCOUNT}
+#SBATCH --partition=${SLURM_PARTITION}
+${SBATCH_QOS_LINE}
+${SBATCH_RESERVATION_LINE}
+#SBATCH --output=${LOG_FILE}
+#SBATCH --error=${LOG_FILE}
+#SBATCH --nodes 1
+#SBATCH --ntasks-per-node=1
+#SBATCH --cpus-per-task=72
+
+$(decontamination_body)
+
+$(merge_body)
+EOF
+
+    echo "Submitting single decontamination job..."
+    JOB_ID=$(sbatch --parsable "$JOB_SCRIPT")
+    if [ $? -eq 0 ]; then
+        echo "Job submitted successfully (Job ID: $JOB_ID)"
+        echo ""
+        echo "=== MONITORING COMMANDS ==="
+        echo "Monitor job:  squeue -j $JOB_ID"
+        echo "View log:     tail -f ${LOG_FILE}"
+    else
+        echo "Error: Failed to submit job"
+        exit 1
+    fi
+    exit 0
+fi
+
+# Create the parallel processing job array script
+JOB_SCRIPT="${SLURM_LOG_DIR}/parallel_decontam_${DATASET_NAME}_${TIMESTAMP}.slurm"
+
+cat > "$JOB_SCRIPT" << EOF
+#!/bin/bash
+
+#SBATCH -J pdecontam_${DATASET_NAME}
+#SBATCH -t ${PARALLEL_TIME_LIMIT}
+#SBATCH --account=${SLURM_ACCOUNT}
+#SBATCH --partition=${SLURM_PARTITION}
+${SBATCH_QOS_LINE}
+${SBATCH_RESERVATION_LINE}
+#SBATCH --output=${SLURM_LOG_DIR}/pdecontam_${DATASET_NAME}_${TIMESTAMP}_%a.out
+#SBATCH --error=${SLURM_LOG_DIR}/pdecontam_${DATASET_NAME}_${TIMESTAMP}_%a.out
+#SBATCH --array=0-$((NUM_JOBS-1))%${MAX_PARALLEL}
+#SBATCH --nodes 1
+#SBATCH --ntasks-per-node=1
+#SBATCH --cpus-per-task=72
+#SBATCH --exclusive
+
+$(decontamination_body)
+EOF
+
+# Create the merge job script (runs after all parallel jobs complete)
+MERGE_SCRIPT="${SLURM_LOG_DIR}/merge_decontam_${DATASET_NAME}_${TIMESTAMP}.slurm"
+
+cat > "$MERGE_SCRIPT" << EOF
+#!/bin/bash
+
+#SBATCH -J merge_${DATASET_NAME}
+#SBATCH -t ${MERGE_TIME_LIMIT}
+#SBATCH --account=${SLURM_ACCOUNT}
+#SBATCH --partition=${SLURM_PARTITION}
+${SBATCH_QOS_LINE}
+${SBATCH_RESERVATION_LINE}
+#SBATCH --output=${SLURM_LOG_DIR}/merge_${DATASET_NAME}_${TIMESTAMP}.out
+#SBATCH --error=${SLURM_LOG_DIR}/merge_${DATASET_NAME}_${TIMESTAMP}.out
+#SBATCH --nodes 1
+#SBATCH --ntasks-per-node=1
+#SBATCH --cpus-per-task=36
+
+$(merge_body)
 EOF
 
 # Submit the parallel job array

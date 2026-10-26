@@ -1,8 +1,8 @@
 """
 decontamination_common.py
 ─────────────────────────
-N-gram matching, verification and benchmark n-gram caching shared by decontamination.py and
-decontamination-parallel.py, and the metadata loading also used by merge-decontamination-reports.py.
+N-gram matching, verification and benchmark n-gram caching used by decontamination-parallel.py, and the
+metadata loading shared with merge-decontamination-reports.py.
 """
 
 import difflib

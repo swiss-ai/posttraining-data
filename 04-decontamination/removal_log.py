@@ -1,6 +1,6 @@
 """Removal log for decontamination: the removed samples together with what they matched.
 
-Written by decontamination.py and merge-decontamination-reports.py at filter time to
+Written by merge-decontamination-reports.py at filter time to
 <output>/decontamination_removed/. It has the same structure as the input (DatasetDict with the same
 splits, or a single Dataset) and keeps every removed row unchanged, plus a `decontamination_matches`
 column with one entry per benchmark whose report flagged the sample:

@@ -128,6 +128,31 @@ def collect_contamination_reports(reports_dir: Path, unreadable: Optional[List[s
     return all_reports
 
 
+def collect_short_prompt_counts(reports_dir: Path, benchmarks: List[str]) -> Dict[str, Any]:
+    """Sum the short benchmark prompt counts the parallel jobs write next to their reports.
+
+    A benchmark whose report comes from an older run has no counts, so benchmarks_counted can be lower
+    than the number of benchmarks.
+    """
+    counts = {"empty": 0, "exact_only": 0, "contained": 0, "benchmarks_counted": 0}
+    base_report_paths = set()
+    for benchmark_name in benchmarks:
+        counts_file = Path(reports_dir) / f"{benchmark_name}__short_prompts.json"
+        if not counts_file.exists():
+            continue
+        with open(counts_file) as f:
+            entry = json.load(f)
+        base_report_paths.add(entry.pop("base_report_path"))
+        for k, v in entry.items():
+            counts[k] += v
+        counts["benchmarks_counted"] += 1
+    if len(base_report_paths) > 1:
+        base_report_path = sorted(base_report_paths, key=str)
+    else:
+        base_report_path = next(iter(base_report_paths), None)
+    return {"short_benchmark_prompts": counts, "base_report_path": base_report_path}
+
+
 def merge_contamination_reports(all_reports: Dict[str, Dict]) -> tuple:
     """Merge all contamination reports and return combined results."""
     contaminated_ids = set()
@@ -392,6 +417,7 @@ Examples:
         print(f"Error writing removal log: {e}")
         return 1
     del unfiltered_data, prompts
+    removal_summary.update(collect_short_prompt_counts(reports_dir, list(all_reports)))
 
     # Save filtered dataset with metadata
     print(f"\n=== SAVING FILTERED DATASET ===")

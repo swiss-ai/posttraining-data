@@ -1,6 +1,6 @@
-# Shared settings for the decontamination submit scripts (sourced, not executed).
+# Shared settings for submit-parallel-decontamination.sh (sourced, not executed).
 # Every value can be overridden from the environment, e.g.
-#   SLURM_PARTITION=debug SLURM_QOS=debug-qos ./04-decontamination/submit-decontamination.sh <in> <out>
+#   SLURM_PARTITION=debug SLURM_QOS=debug-qos ./04-decontamination/submit-parallel-decontamination.sh <in> <out> single
 # HF_HOME is not set here: jobs inherit it from the submitting shell.
 # Requires REPO_ROOT to be set by the calling script.
 
@@ -10,7 +10,7 @@ SLURM_QOS="${SLURM_QOS:-normal}"                 # set to "" to use the partitio
 SLURM_RESERVATION="${SLURM_RESERVATION:-}"       # optional
 SLURM_LOG_DIR="${SLURM_LOG_DIR:-/iopsstor/scratch/cscs/${USER}/posttraining-data/slurm_logs}"
 
-DECONTAM_TIME_LIMIT="${DECONTAM_TIME_LIMIT:-12:00:00}"   # single-job decontamination
+DECONTAM_TIME_LIMIT="${DECONTAM_TIME_LIMIT:-12:00:00}"   # single-job mode (reports and merge in one job)
 PARALLEL_TIME_LIMIT="${PARALLEL_TIME_LIMIT:-8:00:00}"    # each parallel array job
 MERGE_TIME_LIMIT="${MERGE_TIME_LIMIT:-2:00:00}"          # merge job
 

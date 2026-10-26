@@ -168,7 +168,6 @@ def main(args):
     short_train_samples = [(idx, sample["tokens"]) for idx, sample in enumerate(train_ngrams)
                            if 0 < len(sample["tokens"]) <= max_short_train_units(args.ngram_length)]
     print(f"{len(short_train_samples)} training prompts are short enough to match a short benchmark prompt")
-    short_prompt_counts = {"empty": 0, "exact_only": 0, "contained": 0, "benchmarks_counted": 0}
     gc.collect()
 
     # Iterate over benchmarks for decontamination.
@@ -310,9 +309,6 @@ def main(args):
                 if eval_idx is not None:
                     contamination_mapping[train_conversation_id] = eval_idx
                     short_found += 1
-        for k, v in counts.items():
-            short_prompt_counts[k] += v
-        short_prompt_counts["benchmarks_counted"] += 1
         print(f"  Short benchmark prompts {counts}: {short_found} more contaminated samples")
 
         del eval_ngrams, train_idx_match_indices, short_index
@@ -321,6 +317,9 @@ def main(args):
         # Step 4: Save report
         step_start = time.time()
         json.dump(contamination_mapping, open(output_path, "w"), separators=(",", ":"))
+        # The merge sums these into short_benchmark_prompts of the processing log
+        with open(output_path.replace("__contamination_report.json", "__short_prompts.json"), "w") as f:
+            json.dump({**counts, "base_report_path": args.base_report_path}, f)
         step4_time = time.time() - step_start
         print(f"  Step 4 (Save report): {step4_time:.1f}s")
         

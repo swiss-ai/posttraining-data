@@ -22,7 +22,7 @@ If significant overlap is detected, the sample is removed from the training data
 
    Prompts shorter than 8 units have no 8-gram, so they need their own rules. The number of
    benchmark prompts in the classes 0, 1–3 and 4–7 is recorded in the processing log
-   (`short_benchmark_prompts`, single-job mode only).
+   (`short_benchmark_prompts`).
 3. For each benchmark a report `<benchmark>__contamination_report.json` is written, mapping each
    contaminated `conversation_id` to the matched benchmark prompt.
 4. The final filter removes every `conversation_id` that appears in any report.
@@ -54,12 +54,10 @@ completion items (`item_type` `math`, `mcq`, `qa`, `completion`).
 ## Available Scripts
 
 ### Python Scripts
-- **`decontamination.py`** - Single-job decontamination: all benchmarks in one process, then filtering
-- **`decontamination-parallel.py`** - Writes reports for a subset of benchmarks (one array job)
-- **`merge-decontamination-reports.py`** - Combines the reports of all array jobs and filters the dataset
+- **`decontamination-parallel.py`** - Writes reports for a subset of benchmarks (one array job), or for all
+- **`merge-decontamination-reports.py`** - Combines the reports and filters the dataset
 - **`matching_units.py`** - Normalisation and units compared by the check (shared by all scripts)
-- **`decontamination_common.py`** - N-gram matching, verification and benchmark n-gram cache (shared by
-  `decontamination.py` and `decontamination-parallel.py`)
+- **`decontamination_common.py`** - N-gram matching, verification and benchmark n-gram cache
 - **`gather-decontamination-prompts.py`** - Gathers the evaluation benchmark prompts listed in `benchmarks.yaml`
 - **`benchmark_filters.py`** - Benchmark exclusion patterns and the expected benchmark list
 - **`conversation_id_checks.py`** - Validation of `conversation_id`s
@@ -69,9 +67,8 @@ completion items (`item_type` `math`, `mcq`, `qa`, `completion`).
 - **`benchmarks.yaml`** - The benchmarks to decontaminate against (HF dataset, configs, splits, prompt column)
 
 ### Shell Scripts
-- **`submit-parallel-decontamination.sh`** - SLURM job array + merge job (recommended)
-- **`submit-decontamination.sh`** - Single SLURM job running `decontamination.py`
-- **`slurm_config.sh`** - Shared settings for both submit scripts
+- **`submit-parallel-decontamination.sh`** - SLURM job array + merge job, or one job running both (`single`)
+- **`slurm_config.sh`** - Settings of the submit script
 
 ## Requirements and guarantees
 
@@ -100,7 +97,7 @@ completion items (`item_type` `math`, `mcq`, `qa`, `completion`).
 
 ## Settings
 
-Both submit scripts read their settings from `slurm_config.sh`. Every value can be overridden from the
+The submit script reads its settings from `slurm_config.sh`. Every value can be overridden from the
 environment:
 
 | Variable | Default |
@@ -125,8 +122,8 @@ a new tokenizer or a change of the units builds its own cache entries; results f
 `alehc/swissai-tokenizer`).
 
 `HF_HOME` is not set by the scripts; jobs inherit it from your shell. The `debug` partition allows at most
-2 submitted jobs per user, so use a chunk size that gives a single array job there (e.g. `chunk_size` ≥
-number of benchmarks).
+2 submitted jobs per user, so use the single-job mode there (`chunk_size` `single`).
+`DECONTAM_TIME_LIMIT` is the time limit of that job.
 
 ## Usage
 
@@ -140,29 +137,38 @@ python 04-decontamination/gather-decontamination-prompts.py \
   --output "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/decontamination_prompts"
 ```
 
-### 2. Parallel decontamination (recommended)
+### 2. Decontaminate a dataset
 
 ```bash
-./04-decontamination/submit-parallel-decontamination.sh <input_dataset> <output_dataset> [chunk_size] [max_parallel_jobs]
+./04-decontamination/submit-parallel-decontamination.sh <input_dataset> <output_dataset> [chunk_size|single] [max_parallel_jobs]
+```
+
+Both modes write the reports to `<output_dataset>_parallel_reports/` and reuse existing reports there, so a
+relaunch (in either mode) recomputes only the missing ones.
+
+**Parallel (job array + merge job)** — the default, for full runs:
+
+```bash
+./04-decontamination/submit-parallel-decontamination.sh \
+  /path/to/02_standardised/my-dataset /path/to/04_decontaminated/my-dataset [chunk_size] [max_parallel_jobs]
 ```
 
 - `chunk_size`: benchmarks per array job (default: 20)
 - `max_parallel_jobs`: maximum array jobs running at once (default: 64)
 
-The script submits a job array (reports go to `<output_dataset>_parallel_reports/`) and a merge job that
-runs after the array (`afterany`). The merge checks the completion markers (`--expected-jobs`) and that
-every benchmark has a report; if an array job failed, it stops without saving. Relaunching the same command
-recomputes only the missing reports.
+The script submits a job array and a merge job that runs after it (`afterany`). The merge checks the
+completion markers (`--expected-jobs`) and that every benchmark has a report; if an array job failed, it
+stops without saving.
 
-Example, and a quick test on the debug partition:
+**Single job** — one job that writes the reports of all benchmarks and then runs the merge, e.g. on the
+debug partition (at most 2 submitted jobs per user):
 
 ```bash
-./04-decontamination/submit-parallel-decontamination.sh \
-  /path/to/02_standardised/my-dataset /path/to/04_decontaminated/my-dataset
-
 SLURM_PARTITION=debug ./04-decontamination/submit-parallel-decontamination.sh \
-  /path/to/small-dataset /path/to/output 1000
+  /path/to/small-dataset /path/to/output single
 ```
+
+Its time limit is `DECONTAM_TIME_LIMIT`; `max_parallel_jobs` is ignored.
 
 Manual merge (e.g. after fixing a failed array job):
 
@@ -174,29 +180,30 @@ python 04-decontamination/merge-decontamination-reports.py \
   --tokenizer_name "swiss-ai/Apertus-8B-Instruct-2509"
 ```
 
-### 3. Single-job decontamination
+### 3. Without SLURM (e.g. interactively)
 
 ```bash
-./04-decontamination/submit-decontamination.sh <input_dataset> <output_dataset>
-```
-
-Runs `decontamination.py` in one job; reports go to `<output_dataset>/contamination_reports/`.
-Directly (e.g. interactively):
-
-```bash
-python 04-decontamination/decontamination.py <input_dataset> \
-  --output <output_dataset> \
+python 04-decontamination/decontamination-parallel.py <input_dataset> \
+  --report_path <output_dataset>_parallel_reports \
   --decontamination_prompts /capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/decontamination_prompts \
   --tokenizer_name "swiss-ai/Apertus-8B-Instruct-2509" \
-  --report_path <output_dataset>/contamination_reports \
   --cache_dir /iopsstor/scratch/cscs/$USER/posttraining-data/decontamination_cache \
   --ngram_length 8 --diff_threshold 0.5 --num_proc 16
+python 04-decontamination/merge-decontamination-reports.py \
+  <input_dataset> <output_dataset> <output_dataset>_parallel_reports \
+  --decontamination_prompts /capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/decontamination_prompts \
+  --tokenizer_name "swiss-ai/Apertus-8B-Instruct-2509"
 ```
 
-Useful flags: `--overwrite` recomputes existing reports, `--show_contaminated` prints examples of
-contaminated pairs, `--benchmark_name` restricts the run to specific benchmarks. `--base_report_path`
-takes the 8-gram matches from the reports of an earlier run with the same units but without the
-short benchmark prompt check, and runs only that check (much faster than a full run).
+Without `--benchmark-start`/`--benchmark-end` the first command checks all benchmarks. Leave out
+`--expected-jobs` here: only the SLURM jobs write completion markers. The merge still requires a report for
+every benchmark.
+
+Useful flags of `decontamination-parallel.py`: `--overwrite` recomputes existing reports,
+`--show_contaminated` prints examples of contaminated pairs, `--benchmark_name` restricts the run to
+specific benchmarks. `--base_report_path` takes the 8-gram matches from the reports of an earlier run
+with the same units but without the short benchmark prompt check, and runs only that check (much faster
+than a full run).
 
 ### Monitoring
 
@@ -204,6 +211,7 @@ short benchmark prompt check, and runs only that check (much faster than a full 
 squeue -u $USER
 tail -f "$SLURM_LOG_DIR"/pdecontam_<dataset>_<timestamp>_*.out   # array jobs
 tail -f "$SLURM_LOG_DIR"/merge_<dataset>_<timestamp>.out          # merge job
+tail -f "$SLURM_LOG_DIR"/decontam_<dataset>_<timestamp>.out       # single-job mode
 ```
 
 ### Utilities
