@@ -58,11 +58,13 @@ completion items (`item_type` `math`, `mcq`, `qa`, `completion`).
 - **`decontamination-parallel.py`** - Writes reports for a subset of benchmarks (one array job)
 - **`merge-decontamination-reports.py`** - Combines the reports of all array jobs and filters the dataset
 - **`matching_units.py`** - Normalisation and units compared by the check (shared by all scripts)
-- **`gather-decontamination-prompts.py`** - Gathers the evaluation benchmark prompts
-- **`list-benchmarks.py`** - Lists/counts the benchmarks used for the job array
+- **`gather-decontamination-prompts.py`** - Gathers the evaluation benchmark prompts listed in `benchmarks.yaml`
 - **`benchmark_filters.py`** - Benchmark exclusion patterns and the expected benchmark list
 - **`conversation_id_checks.py`** - Validation of `conversation_id`s
 - **`removal_log.py`** - Writes the removal log (removed samples with their matched benchmark prompts)
+
+### Configuration
+- **`benchmarks.yaml`** - The benchmarks to decontaminate against (HF dataset, configs, splits, prompt column)
 
 ### Shell Scripts
 - **`submit-parallel-decontamination.sh`** - SLURM job array + merge job (recommended)
@@ -127,6 +129,9 @@ number of benchmarks).
 ## Usage
 
 ### 1. Gather the benchmark prompts (only when benchmarks change)
+
+Edit `benchmarks.yaml`, then gather the prompts. The n-gram cache is keyed by the benchmark name, not by
+its prompts, so give an entry whose prompts change a new `name` (or use a new `--cache_dir`).
 
 ```bash
 python 04-decontamination/gather-decontamination-prompts.py \
@@ -202,8 +207,8 @@ tail -f "$SLURM_LOG_DIR"/merge_<dataset>_<timestamp>.out          # merge job
 ### Utilities
 
 ```bash
-# List / count the benchmarks and estimate the number of array jobs
-python 04-decontamination/list-benchmarks.py --prompts-path /path/to/decontamination_prompts --chunk-size 20
+# List the benchmarks of a prompt set (after exclusions)
+python -c 'import sys; sys.path.insert(0, "04-decontamination"); from benchmark_filters import expected_benchmark_names; print("\n".join(expected_benchmark_names(sys.argv[1])))' /path/to/decontamination_prompts
 
 # Exclude benchmarks (comma-separated name patterns, case/punctuation-insensitive)
 export DECONTAM_EXCLUDE_BENCHMARK_PATTERNS="wmdp,hallulens"

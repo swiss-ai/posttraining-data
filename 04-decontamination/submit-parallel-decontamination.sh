@@ -61,7 +61,7 @@ echo "Counting available benchmarks..."
 cd "$REPO_ROOT"
 source "$PYTHON_ENV_ACTIVATE"
 
-TOTAL_BENCHMARKS=$(python 04-decontamination/list-benchmarks.py --prompts-path "$DECONTAMINATION_PROMPTS" --count-only | head -n 1 | cut -d' ' -f1)
+TOTAL_BENCHMARKS=$(python -c 'import sys; sys.path.insert(0, "04-decontamination"); from benchmark_filters import expected_benchmark_names; print(len(expected_benchmark_names(sys.argv[1])))' "$DECONTAMINATION_PROMPTS")
 if [ -z "$TOTAL_BENCHMARKS" ] || [ "$TOTAL_BENCHMARKS" -eq 0 ]; then
     echo "Error: Could not determine number of benchmarks"
     exit 1

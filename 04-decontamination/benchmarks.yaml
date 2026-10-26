@@ -1,0 +1,325 @@
+# Evaluation benchmarks whose prompts are gathered for decontamination
+# (read by gather-decontamination-prompts.py).
+#
+# Each entry:
+#   name_or_path:    HF dataset (lmarena-ai/arena-hard-auto and DAMO-NLP-SG/MultiJail are handled
+#                    specially in the script)
+#   config_name:     a config, a list of configs, "iterate" (all configs of the dataset) or null
+#   split_name:      a split or a list of splits (concatenated); the splits that are evaluated on,
+#                    never a train split of a benchmark that has separate evaluation splits
+#   prompt_col_name: column holding the prompt (for a list of turns, the first turn is used)
+#   name:            optional; name of the entry in the prompt set (default: name_or_path with
+#                    "/" replaced by "__", plus "__<config>" for each config of a list or "iterate")
+#
+# A benchmark that is a copy or a subset of another one is left out (noted in a comment).
+#
+# The n-gram cache of the decontamination is keyed by the entry name, not by its content: when the
+# prompts of an entry change (other split, config or column), give it a new name or use a new cache dir.
+
+benchmarks:
+  # ── Knowledge and reasoning (MCQ) ─────────────────────────────────────────
+  - name_or_path: cais/mmlu
+    config_name: all
+    split_name: test
+    prompt_col_name: question
+  - name_or_path: TIGER-Lab/MMLU-Pro
+    config_name: null
+    split_name: test
+    prompt_col_name: question
+  - name_or_path: CohereLabs/Global-MMLU
+    config_name: iterate
+    split_name: test
+    prompt_col_name: question
+  - name_or_path: li-lab/MMLU-ProX
+    config_name: iterate
+    split_name: test
+    prompt_col_name: question
+  - name_or_path: CohereLabs/include-base-44
+    config_name: iterate
+    split_name: test
+    prompt_col_name: question
+  - name_or_path: swiss-ai/include-base-new-45
+    config_name: iterate
+    split_name: test
+    prompt_col_name: question
+  - name_or_path: swiss-ai/switzerland_qa
+    config_name: iterate
+    split_name: test
+    prompt_col_name: question
+  - name_or_path: allenai/ai2_arc
+    config_name: iterate
+    split_name: test
+    prompt_col_name: question
+  - name_or_path: alexandrainst/m_arc
+    config_name: iterate
+    split_name: test
+    prompt_col_name: instruction
+  - name_or_path: LumiOpen/arc_challenge_mt
+    config_name: iterate
+    split_name: test
+    prompt_col_name: question
+  - name_or_path: Idavidrein/gpqa
+    config_name: gpqa_main
+    split_name: train
+    prompt_col_name: Pre-Revision Question
+  - name_or_path: lukaemon/bbh
+    config_name: iterate
+    split_name: test
+    prompt_col_name: input
+  - name_or_path: EleutherAI/drop
+    config_name: null
+    split_name: validation
+    prompt_col_name: question
+  - name_or_path: ibm-research/acp_bench
+    config_name: iterate
+    split_name: test
+    prompt_col_name: question
+  # swiss-ai/mlogiqa is a copy of this.
+  - name_or_path: Qwen/P-MMEval
+    config_name: [mlogiqa]
+    split_name: test
+    prompt_col_name: question
+  - name_or_path: cais/wmdp
+    config_name: iterate
+    split_name: test
+    prompt_col_name: question
+
+  # ── Commonsense ──────────────────────────────────────────────────────────
+  # Rowan/hellaswag: validation is the split evaluated on (test has no labels).
+  - name_or_path: Rowan/hellaswag
+    config_name: null
+    split_name: test
+    prompt_col_name: ctx
+  - name_or_path: Rowan/hellaswag
+    name: Rowan__hellaswag__validation
+    config_name: null
+    split_name: validation
+    prompt_col_name: ctx
+  - name_or_path: alexandrainst/m_hellaswag
+    config_name: iterate
+    split_name: val
+    prompt_col_name: ctx
+  - name_or_path: baber/piqa
+    config_name: null
+    split_name: [validation, test]
+    prompt_col_name: goal
+  - name_or_path: tau/commonsense_qa
+    config_name: null
+    split_name: [validation, test]
+    prompt_col_name: question
+  - name_or_path: cambridgeltl/xcopa
+    config_name: iterate
+    split_name: [validation, test]
+    prompt_col_name: premise
+  - name_or_path: facebook/xnli
+    config_name: [ar, bg, de, el, en, es, fr, hi, ru, sw, th, tr, ur, vi, zh]
+    split_name: [validation, test]
+    prompt_col_name: premise
+  # The "default" config is a copy of "en".
+  - name_or_path: EleutherAI/lambada_openai
+    config_name: [en, de, es, fr, it]
+    split_name: test
+    prompt_col_name: text
+
+  # ── Truthfulness and hallucination ───────────────────────────────────────
+  # The multiple_choice config has the same 817 questions.
+  - name_or_path: truthfulqa/truthful_qa
+    config_name: [generation]
+    split_name: validation
+    prompt_col_name: question
+  - name_or_path: alexandrainst/m_truthfulqa
+    config_name: iterate
+    split_name: val
+    prompt_col_name: question
+  # The "en" config is a copy of truthfulqa/truthful_qa.
+  - name_or_path: HiTZ/truthfulqa-multi
+    config_name: [es, ca, gl, eu]
+    split_name: validation
+    prompt_col_name: question
+  - name_or_path: swiss-ai/hallulens
+    config_name: iterate
+    split_name: test
+    prompt_col_name: prompt
+
+  # ── Math ─────────────────────────────────────────────────────────────────
+  - name_or_path: openai/gsm8k
+    config_name: main
+    split_name: test
+    prompt_col_name: question
+  - name_or_path: madrylab/gsm8k-platinum
+    config_name: null
+    split_name: test
+    prompt_col_name: question
+  - name_or_path: juletxara/mgsm
+    config_name: iterate
+    split_name: test
+    prompt_col_name: question
+  # DigitalLearningGmbH/MATH-lighteval (test) and HuggingFaceH4/MATH-500 are a copy and a subset of this.
+  - name_or_path: EleutherAI/hendrycks_math
+    config_name: iterate
+    split_name: test
+    prompt_col_name: problem
+  # swiss-ai/math_qa is a copy of this (plus the train and validation splits).
+  - name_or_path: allenai/math_qa
+    config_name: null
+    split_name: test
+    prompt_col_name: Problem
+  - name_or_path: AI-MO/aimo-validation-aime
+    config_name: null
+    split_name: train
+    prompt_col_name: problem
+  - name_or_path: Qwen/PolyMath
+    config_name: iterate
+    split_name: [top, high, medium, low]
+    prompt_col_name: question
+
+  # ── Code ─────────────────────────────────────────────────────────────────
+  - name_or_path: openai/openai_humaneval
+    config_name: null
+    split_name: test
+    prompt_col_name: prompt
+  - name_or_path: google-research-datasets/mbpp
+    config_name: full
+    split_name: test
+    prompt_col_name: text
+  - name_or_path: bigcode/bigcodebench
+    config_name: null
+    split_name: v0.1.0_hf
+    prompt_col_name: instruct_prompt
+
+  # ── Long context ─────────────────────────────────────────────────────────
+  - name_or_path: THUDM/LongBench
+    config_name: [hotpotqa]
+    split_name: test
+    prompt_col_name: input
+
+  # ── Instruction following and chat ───────────────────────────────────────
+  - name_or_path: google/IFEval
+    config_name: null
+    split_name: train
+    prompt_col_name: prompt
+  - name_or_path: allenai/IFBench_test
+    config_name: null
+    split_name: train
+    prompt_col_name: prompt
+  - name_or_path: facebook/Multi-IF
+    config_name: null
+    split_name: train
+    prompt_col_name: turn_1_prompt
+  - name_or_path: tatsu-lab/alpaca_eval
+    config_name: null
+    split_name: eval
+    prompt_col_name: instruction
+  - name_or_path: HuggingFaceH4/mt_bench_prompts
+    config_name: null
+    split_name: train
+    prompt_col_name: prompt
+  - name_or_path: lmarena-ai/arena-hard-auto
+    config_name: null
+    split_name: test
+    prompt_col_name: prompt
+  - name_or_path: CohereLabs/m-ArenaHard-v2.0
+    config_name: iterate
+    split_name: test
+    prompt_col_name: prompt
+
+  # ── Culture ──────────────────────────────────────────────────────────────
+  # swiss-ai/blend-sample is a subset of this.
+  - name_or_path: nayeon212/BLEnD
+    config_name: [multiple-choice-questions]
+    split_name: test
+    prompt_col_name: prompt
+  - name_or_path: shanearora/CaLMQA
+    config_name: null
+    split_name: train
+    prompt_col_name: question
+  - name_or_path: kellycyy/CulturalBench
+    config_name: iterate
+    split_name: test
+    prompt_col_name: prompt_question
+
+  # ── Safety and toxicity ──────────────────────────────────────────────────
+  - name_or_path: toxigen/toxigen-data
+    config_name: prompts
+    split_name:
+      - hate_trans_1k
+      - neutral_black_1k
+      - hate_native_american_1k
+      - neutral_immigrant_1k
+      - hate_middle_east_1k
+      - neutral_lgbtq_1k
+      - neutral_women_1k
+      - neutral_chinese_1k
+      - hate_latino_1k
+      - hate_bisexual_1k
+      - hate_mexican_1k
+      - hate_asian_1k
+      - neutral_mental_disability_1k
+      - neutral_mexican_1k
+      - hate_mental_disability_1k
+      - neutral_bisexual_1k
+      - neutral_latino_1k
+      - hate_chinese_1k
+      - neutral_jewish_1k
+      - hate_muslim_1k
+      - neutral_asian_1k
+      - hate_physical_disability_1k
+      - hate_jewish_1k
+      - neutral_muslim_1k
+      - hate_immigrant_1k
+      - hate_black_1k
+      - hate_lgbtq_1k
+      - hate_women_1k
+      - neutral_middle_east_1k
+      - neutral_native_american_1k
+      - neutral_physical_disability_1k
+    prompt_col_name: text
+  # swiss-ai/realtoxicityprompts is a copy of this.
+  - name_or_path: allenai/real-toxicity-prompts
+    config_name: null
+    split_name: train
+    prompt_col_name: prompt
+  # swiss-ai/polyglotoxicityprompts is a subset of this.
+  - name_or_path: ToxicityPrompts/PolygloToxicityPrompts
+    config_name: iterate
+    split_name: full
+    prompt_col_name: prompt
+  - name_or_path: oskarvanderwal/bbq
+    config_name: All
+    split_name: test
+    prompt_col_name: question
+  - name_or_path: CohereLabs/aya_redteaming
+    config_name: null
+    split_name: [arabic, english, filipino, french, hindi, russian, serbian, spanish]
+    prompt_col_name: prompt
+  - name_or_path: swiss-ai/harmbench
+    config_name: [DirectRequest, HumanJailbreaks]
+    split_name: test
+    prompt_col_name: Behavior
+  - name_or_path: DAMO-NLP-SG/MultiJail
+    config_name: null
+    split_name: train
+    prompt_col_name: [en, zh, it, vi, ar, ko, th, bn, sw, jv]
+
+  # ── AGIEval ──────────────────────────────────────────────────────────────
+  - {name_or_path: hails/agieval-aqua-rat, config_name: null, split_name: test, prompt_col_name: query}
+  - {name_or_path: hails/agieval-gaokao-biology, config_name: null, split_name: test, prompt_col_name: query}
+  - {name_or_path: hails/agieval-gaokao-chemistry, config_name: null, split_name: test, prompt_col_name: query}
+  - {name_or_path: hails/agieval-gaokao-chinese, config_name: null, split_name: test, prompt_col_name: query}
+  - {name_or_path: hails/agieval-gaokao-english, config_name: null, split_name: test, prompt_col_name: query}
+  - {name_or_path: hails/agieval-gaokao-geography, config_name: null, split_name: test, prompt_col_name: query}
+  - {name_or_path: hails/agieval-gaokao-history, config_name: null, split_name: test, prompt_col_name: query}
+  - {name_or_path: hails/agieval-gaokao-mathqa, config_name: null, split_name: test, prompt_col_name: query}
+  - {name_or_path: hails/agieval-gaokao-physics, config_name: null, split_name: test, prompt_col_name: query}
+  - {name_or_path: hails/agieval-logiqa-en, config_name: null, split_name: test, prompt_col_name: query}
+  - {name_or_path: hails/agieval-logiqa-zh, config_name: null, split_name: test, prompt_col_name: query}
+  - {name_or_path: hails/agieval-sat-math, config_name: null, split_name: test, prompt_col_name: query}
+  - {name_or_path: hails/agieval-lsat-ar, config_name: null, split_name: test, prompt_col_name: query}
+  - {name_or_path: hails/agieval-lsat-lr, config_name: null, split_name: test, prompt_col_name: query}
+  - {name_or_path: hails/agieval-lsat-rc, config_name: null, split_name: test, prompt_col_name: query}
+  - {name_or_path: hails/agieval-sat-en, config_name: null, split_name: test, prompt_col_name: query}
+  - {name_or_path: hails/agieval-sat-en-without-passage, config_name: null, split_name: test, prompt_col_name: query}
+  - {name_or_path: hails/agieval-math, config_name: null, split_name: test, prompt_col_name: query}
+  - {name_or_path: hails/agieval-gaokao-mathcloze, config_name: null, split_name: test, prompt_col_name: query}
+  - {name_or_path: hails/agieval-jec-qa-kd, config_name: null, split_name: test, prompt_col_name: query}
+  - {name_or_path: hails/agieval-jec-qa-ca, config_name: null, split_name: test, prompt_col_name: query}
