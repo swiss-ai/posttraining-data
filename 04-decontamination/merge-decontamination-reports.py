@@ -17,20 +17,9 @@ from datasets import load_from_disk, Dataset, DatasetDict
 
 from benchmark_filters import expected_benchmark_names, report_stem
 from conversation_id_checks import validate_conversation_ids
+from decontamination_common import load_existing_metadata
 from matching_units import MATCHING_VERSION
 from removal_log import write_removal_log
-
-
-def load_existing_metadata(input_path: Path) -> Optional[Dict[str, Any]]:
-    """Load existing dataset metadata if it exists."""
-    metadata_file = Path(input_path) / "dataset_metadata.json"
-    if metadata_file.exists():
-        try:
-            with open(metadata_file, 'r') as f:
-                return json.load(f)
-        except (json.JSONDecodeError, IOError):
-            pass
-    return None
 
 
 def save_dataset_and_metadata(train_data, output_path: Path, input_path: Path,

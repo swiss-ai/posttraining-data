@@ -58,6 +58,8 @@ completion items (`item_type` `math`, `mcq`, `qa`, `completion`).
 - **`decontamination-parallel.py`** - Writes reports for a subset of benchmarks (one array job)
 - **`merge-decontamination-reports.py`** - Combines the reports of all array jobs and filters the dataset
 - **`matching_units.py`** - Normalisation and units compared by the check (shared by all scripts)
+- **`decontamination_common.py`** - N-gram matching, verification and benchmark n-gram cache (shared by
+  `decontamination.py` and `decontamination-parallel.py`)
 - **`gather-decontamination-prompts.py`** - Gathers the evaluation benchmark prompts listed in `benchmarks.yaml`
 - **`benchmark_filters.py`** - Benchmark exclusion patterns and the expected benchmark list
 - **`conversation_id_checks.py`** - Validation of `conversation_id`s
