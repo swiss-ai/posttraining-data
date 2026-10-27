@@ -101,7 +101,7 @@ def test_to_native_inserts_claim_before_final_reply():
     cot = mapper.to_native(COT)
     assert types(cot) == ["user", "think", "claim", "reply", "wait"]
     assert cot.items[2].payload == "\\frac{a}{b} + \\{c\\}" and cot.items[3].payload == FINAL
-    assert cot.items[0].payload == PROBLEM and cot.system.thinking == "high" and clean(cot)
+    assert cot.items[0].payload == PROBLEM and cot.system.thinking == "medium" and clean(cot)
 
     tir = mapper.to_native(TIR)
     assert types(tir) == [

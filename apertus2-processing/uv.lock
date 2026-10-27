@@ -188,7 +188,7 @@ wheels = [
 [[package]]
 name = "apertus-common"
 version = "0.2.0"
-source = { git = "https://github.com/swiss-ai/apertus-common.git?rev=8bcc096696bfe4fce22e76fb74f589040f86d21b#8bcc096696bfe4fce22e76fb74f589040f86d21b" }
+source = { git = "https://github.com/swiss-ai/apertus-common.git?rev=494c2be79080aa8fbcd46409b96560f72707cd69#494c2be79080aa8fbcd46409b96560f72707cd69" }
 dependencies = [
     { name = "jsonschema" },
     { name = "pydantic" },
@@ -219,7 +219,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "apertus-common", extras = ["hf"], git = "https://github.com/swiss-ai/apertus-common.git?rev=8bcc096696bfe4fce22e76fb74f589040f86d21b" },
+    { name = "apertus-common", extras = ["hf"], git = "https://github.com/swiss-ai/apertus-common.git?rev=494c2be79080aa8fbcd46409b96560f72707cd69" },
     { name = "datasets", specifier = ">=4,<6" },
     { name = "numpy", specifier = ">=2" },
     { name = "pyarrow", specifier = ">=21" },

@@ -4,10 +4,11 @@ Rows are single math problems answered by DeepSeek-V4-Pro in high reasoning mode
 OpenAI-style messages: the user turn (problem plus the boxed-answer instruction), then
 assistant turns, and in the `tir` subset optional rounds of `stateful_python_code_exec`
 calls and results. `reasoning_content` becomes `think`, tool rounds become `call` and
-`result`, and `thinking` is `high`. The final reply's last `\\boxed{...}` becomes a
-`claim` with the bare answer, so it is gradable without parsing the reply; the reply
-keeps its box. Rows without a boxed answer are skipped. `--limit` applies after
-`--subset`.
+`result`. `thinking` is `medium` although the traces come from high reasoning mode: the
+first Apertus 2 SFT run uses `medium` for every dataset. The final reply's last
+`\\boxed{...}` becomes a `claim` with the bare answer, so it is gradable without parsing
+the reply; the reply keeps its box. Rows without a boxed answer are skipped. `--limit`
+applies after `--subset`.
 
     uv run --no-sync python mappers/nemotron_math.py OUT --input DIR --num-proc 8 --check
 
@@ -42,7 +43,7 @@ def to_native(row):
     if not answer:
         raise ValueError("no boxed answer in final reply")
     tools = row["tools"] or None
-    conversation = from_chat(row["messages"], tools=tools, system={"thinking": "high"})
+    conversation = from_chat(row["messages"], tools=tools, system={"thinking": "medium"})
     *head, reply, wait = conversation.items
     if reply.type != "reply":
         raise ValueError("final message is not a reply")

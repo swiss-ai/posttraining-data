@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Distributed checking and tokenization of native Apertus 2 datasets"
 requires-python = ">=3.13"
 dependencies = [
-  "apertus-common[hf] @ git+https://github.com/swiss-ai/apertus-common.git@8bcc096696bfe4fce22e76fb74f589040f86d21b",
+  "apertus-common[hf] @ git+https://github.com/swiss-ai/apertus-common.git@494c2be79080aa8fbcd46409b96560f72707cd69",
   "datasets>=4,<6",
   "pyarrow>=21",
   "numpy>=2",
