@@ -4,10 +4,12 @@ Check and tokenize **native Apertus 2 datasets** with
 [apertus-common](https://github.com/swiss-ai/apertus-common), locally or across Slurm
 nodes. Checking produces per-sample issue reports; tokenization produces Megatron
 indexed datasets (`.bin`/`.idx`) with optional loss weights, which `inspect` reads back
-as text. Interrupted runs resume from completed shards.
+as text and `cap`, `bucket` and `split` subset without retokenizing. Interrupted runs
+resume from completed shards.
 
 The commands do not convert other chat formats: first produce native data with a
-mapper ([Prepare a dataset](#prepare-a-dataset)).
+mapper ([Prepare a dataset](#prepare-a-dataset)). [DATASETS.md](DATASETS.md) lists the
+datasets produced so far, their providers, and where raw, native, and tokenized data live.
 
 ## Install
 
@@ -68,11 +70,12 @@ project storage, and rerun setup if the environment has been removed.
 ### Tokenizer
 
 Tokenization requires the Apertus 2 instruct tokenizer from
-[apertus-omni-tokenizer](https://github.com/swiss-ai/apertus-omni-tokenizer/tree/feat/apertus-2-text-tokenizers):
+[apertus-omni-tokenizer](https://github.com/swiss-ai/apertus-omni-tokenizer) at `b801ff1`
+on `main` (NFC normalizer), the revision apertus-common verifies:
 
 ```sh
-git clone --depth 1 --branch feat/apertus-2-text-tokenizers \
-  https://github.com/swiss-ai/apertus-omni-tokenizer.git ../../apertus-omni-tokenizer
+git clone https://github.com/swiss-ai/apertus-omni-tokenizer.git ../../apertus-omni-tokenizer
+git -C ../../apertus-omni-tokenizer checkout b801ff1
 export APERTUS_ENCODING="$(cd ../../apertus-omni-tokenizer && pwd)/tokenizers/Apertus_2_instruct"
 ```
 
@@ -188,7 +191,7 @@ ship with the repository; each docstring states what a row becomes:
   `test`.
 - [mappers/nemotron_math.py](mappers/nemotron_math.py) maps
   [nvidia/Nemotron-SFT-Math-v4](https://huggingface.co/datasets/nvidia/Nemotron-SFT-Math-v4)
-  with `thinking: high` and a `claim` holding the bare answer from the final reply's
+  with `thinking: medium` and a `claim` holding the bare answer from the final reply's
   `\boxed{}`; `--input DIR` is the local download and `--subset` selects `cot` or `tir`.
 
 `--help` lists the options every mapper shares (`--num-proc`, `--limit`, `--check`,
@@ -492,9 +495,9 @@ padded, packed, or shifted. With `--loss-weights`, an aligned
 ```
 
 `length` describes the document lengths in tokens, for choosing a training sequence
-length or a length filter: percentiles (linearly interpolated, truncated to whole tokens;
-`mean` rounded to one decimal) and, for 4k, 8k, 16k, and 32k tokens, how many documents
-exceed the limit and which share. It is `null` for an empty run.
+length or [cap](#caps-buckets-and-validation-splits): percentiles (linearly interpolated,
+truncated to whole tokens; `mean` rounded to one decimal) and, for 4k, 8k, 16k, and 32k
+tokens, how many documents exceed the limit and which share. It is `null` for an empty run.
 
 Read documents back with `apertus-data inspect RUN_DIR`. The output starts with a
 `=== run` line repeating those totals and statistics, read from the index so it also
@@ -520,6 +523,54 @@ uv run --no-sync apertus-data inspect /tmp/no_robots-tokens --sample 2 --seed 1 
 uv run --no-sync apertus-data inspect /tmp/no_robots-tokens --index 0 --tokens --weights | head
 uv run --no-sync apertus-data inspect /tmp/no_robots-tokens --sample 5 --weights --source \
   --output /tmp/no_robots-report  # open report.html in a browser
+```
+
+### Caps, buckets and validation splits
+
+These commands copy documents of a merged tokenize run into new runs without
+retokenizing; run them in a job. Megatron truncates or splits documents longer than the
+sequence length: `cap` drops them, `bucket` separates them so that each bucket can be
+trained at a sequence length that fits.
+
+- `apertus-data cap RUN_DIR OUTPUT --max-tokens N` writes the documents of at most `N`
+  tokens to `OUTPUT`.
+- `apertus-data bucket RUN_DIR OUTPUT --bounds B1 [B2 ...]` splits the documents into
+  `OUTPUT/1-B1`, `OUTPUT/<B1+1>-B2`, ..., `OUTPUT/<Bn+1>+`.
+- `apertus-data split RUN_DIR OUTPUT --validation F [--seed S] [--group-by COLUMN]`
+  writes about a share `F` of the documents to `OUTPUT/validation` and the rest to
+  `OUTPUT/train`. A seeded hash of each document's index in the original run picks the
+  side, so splitting a cap or bucket agrees with splitting the full run. `--group-by`
+  hashes the source row's `COLUMN` value instead, keeping e.g. all solutions of one
+  problem on one side; `F` is then a share of groups. Equal numeric IDs (e.g. `2` and
+  `2.0`) share a group; numeric IDs must be finite. It reads the tokenized input,
+  which must be unchanged. A split that leaves either side empty is refused.
+
+`cap`'s `OUTPUT`, each bucket and each side is itself a merged tokenize run: usable as a
+Megatron prefix, readable with `inspect` (including `--source`), and selectable again
+within its range (bucket names then follow the narrowed ranges, e.g. `201-300` under a
+cap of 300). Besides the indexed datasets it holds:
+
+- `run.json`: the parent's plan plus `selection`, with `run` (the original tokenize run),
+  `min_tokens`, `max_tokens` (`null`: unbounded) and, after splits, `splits`
+  (`fraction`, `seed`, `group_by`, `part`). `prepare`, `encode` and `merge` refuse it.
+- `documents.npy`: int64 array; entry `i` is document `i`'s index in the original run.
+- `summary.json`: the tokenize summary of the kept documents plus `selection`; for `cap`
+  also `dropped` (`documents`, `tokens`).
+
+`bucket` and `split` also write `OUTPUT/summary.json` with the parent `run`, the options,
+the parent's totals or the per-side totals, and for `bucket` one entry per bucket (`name`,
+`min_tokens`, `max_tokens`, `documents`, `tokens`). Leave empty buckets out of a blend.
+If the trainer needs one extra token for shifted targets, use a limit one below the
+sequence length. A job killed while writing leaves a `.tmp-<OUTPUT name>-*` directory
+next to `OUTPUT`; the next selection into `OUTPUT` removes it. Concurrent writers to
+the same output are refused. The sibling `.lock-<OUTPUT name>` file stays in place;
+its lock is released when the writer exits, including after a crash.
+
+```sh
+uv run --no-sync apertus-data cap /tmp/no_robots-tokens /tmp/no_robots-8k --max-tokens 8191
+uv run --no-sync apertus-data bucket /tmp/no_robots-tokens /tmp/no_robots-buckets \
+  --bounds 8191 16383
+uv run --no-sync apertus-data split /tmp/no_robots-tokens /tmp/no_robots-split --validation 0.01
 ```
 
 ## Development
