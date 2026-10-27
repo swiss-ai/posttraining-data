@@ -123,3 +123,21 @@ def rows(source, shard, column):
         data = _load_hf(source["path"], source["split"]).select_columns([column])
         for batch in data.select(range(shard["start"], shard["end"])).iter(_READ_BATCH):
             yield from batch[column]
+
+
+def column_values(config, name):
+    """The values of column `name` for every input row of a run, in document order."""
+    values = []
+    for source in config["sources"]:
+        absent = ValueError(f"column {name!r} not in {source['path']}")
+        if source["kind"] == "parquet":
+            parquet = pq.ParquetFile(source["path"])
+            if name not in parquet.schema_arrow.names:
+                raise absent
+            values += parquet.read(columns=[name]).column(name).to_pylist()
+        else:
+            data = _load_hf(source["path"], source["split"])
+            if name not in data.column_names:
+                raise absent
+            values += data.select_columns([name])[name]
+    return values

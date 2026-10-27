@@ -1,14 +1,18 @@
-"""Prepared runs: workers on any node claim shards; merge combines the results."""
+"""Prepared runs: workers on any node claim shards; merge combines the results.
+
+Also reads merged tokenize runs and their selections, for inspect, cap, bucket and split.
+"""
 
 import importlib.metadata
 import json
 import multiprocessing
 import os
+import re
 import shutil
 import sys
 import uuid
 from collections import Counter
-from contextlib import nullcontext
+from contextlib import contextmanager, nullcontext
 from dataclasses import asdict
 from pathlib import Path
 
@@ -18,6 +22,7 @@ from . import _indexed, _inputs
 
 CONFIG = "run.json"
 SUMMARY = "summary.json"
+DOCUMENTS = "documents.npy"
 BATCH = 64
 DTYPES = {"tokens": np.int32, "loss_weights": np.float32}
 
@@ -38,11 +43,17 @@ def library():
     return {"version": distribution.version, "commit": origin.get("vcs_info", {}).get("commit_id")}
 
 
+def _refuse_selection(run, config):
+    if "selection" in config:
+        raise ValueError(f"{run} is a selection (cap, bucket or split), not a prepared run")
+
+
 def load(run):
     run = Path(run).resolve()
     if not (run / CONFIG).exists():
         raise ValueError(f"{run} is not prepared; run 'apertus-data prepare' first")
     config = read_json(run / CONFIG)
+    _refuse_selection(run, config)
     if config["library"] != library():
         raise ValueError(
             "apertus-common version or revision changed since prepare; use a new run directory"
@@ -50,10 +61,27 @@ def load(run):
     return run, config
 
 
-def verify_inputs(config):
-    roots = [config["input"], *filter(None, [config["tokenizer"]])]
-    if _inputs.snapshot(*roots) != config["files"]:
-        raise ValueError("input or tokenizer files changed since prepare; use a new run directory")
+def verify_inputs(config, *, tokenizer=True):
+    """Refuse inputs (with `tokenizer`, also tokenizer files) changed since prepare.
+
+    Without `tokenizer`, as when reading source rows back, missing sources get their own
+    error, and a tokenizer nested under the input is compared from the input's snapshot.
+    """
+    root = config["input"]
+    if tokenizer:
+        roots, recorded = [root, *filter(None, [config["tokenizer"]])], config["files"]
+        changed = "input or tokenizer files changed since prepare; use a new run directory"
+    else:
+        missing = [s["path"] for s in config["sources"] if not Path(s["path"]).exists()]
+        if missing:
+            raise ValueError(f"source no longer exists: {', '.join(missing)}")
+        # `files` lists a tokenizer nested under the input twice; dedupe by path.
+        unique = {f["path"]: f for f in config["files"]}.values()
+        roots = [root]
+        recorded = [f for f in unique if f["path"] == root or f["path"].startswith(root + "/")]
+        changed = "source files changed since tokenization; rows no longer match"
+    if _inputs.snapshot(*roots) != recorded:
+        raise ValueError(changed)
 
 
 def prepare(mode, source, run, *, column, split, shard_rows, loss_weights, tokenizer):
@@ -77,6 +105,7 @@ def prepare(mode, source, run, *, column, split, shard_rows, loss_weights, token
     }
     if (run / CONFIG).exists():
         config = read_json(run / CONFIG)
+        _refuse_selection(run, config)
         if {key: config[key] for key in options} != options:
             raise ValueError(f"{run} was prepared with other options; use a new run directory")
         verify_inputs(config)
@@ -206,23 +235,38 @@ class Tokenize:
                     batch = []
             if batch:
                 self.encode(batch, source, tokens, weights)
-        return {"rows": rows, "tokens": int(sum(tokens.lengths))}
+        return {"rows": rows}
+
+
+@contextmanager
+def staged(target):
+    """Yield a temporary sibling of `target`, synced and renamed to it when the block succeeds."""
+    partial = target.parent / f".tmp-{target.name}-{uuid.uuid4().hex[:8]}"
+    partial.mkdir(parents=True)
+    try:
+        yield partial
+        for path in filter(Path.is_file, partial.rglob("*")):
+            with open(path, "rb") as stream:
+                os.fsync(stream.fileno())
+        partial.rename(target)  # replaces an empty directory
+    finally:
+        shutil.rmtree(partial, ignore_errors=True)
+
+
+def remove_stale_staging(target):
+    """Remove what `staged` left for `target` in attempts killed before cleaning up."""
+    pattern = re.compile(re.escape(f".tmp-{target.name}-") + "[0-9a-f]{8}")
+    for partial in target.parent.glob(".tmp-*"):
+        if pattern.fullmatch(partial.name):
+            shutil.rmtree(partial)
 
 
 def _run_shard(run, config, index, process):
     """Process one shard in a temporary directory and publish it with one rename."""
     shard = config["shards"][index]
-    partial = run / "shards" / f".tmp-{index:06d}-{uuid.uuid4().hex[:8]}"
-    partial.mkdir()
-    try:
+    with staged(run / "shards" / f"{index:06d}") as partial:
         summary = process(config["sources"][shard["source"]], shard, partial)
         write_json(partial / SUMMARY, summary)
-        for path in partial.iterdir():  # on disk before the shard counts as complete
-            with open(path, "rb") as stream:
-                os.fsync(stream.fileno())
-        partial.rename(run / "shards" / f"{index:06d}")
-    finally:
-        shutil.rmtree(partial, ignore_errors=True)
     return summary
 
 
@@ -277,6 +321,21 @@ def encode(run, *, workers, threads):
         raise RuntimeError(f"{failed} of {workers} workers failed; see their errors above")
 
 
+def totals(lengths):
+    """Documents and tokens of the given document lengths."""
+    return {"documents": len(lengths), "tokens": int(lengths.sum(dtype=np.int64))}
+
+
+def tokenize_summary(config, lengths):
+    """The summary.json of a merged tokenize run with these document lengths."""
+    return {
+        "mode": "tokenize",
+        **totals(lengths),
+        "loss_weights": config["loss_weights"],
+        "length": length_stats(lengths),
+    }
+
+
 def length_stats(lengths, limits=(4096, 8192, 16384, 32768)):
     """Document lengths in tokens: percentiles (interpolated, truncated to whole tokens)
     and, per sequence-length limit, how many documents exceed it and which share."""
@@ -297,6 +356,46 @@ def length_stats(lengths, limits=(4096, 8192, 16384, 32768)):
         "max": int(lengths.max()),
         "over": over,
     }
+
+
+def merged_run(run):
+    """Resolve a merged tokenize run (or a selection of one) and read its config."""
+    run = Path(run).resolve()
+    if not ((run / CONFIG).exists() and (run / SUMMARY).exists()):
+        raise ValueError(f"{run} is not a merged run")
+    config = read_json(run / CONFIG)
+    if config["mode"] != "tokenize":
+        raise ValueError(f"{run} is a {config['mode']} run; this command reads tokenize runs")
+    if not (run / "tokens.idx").exists():
+        raise ValueError(f"{run} has no tokens.idx; merge the run first")
+    return run, config
+
+
+def outputs(config):
+    """The indexed datasets a tokenize run writes."""
+    return ["tokens"] + ["loss_weights"] * config["loss_weights"]
+
+
+def run_lengths(run, *, weights):
+    """Document lengths of a merged tokenize run; with `weights`, check its loss_weights too."""
+    lengths = _indexed.read_lengths(run / "tokens", DTYPES["tokens"])
+    if weights:
+        weight_lengths = _indexed.read_lengths(run / "loss_weights", DTYPES["loss_weights"])
+        if not np.array_equal(weight_lengths, lengths):
+            raise ValueError("loss_weights index disagrees with the tokens index")
+    return lengths
+
+
+def source_documents(run, config, count):
+    """Index of each document in the original tokenize run."""
+    if "selection" not in config:
+        return np.arange(count)
+    if not (run / DOCUMENTS).exists():
+        raise ValueError(f"{run} is a selection without {DOCUMENTS}")
+    origin = np.load(run / DOCUMENTS)
+    if len(origin) != count:
+        raise ValueError(f"{run / DOCUMENTS} disagrees with the tokens index")
+    return origin
 
 
 def merge(run):
@@ -337,20 +436,13 @@ def merge(run):
             "issues": issue_counts(counts),
         }
     else:
-        for output in ["tokens"] + ["loss_weights"] * config["loss_weights"]:
+        for output in outputs(config):
             partial = run / f".{output}.tmp"
             prefixes = [run / "shards" / name / output for name in names]
             if _indexed.merge(prefixes, partial, DTYPES[output]) != rows:
                 raise ValueError(f"{output} shards do not hold one document per input row")
             os.replace(f"{partial}.bin", run / f"{output}.bin")
             os.replace(f"{partial}.idx", run / f"{output}.idx")
-        lengths = _indexed.read_lengths(run / "tokens", DTYPES["tokens"])
-        result = {
-            "mode": "tokenize",
-            "documents": rows,
-            "tokens": sum(summary["tokens"] for summary in summaries),
-            "loss_weights": config["loss_weights"],
-            "length": length_stats(lengths),
-        }
+        result = tokenize_summary(config, run_lengths(run, weights=False))
     write_json(run / SUMMARY, result)
     return result

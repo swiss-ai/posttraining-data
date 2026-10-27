@@ -1,4 +1,4 @@
-"""apertus-data: prepare, encode and merge distributed check/tokenize runs; inspect tokens.
+"""apertus-data: check or tokenize native data in shards; inspect, cap, bucket or split tokens.
 
 Exit codes: 0 success, 1 check found failing samples, 2 error.
 """
@@ -11,6 +11,7 @@ import traceback
 
 from ._inspect import documents, overview, overview_text, render, write_report
 from ._run import encode, merge, prepare
+from ._selection import bucket, cap, split
 
 
 def parser():
@@ -72,6 +73,48 @@ def parser():
         metavar="DIR",
         help="Write document-NNNNNN.txt files and a standalone report.html to DIR, not stdout",
     )
+    cmd = commands.add_parser(
+        "cap", help="Keep the documents of a merged tokenize run up to a token length"
+    )
+    cmd.add_argument("run", help="Merged tokenize run directory")
+    cmd.add_argument("output", help="New or empty directory for the capped run")
+    cmd.add_argument(
+        "--max-tokens",
+        type=int,
+        required=True,
+        metavar="TOKENS",
+        help="Longest document to keep, in tokens",
+    )
+    cmd = commands.add_parser("bucket", help="Split a merged tokenize run into length buckets")
+    cmd.add_argument("run", help="Merged tokenize run directory")
+    cmd.add_argument("output", help="New or empty directory for the buckets")
+    cmd.add_argument(
+        "--bounds",
+        type=int,
+        nargs="+",
+        required=True,
+        metavar="TOKENS",
+        help="Increasing upper bounds in tokens; a final bucket holds documents above the last "
+        "(left out when the run is capped at or below it)",
+    )
+    cmd = commands.add_parser("split", help="Split a merged tokenize run into train and validation")
+    cmd.add_argument("run", help="Merged tokenize run directory")
+    cmd.add_argument("output", help="New or empty directory for train/ and validation/")
+    cmd.add_argument(
+        "--validation",
+        type=float,
+        required=True,
+        metavar="FRACTION",
+        help="Approximate share of documents (or groups) for validation, 0 < FRACTION < 1",
+    )
+    cmd.add_argument(
+        "--seed", type=int, default=0, help="Seed of the side-picking hash (default: %(default)s)"
+    )
+    cmd.add_argument(
+        "--group-by",
+        metavar="COLUMN",
+        help="Column of the tokenized input; documents sharing its value stay on one side",
+    )
     return root
 
 
@@ -99,6 +142,16 @@ def main(argv=None):
             summary = merge(args.run)
             print(json.dumps(summary, indent=1))
             return 1 if summary.get("failed_rows") else 0
+        elif args.command in ("cap", "bucket", "split"):
+            if args.command == "cap":
+                result = cap(args.run, args.output, args.max_tokens)
+            elif args.command == "bucket":
+                result = bucket(args.run, args.output, args.bounds)
+            else:
+                result = split(
+                    args.run, args.output, args.validation, seed=args.seed, group_by=args.group_by
+                )
+            print(json.dumps(result, indent=1))
         else:
             records = documents(
                 args.run,

@@ -8,7 +8,15 @@ from pathlib import Path
 import numpy as np
 
 from . import _html, _indexed, _inputs
-from ._run import CONFIG, DTYPES, SUMMARY, length_stats, read_json
+from ._run import (
+    DTYPES,
+    length_stats,
+    merged_run,
+    run_lengths,
+    source_documents,
+    totals,
+    verify_inputs,
+)
 
 REPORT = "report.html"
 
@@ -36,21 +44,6 @@ def _source_json(config, index):
     return source["path"], shard["start"] + index, raw
 
 
-def _verify_sources(config):
-    """Refuse to show source rows unless the input files are exactly those tokenized."""
-    missing = [s["path"] for s in config["sources"] if not Path(s["path"]).exists()]
-    if missing:
-        raise ValueError(f"source no longer exists: {', '.join(missing)}")
-    root = config["input"]
-    # The snapshot lists the tokenizer too, which may be nested under the input.
-    recorded = {f["path"]: f for f in config["files"]}
-    recorded = [
-        f for f in recorded.values() if f["path"] == root or f["path"].startswith(root + "/")
-    ]
-    if _inputs.snapshot(root) != recorded:
-        raise ValueError("source files changed since tokenization; rows no longer match")
-
-
 def _default_weights(ids, controls):
     """The trainer's defaults: loss on output items (control tokens included) and waits.
 
@@ -65,29 +58,11 @@ def _default_weights(ids, controls):
     return weights
 
 
-def _merged_run(run):
-    """Resolve a merged tokenize run directory and read its config."""
-    run = Path(run).resolve()
-    if not ((run / CONFIG).exists() and (run / SUMMARY).exists()):
-        raise ValueError(f"{run} is not a merged run")
-    config = read_json(run / CONFIG)
-    if config["mode"] != "tokenize":
-        raise ValueError(f"{run} is a {config['mode']} run; inspect reads tokenize runs")
-    if not (run / "tokens.idx").exists():
-        raise ValueError(f"{run} has no tokens.idx; merge the run first")
-    return run, config
-
-
 def overview(run):
     """Run totals and length distribution from the index, for any merged tokenize run."""
-    run, _ = _merged_run(run)
-    lengths = _indexed.read_lengths(run / "tokens", DTYPES["tokens"])
-    return {
-        "run": str(run),
-        "documents": len(lengths),
-        "tokens": int(lengths.sum(dtype=np.int64)),
-        "length": length_stats(lengths),
-    }
+    run, _ = merged_run(run)
+    lengths = run_lengths(run, weights=False)
+    return {"run": str(run), **totals(lengths), "length": length_stats(lengths)}
 
 
 def overview_text(stats):
@@ -122,26 +97,23 @@ def documents(run, *, indices=(), sample=3, seed=None, tokenizer=None, source=Fa
     """
     from apertus_common import load_encoding
 
-    run, config = _merged_run(run)
+    run, config = merged_run(run)
     if source:
-        _verify_sources(config)
+        verify_inputs(config, tokenizer=False)
     try:
         encoding = load_encoding(tokenizer or config["tokenizer"])
     except Exception as error:
         raise ValueError(f"cannot load tokenizer: {error}") from error
-    lengths = _indexed.read_lengths(run / "tokens", DTYPES["tokens"])
-    if weights:
-        if not config["loss_weights"]:
-            raise ValueError("the run was tokenized without --loss-weights")
-        weight_lengths = _indexed.read_lengths(run / "loss_weights", DTYPES["loss_weights"])
-        if not np.array_equal(weight_lengths, lengths):
-            raise ValueError("loss_weights index disagrees with the tokens index")
+    if weights and not config["loss_weights"]:
+        raise ValueError("the run was tokenized without --loss-weights")
+    lengths = run_lengths(run, weights=weights)
     controls = sorted({*dataclasses.astuple(encoding.controls), encoding.bos_token_id})
     chosen = _choose(len(lengths), indices, sample, seed)
-    return _records(run, config, encoding, lengths, chosen, controls, source, weights)
+    origin = source_documents(run, config, len(lengths)) if source else None
+    return _records(run, config, encoding, lengths, chosen, controls, origin, weights)
 
 
-def _records(run, config, encoding, lengths, chosen, controls, source, weights):
+def _records(run, config, encoding, lengths, chosen, controls, origin, weights):
     for index in chosen:
         ids = _indexed.read_document(run / "tokens", DTYPES["tokens"], lengths, index).tolist()
         values = _default_weights(ids, encoding.controls)
@@ -161,8 +133,8 @@ def _records(run, config, encoding, lengths, chosen, controls, source, weights):
             "controls": controls,
             "source": None,
         }
-        if source:
-            path, row, raw = _source_json(config, index)
+        if origin is not None:
+            path, row, raw = _source_json(config, int(origin[index]))
             record["source"] = {"path": path, "row": row, "json": raw}
         record["meta"] = _meta(record)
         yield record

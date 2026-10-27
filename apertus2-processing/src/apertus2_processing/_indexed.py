@@ -10,6 +10,7 @@ HEADER = b"MMIDIDX\x00\x00"
 DTYPE_CODES = {np.dtype(np.int32): 4, np.dtype(np.float32): 7}  # Megatron DType codes
 _PREAMBLE = len(HEADER) + 8 + 1 + 8 + 8
 _CHUNK = 1 << 20
+_COPY = 16 * _CHUNK  # bytes per read when copying data
 
 
 class Writer:
@@ -77,12 +78,31 @@ def read_document(prefix, dtype, lengths, index):
     return np.fromfile(f"{prefix}.bin", dtype, count=int(lengths[index]), offset=offset)
 
 
+def select(prefix, target, dtype, lengths, keep):
+    """Write the documents where the boolean array `keep` is true, in order."""
+    dtype = np.dtype(dtype)
+    offsets = np.concatenate(([0], np.cumsum(lengths.astype(np.int64) * dtype.itemsize)))
+    # [first, end) of each run of kept documents
+    edges = np.flatnonzero(np.diff(np.concatenate(([0], keep.astype(np.int8), [0]))))
+    with open(f"{prefix}.bin", "rb") as source, open(f"{target}.bin", "wb") as data:
+        for first, end in zip(edges[::2], edges[1::2], strict=True):
+            source.seek(int(offsets[first]))
+            remaining = int(offsets[end] - offsets[first])
+            while remaining:
+                chunk = source.read(min(remaining, _COPY))
+                if not chunk:  # the file shrank after its index was validated
+                    raise ValueError(f"data ends before its index does: {prefix}.bin")
+                data.write(chunk)
+                remaining -= len(chunk)
+    write_index(f"{target}.idx", dtype, [lengths[keep]])
+
+
 def merge(prefixes, target, dtype):
     """Concatenate indexed datasets in order and return the document count."""
     lengths = [read_lengths(prefix, dtype) for prefix in prefixes]
     with open(f"{target}.bin", "wb") as data:
         for prefix in prefixes:
             with open(f"{prefix}.bin", "rb") as source:
-                shutil.copyfileobj(source, data, 16 * _CHUNK)
+                shutil.copyfileobj(source, data, _COPY)
     write_index(f"{target}.idx", dtype, lengths)
     return sum(len(chunk) for chunk in lengths)

@@ -42,8 +42,8 @@ def load_mapper(name):
     return module
 
 
-def write_parquet(path, rows, row_group_size=None):
-    table = pa.table({"conversation_json": pa.array(rows, pa.string())})
+def write_parquet(path, rows, row_group_size=None, **columns):
+    table = pa.table({"conversation_json": pa.array(rows, pa.string()), **columns})
     pq.write_table(table, path, row_group_size=row_group_size)
     return path
 
