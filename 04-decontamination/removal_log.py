@@ -14,6 +14,8 @@ column with one entry per benchmark whose report flagged the sample:
                           (the value thresholded by diff_threshold)
   longest_block           longest matched run in units
   matched_text            the matched runs of the normalised benchmark prompt, joined with " [...] "
+  user_turn               the user message with the highest match_ratio: its index in
+                          matching_units.user_prompts (0 = initial prompt)
 
 Reports only store the first benchmark prompt above the threshold, so `benchmark_prompt` is a match
 of that benchmark, not necessarily its closest one. match_ratio is recomputed here with the same
@@ -29,7 +31,7 @@ from typing import Dict
 from datasets import Dataset, DatasetDict, Features, Value
 from transformers import AutoTokenizer
 
-from matching_units import units_with_spans
+from matching_units import units_with_spans, user_prompts
 
 REMOVAL_LOG_DIR = "decontamination_removed"
 MIN_BLOCK = 5  # same minimum block size as the decontamination matching
@@ -41,6 +43,7 @@ MATCH_FEATURES = {
     "match_ratio": Value("float64"),
     "longest_block": Value("int64"),
     "matched_text": Value("string"),
+    "user_turn": Value("int64"),
 }
 
 _tokenizer = None
@@ -86,22 +89,27 @@ def write_removal_log(data, reports: Dict[str, Dict[str, int]], decontamination_
     removed = {k: v.filter(lambda ids: [str(c) in matches_by_id for c in ids], input_columns="conversation_id",
                            batched=True) for k, v in splits.items()}
 
-    # Score every (removed sample, matched benchmark prompt) pair
-    pairs, owners = [], []
+    # Score every (user message of a removed sample, matched benchmark prompt) pair; keep the best turn
+    pairs, owners, scored = [], [], []
     for k, split in removed.items():
-        for cid, initial_prompt in zip(split["conversation_id"], split["initial_prompt"]):
-            for m in matches_by_id[str(cid)]:
-                pairs.append((initial_prompt["content"], m["benchmark_prompt"]))
-                owners.append(m)
-    print(f"Scoring {len(pairs)} matched pairs of {len(matches_by_id)} removed samples for the removal log...")
+        for cid, initial_prompt, branches in zip(split["conversation_id"], split["initial_prompt"],
+                                                 split["conversation_branches"]):
+            scored.extend(matches_by_id[str(cid)])
+            for turn, text in enumerate(user_prompts(initial_prompt, branches)):
+                for m in matches_by_id[str(cid)]:
+                    pairs.append((text, m["benchmark_prompt"]))
+                    owners.append((m, turn))
+    print(f"Scoring {len(pairs)} (user message, benchmark prompt) pairs of {len(matches_by_id)} removed samples "
+          f"for the removal log...")
     if pairs:
         with Pool(num_proc, initializer=_init_worker, initargs=(tokenizer_name,)) as p:
-            for m, score in zip(owners, p.imap(_score, pairs, chunksize=64)):
-                m.update(score)
+            for (m, turn), score in zip(owners, p.imap(_score, pairs, chunksize=64)):
+                if "match_ratio" not in m or score["match_ratio"] > m["match_ratio"]:
+                    m.update(score, user_turn=turn)
 
-    below = sum(m["match_ratio"] < diff_threshold for m in owners)
+    below = sum(m["match_ratio"] < diff_threshold for m in scored)
     if below:
-        print(f"Warning: {below}/{len(owners)} logged matches score below diff_threshold={diff_threshold}. "
+        print(f"Warning: {below}/{len(scored)} logged matches score below diff_threshold={diff_threshold}. "
               f"Was decontamination run with a different tokenizer than {tokenizer_name}?")
 
     def add_matches(batch):

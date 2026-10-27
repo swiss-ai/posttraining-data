@@ -4,8 +4,8 @@ decontamination-parallel.py
 ───────────────────────────
 Writes a contamination report for each benchmark of a subset (one array job), or of all benchmarks.
 
-For every benchmark, the training prompts are matched against the benchmark prompts (see
-matching_units.py for the units and rules) and `<report_path>/<benchmark>__contamination_report.json`
+For every benchmark, the training prompts (every user message of a sample) are matched against the
+benchmark prompts (see matching_units.py for the units and rules) and `<report_path>/<benchmark>__contamination_report.json`
 maps each contaminated conversation_id to the matched benchmark prompt. Existing reports are reused.
 merge-decontamination-reports.py combines the reports and filters the dataset.
 
@@ -29,7 +29,18 @@ from decontamination_common import (compute_benchmark_ngrams, get_benchmark_cach
                                     get_eval_match_indices, init_contamination_worker, init_get_eval_match_indices,
                                     load_cached_benchmark_ngrams, process_tokens, save_benchmark_ngrams_to_cache,
                                     verify_contamination_worker_optimized)
-from matching_units import max_short_train_units, short_prompt_index, short_prompt_match, to_units
+from matching_units import max_short_train_units, short_prompt_index, short_prompt_match, to_units, user_prompts
+
+
+def user_prompt_units(batch, tokenizer):
+    """One row per user message of the samples in batch: its conversation_id and units."""
+    conversation_ids, texts = [], []
+    for cid, initial_prompt, branches in zip(batch["conversation_id"], batch["initial_prompt"],
+                                             batch["conversation_branches"]):
+        for text in user_prompts(initial_prompt, branches):
+            conversation_ids.append(cid)
+            texts.append(text)
+    return {"conversation_id": conversation_ids, "prompt_token_ids": to_units(tokenizer, texts)}
 
 
 def get_benchmark_subset(all_benchmarks, start_idx=None, end_idx=None):
@@ -116,15 +127,17 @@ def main(args):
         print(f"Creating contamination reports directory: {args.report_path}")
         os.makedirs(args.report_path, exist_ok=True)
     print(f"Training data loaded: {len(train_data)} samples")
-    print("Tokenizing training prompts...")
+    print("Tokenizing training prompts (every user message)...")
+    num_samples = len(train_data)
     train_data = train_data.map(
-        lambda batch: {
-            "prompt_token_ids": to_units(tokenizer, [x["content"] or "" for x in batch["initial_prompt"]])
-        },
+        partial(user_prompt_units, tokenizer=tokenizer),
         batched=True,
+        remove_columns=train_data.column_names,
     )
+    # One entry per user message; a match of any of them reports the sample's conversation_id
     train_data_prompts_token_ids = train_data["prompt_token_ids"]
     train_conversation_ids = train_data["conversation_id"]
+    print(f"{len(train_conversation_ids)} user messages in {num_samples} samples")
     del train_data  # Remove the training data for memory free-up
     print(f"Generating n-grams from training data ({len(train_data_prompts_token_ids)} prompts)...")
     start_time = time.time()
@@ -351,8 +364,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "dataset_path",
         type=str,
-        help="Path or name of the training dataset to process. Must include a column with 'messages' that "
-             "contains the standard HuggingFace chat format of List[Dict[str, str]]",
+        help="Path of the training dataset (chat format of 02-standardisation, a Dataset or DatasetDict). "
+             "Every user message is checked: initial_prompt and the user turns of conversation_branches.",
     )
     parser.add_argument(
         "--decontamination_prompts",

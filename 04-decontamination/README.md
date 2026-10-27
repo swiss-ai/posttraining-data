@@ -5,15 +5,15 @@ If significant overlap is detected, the sample is removed from the training data
 
 ## How it works
 
-1. The first user turn (`initial_prompt`) of every training sample and every benchmark prompt are
-   normalised (Unicode NFKC, runs of a repeated non-letter character such as `━━━━━` collapsed to one,
+1. Every user message of a training sample (`initial_prompt` and the user turns of all
+   `conversation_branches`) and every benchmark prompt are normalised (Unicode NFKC, runs of a repeated non-letter character such as `━━━━━` collapsed to one,
    whitespace collapsed to one space), tokenized (`swiss-ai/Apertus-8B-Instruct-2509`, without `<s>`)
    and split into units. A unit is a token, except that a number (`1,023`, `16.482`, `2'832`) counts
    as one unit; the tokenizer would split it into single digits (`matching_units.py`).
-2. Each training prompt is compared with each benchmark prompt. The rule depends on the length of the
+2. Each user message is compared on its own with each benchmark prompt. The rule depends on the length of the
    benchmark prompt:
 
-   | Benchmark prompt (after normalisation) | Rule | A training sample is removed if … |
+   | Benchmark prompt (after normalisation) | Rule | A training sample is removed if, for one of its user messages (the training prompt), … |
    |---|---|---|
    | **0 units** (empty or only whitespace) | skipped, counted as empty | never |
    | **1–3 units** (e.g. "5!=", "Paris", "Yes.") | exact equality only | the training prompt is **identical** to the benchmark prompt |
@@ -24,11 +24,12 @@ If significant overlap is detected, the sample is removed from the training data
    benchmark prompts in the classes 0, 1–3 and 4–7 is recorded in the processing log
    (`short_benchmark_prompts`).
 3. For each benchmark a report `<benchmark>__contamination_report.json` is written, mapping each
-   contaminated `conversation_id` to the matched benchmark prompt.
+   contaminated `conversation_id` to the matched benchmark prompt. A sample is contaminated if any of its
+   user messages matches.
 4. The final filter removes every `conversation_id` that appears in any report.
 
-Only near-verbatim overlap in the first user turn is detected; system prompts, later turns and
-responses are not checked.
+Only near-verbatim overlap in user messages is detected; system prompts and assistant responses are not
+checked.
 
 ## Test set for the decontamination strategy
 
@@ -89,7 +90,8 @@ completion items (`item_type` `math`, `mcq`, `qa`, `completion`).
 - **Removal log.** The removed samples are saved unchanged to `<output>/decontamination_removed/` (same
   splits as the input), with a `decontamination_matches` column holding one entry per flagging benchmark:
   `benchmark`, `eval_idx`, `benchmark_prompt`, `benchmark_prompt_tokens`, `match_ratio`, `longest_block`
-  and `matched_text` (the matched runs, joined with ` [...] `). `match_ratio` is recomputed at filter
+  `matched_text` (the matched runs, joined with ` [...] `) and `user_turn` (the user message with the
+  highest `match_ratio`, 0 = `initial_prompt`). `match_ratio` is recomputed at filter
   time, so pass the tokenizer the reports were made with (also to the merge script); the processing-log
   entry records `logged_matches_below_threshold`, which is non-zero when it was not. Reports keep only the
   first benchmark prompt above the threshold, so `benchmark_prompt` is a match, not necessarily the

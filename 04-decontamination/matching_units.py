@@ -1,5 +1,8 @@
 """The units the decontamination check compares: tokens of the normalised text, numbers as one unit.
 
+Every user message of a training sample is checked on its own (user_prompts): the initial prompt and the
+user turns of all conversation branches. A sample is contaminated if any of them matches.
+
 normalize(text):
   - Unicode NFKC (full-width characters, ligatures, special spaces -> their plain form)
   - a run of one repeated character that is neither a letter, digit nor whitespace is collapsed to one
@@ -28,7 +31,8 @@ from collections import defaultdict
 UNITS_VERSION = "v2"
 # Recorded in the processing log: bump when the units or the matching rules change.
 # v3: benchmark prompts shorter than the n-gram length are checked by short_prompt_match.
-MATCHING_VERSION = "v3"
+# v4: every user message is checked (user_prompts), not only the initial prompt.
+MATCHING_VERSION = "v4"
 
 EXACT_MAX_UNITS = 3
 SHORT_MIN_COVERAGE = 0.5
@@ -36,6 +40,21 @@ SHORT_MIN_COVERAGE = 0.5
 NUMBER = re.compile(r"\d+(?:[.,'’]\d+)*")
 REPEATED = re.compile(r"([^\w\s]|_)\1+")
 WHITESPACE = re.compile(r"\s+")
+
+
+def user_prompts(initial_prompt, conversation_branches):
+    """Texts of all user messages of a sample: the initial prompt, then the user turns of every branch.
+
+    A user turn is the text of its response parts. Repeated texts (e.g. shared by branches) are kept once."""
+    texts = [initial_prompt["content"] or ""]
+    for branch in conversation_branches or []:
+        for message in branch["messages"]:
+            if message["role"] != "user":
+                continue
+            text = "\n".join(p["content"] for p in message["parts"] if p["type"] == "response" and p["content"])
+            if text and text not in texts:
+                texts.append(text)
+    return texts
 
 
 def normalize(text: str) -> str:
