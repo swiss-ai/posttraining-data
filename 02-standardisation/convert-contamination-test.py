@@ -1,14 +1,14 @@
 """
 convert_contamination_test.py
 ───────────────────────
-Convert the synthetic decontamination test set (04-decontamination/contamination_dataset.jsonl)
+Convert the synthetic decontamination test set (04-decontamination/validation/contamination_dataset.jsonl)
 into the unified chat-tool schema, so it can be run through 04-decontamination like any other source.
 
 Each line of the JSONL file contains:
     - id: Sample identifier (e.g. sample_0000)
     - question: The question, problem or text to complete
     - choices: List of answer choices (multiple-choice items) or null
-    - answer: Solution text, or the correct choice as a 0-based index ("0") or letter ("D")
+    - answer: Solution text, the correct choice as a 0-based index ("0") or letter ("D"), or null
     - is_contaminated: Whether the sample is taken from a benchmark
     - benchmark_hf_dir, benchmark_config, benchmark_split, benchmark_row: Source benchmark item (or null)
     - contamination_type: exact_copy, surface_change, light_rewording, option_shuffle (or null)
@@ -17,7 +17,7 @@ Each line of the JSONL file contains:
 This converter:
 1. Uses the question as the user prompt, with the choices appended as "A. ..." lines
    (only the question with --stem-only)
-2. Uses the solution text, or the correct choice, as the assistant response
+2. Uses the solution text, or the correct choice, as the assistant response (empty if there is no answer)
 3. Keeps all labels in original_metadata, so the decontamination result can be scored
    (a removed clean sample is a false positive, a kept contaminated sample a false negative)
 
@@ -34,7 +34,7 @@ from datasets import Dataset, DatasetDict
 from conversation_ids import add_conversation_ids_for_output
 
 SRC = "contamination_test"
-DEFAULT_INPUT = Path(__file__).resolve().parent.parent / "04-decontamination" / "contamination_dataset.jsonl"
+DEFAULT_INPUT = Path(__file__).resolve().parent.parent / "04-decontamination" / "validation" / "contamination_dataset.jsonl"
 LABELS = "ABCDEFGHIJ"
 
 
@@ -64,13 +64,15 @@ def convert_sample(sample: Dict[str, Any], stem_only: bool = False) -> Dict[str,
 
     question = sample["question"]
     choices = sample.get("choices")
+    answer = ""  # no answer given: empty response (decontamination only checks the user prompt)
     if choices:
-        label = answer_label(sample["answer"], len(choices))
         options = "\n".join(f"{LABELS[i]}. {choice}" for i, choice in enumerate(choices))
         if not stem_only:
             question = f"{question.rstrip()}\n{options}"
-        answer = f"{label}. {choices[LABELS.index(label)]}"
-    else:
+        if sample.get("answer") is not None:
+            label = answer_label(sample["answer"], len(choices))
+            answer = f"{label}. {choices[LABELS.index(label)]}"
+    elif sample.get("answer") is not None:
         answer = sample["answer"]
 
     converted["initial_prompt"] = {

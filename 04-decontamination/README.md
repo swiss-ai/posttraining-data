@@ -33,8 +33,8 @@ checked.
 
 ## Test set for the decontamination strategy
 
-`contamination_dataset.jsonl` is a synthetically generated, labelled test set for measuring how many false positives and false
-negatives the decontamination produces. It has 720 samples (`id`, `question`, `choices`, `answer`,
+`validation/contamination_dataset.jsonl` is a synthetically generated, labelled test set for measuring how many false positives
+and false negatives the decontamination produces. It has 720 samples (`id`, `question`, `choices`, `answer`,
 `item_type`):
 
 - **360 contaminated** (`is_contaminated: true`): 60 each from MMLU, MATH (`EleutherAI/hendrycks_math`),
@@ -45,8 +45,13 @@ negatives the decontamination produces. It has 720 samples (`id`, `question`, `c
   (`item_type` names it) but not taken from it, so they are near misses that test for false positives.
 
 A clean sample that is removed is a false positive; a contaminated sample that is kept is a false
-negative. The file is not in the unified schema, so convert it first (`question` as `initial_prompt`,
-`id` as `conversation_id`).
+negative. The file is not in the unified schema, so convert it first with
+`02-standardisation/convert-contamination-test.py` (`question` as `initial_prompt`, the test set's `id` kept in
+`original_metadata`).
+
+`validation/contamination_dataset_v3.jsonl` is a larger set in the same format: 19,722 samples, 9,361
+contaminated from 72 benchmarks (also `partial`, a part of a benchmark item) and 10,361 clean, most of them
+wrapped in chat templates, JSON records, few-shot prompts or quizzes. Its `answer` can be null.
 
 An earlier version, `contamination_dataset_v1_old.jsonl` (removed, still in commit `7564cae`), has the
 same 360 contaminated samples, but its 360 clean samples are short, generic math, multiple-choice, QA and
