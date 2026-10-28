@@ -1,0 +1,6 @@
+{
+  "task_text": "prompt",
+  "completion_text": "response",
+  "chat_turns": "messages",
+  "available_functions": "tools"
+}

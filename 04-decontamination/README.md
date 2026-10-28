@@ -276,3 +276,9 @@ python 04-decontamination/merge-decontamination-reports.py \
   /path/to/output/dataset \
   /path/to/parallel_reports
 ```
+
+## Coding SFT Parquet workflow
+
+The [code-sft](code-sft/README.md) subdirectory implements this stage for the
+[coding SFT recipe](../examples/code-sft/README.md), using source-preserving
+Parquet rather than the legacy HF DatasetDict schema.

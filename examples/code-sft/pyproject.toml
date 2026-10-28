@@ -1,0 +1,17 @@
+[project]
+name = "posttraining-code-sft"
+version = "0.1.0"
+description = "Environment for the coding SFT recipe across stages 01, 02 and 04"
+requires-python = ">=3.11"
+dependencies = [
+  "datasets>=4,<6", "huggingface-hub>=0.34", "pyarrow>=21",
+  "pyyaml>=6", "requests>=2.32", "duckdb>=1.4,<2",
+  "pyahocorasick>=2.1", "rensa==0.5.0",
+]
+
+[dependency-groups]
+dev = ["pytest>=8", "ruff>=0.16"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests", "../../02-standardisation/code-sft/tests", "../../04-decontamination/code-sft/tests"]
+pythonpath = ["../../01-hf-download/code-sft", "../../02-standardisation/code-sft", "../../04-decontamination/code-sft", "../../02-standardisation/code-sft/tests", "../../04-decontamination/code-sft/tests"]

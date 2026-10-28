@@ -31,3 +31,9 @@ python 01-hf-download/hf-download.py arcee-ai/The-Tome --download-folder data/01
 python 01-hf-download/hf-download.py utter-project/EuroBlocks-SFT-Synthetic-1124 --download-folder data/01-hf-data
 python 01-hf-download/hf-download.py nvidia/Llama-Nemotron-Post-Training-Dataset --download-folder data/01-hf-data
 ```
+
+## Coding SFT Parquet workflow
+
+The [code-sft](code-sft/README.md) subdirectory implements this stage for the
+[coding SFT recipe](../examples/code-sft/README.md), using source-preserving
+Parquet rather than the legacy HF DatasetDict schema.

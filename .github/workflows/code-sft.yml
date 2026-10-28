@@ -1,0 +1,40 @@
+name: Code SFT recipe
+
+on:
+  pull_request:
+    paths:
+      - '01-hf-download/code-sft/**'
+      - '02-standardisation/code-sft/**'
+      - '04-decontamination/code-sft/**'
+      - 'examples/code-sft/**'
+      - '.github/workflows/code-sft.yml'
+  push:
+    branches: [main]
+    paths:
+      - '01-hf-download/code-sft/**'
+      - '02-standardisation/code-sft/**'
+      - '04-decontamination/code-sft/**'
+      - 'examples/code-sft/**'
+      - '.github/workflows/code-sft.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: examples/code-sft
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: '3.11'
+          enable-cache: true
+          cache-dependency-glob: examples/code-sft/uv.lock
+      - run: uv sync --locked
+      - run: uv run --no-sync ruff check --select E9,F63,F7,F82 ../../01-hf-download/code-sft ../../02-standardisation/code-sft ../../04-decontamination/code-sft .
+      - run: uv run --no-sync ruff format --check ../../01-hf-download/code-sft ../../02-standardisation/code-sft ../../04-decontamination/code-sft .
+      - run: uv run --no-sync pytest -q

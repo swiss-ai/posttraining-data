@@ -17,6 +17,7 @@ The pipeline consists of the following self-contained stages:
 Additional directories:
 - **tool_data**: Tool-calling data utilities — validates linearised datasets (regarding tool use), filters flagged samples, injects tool definitions into non-tool-calling samples, and cross-checks results. See `tool_data/README.md`.
 - **examples**: A few additional running scripts and miscellaneous commands.
+- **[Code-SFT recipe](examples/code-sft/README.md)**: Revision-pinned coding-data downloads, loss-preserving column unification, exact/fuzzy deduplication and evaluation decontamination, implemented in stages 01, 02 and 04 with a separate locked environment.
 
 ## Setup
 

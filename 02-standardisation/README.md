@@ -180,3 +180,9 @@ python 02-standardisation/browse-sample.py data/02-standardised/tulu-3-sft-mixtu
 - `convert-xlam-function-calling.py` - XLAM function calling data
 - `convert-numinamath.py` - NuminaMath mathematical reasoning data
 - And more specialised converters for specific datasets
+
+## Coding SFT Parquet workflow
+
+The [code-sft](code-sft/README.md) subdirectory implements this stage for the
+[coding SFT recipe](../examples/code-sft/README.md), using source-preserving
+Parquet rather than the legacy HF DatasetDict schema.
