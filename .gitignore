@@ -18,8 +18,6 @@ judge-analysis/*.json
 .venv/
 .pytest_cache/
 uv-cache/
-!01-hf-download/code-sft/tests/
-!01-hf-download/code-sft/tests/**
 !02-standardisation/code-sft/tests/
 !02-standardisation/code-sft/tests/**
 !04-decontamination/code-sft/tests/

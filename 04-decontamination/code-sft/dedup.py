@@ -566,10 +566,7 @@ def main():
     )
     benchmarks = completed_files(benchmark_root, "benchmarks")
     # Refuse a silently partial benchmark download against the registered manifest.
-    lock = (
-        Path(__file__).resolve().parents[2]
-        / "01-hf-download/code-sft/benchmarks.lock.json"
-    )
+    lock = Path(__file__).with_name("benchmarks.lock.json")
     if lock.exists():
         for entry in json.loads(lock.read_text())["datasets"]:
             marker = (

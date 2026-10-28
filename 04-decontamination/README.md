@@ -277,8 +277,8 @@ python 04-decontamination/merge-decontamination-reports.py \
   /path/to/parallel_reports
 ```
 
-## Coding SFT Parquet workflow
+## Apertus 2 native coding SFT
 
-The [code-sft](code-sft/README.md) subdirectory implements this stage for the
-[coding SFT recipe](../examples/code-sft/README.md), using source-preserving
-Parquet rather than the legacy HF DatasetDict schema.
+The [code-sft](code-sft/README.md) subdirectory deduplicates checked native Parquet
+rows and filters overlap with evaluation references while preserving native fields.
+See the [recipe](../examples/code-sft/README.md) for matching policies and commands.

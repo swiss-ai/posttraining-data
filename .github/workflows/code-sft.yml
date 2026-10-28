@@ -3,7 +3,6 @@ name: Code SFT recipe
 on:
   pull_request:
     paths:
-      - '01-hf-download/code-sft/**'
       - '02-standardisation/code-sft/**'
       - '04-decontamination/code-sft/**'
       - 'examples/code-sft/**'
@@ -11,7 +10,6 @@ on:
   push:
     branches: [main]
     paths:
-      - '01-hf-download/code-sft/**'
       - '02-standardisation/code-sft/**'
       - '04-decontamination/code-sft/**'
       - 'examples/code-sft/**'
@@ -21,7 +19,7 @@ permissions:
   contents: read
 
 jobs:
-  test:
+  public-checks:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     defaults:
@@ -31,10 +29,54 @@ jobs:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
         with:
-          python-version: '3.11'
+          python-version: '3.13'
           enable-cache: true
           cache-dependency-glob: examples/code-sft/uv.lock
-      - run: uv sync --locked
-      - run: uv run --no-sync ruff check --select E9,F63,F7,F82 ../../01-hf-download/code-sft ../../02-standardisation/code-sft ../../04-decontamination/code-sft .
-      - run: uv run --no-sync ruff format --check ../../01-hf-download/code-sft ../../02-standardisation/code-sft ../../04-decontamination/code-sft .
-      - run: uv run --no-sync pytest -q
+      - run: uv venv --python 3.13
+      - name: Install locked public dependencies
+        run: |
+          uv export --frozen --all-groups --no-emit-package apertus-common --no-hashes --output-file "$RUNNER_TEMP/code-sft-public.txt"
+          uv pip sync "$RUNNER_TEMP/code-sft-public.txt"
+      - run: .venv/bin/ruff check --select E9,F63,F7,F82 ../../02-standardisation/code-sft ../../04-decontamination/code-sft .
+      - run: .venv/bin/ruff format --check ../../02-standardisation/code-sft ../../04-decontamination/code-sft .
+      - name: Chat conversion, schemas, reasoning and deduplication
+        run: .venv/bin/python -m pytest -c pyproject.toml -q ../../02-standardisation/code-sft/tests ../../04-decontamination/code-sft/tests --ignore=../../02-standardisation/code-sft/tests/test_native_standardisation.py
+
+  native-access:
+    runs-on: ubuntu-latest
+    outputs:
+      available: ${{ steps.access.outputs.available }}
+    steps:
+      - id: access
+        env:
+          APERTUS_COMMON_READ_TOKEN: ${{ secrets.APERTUS_COMMON_READ_TOKEN }}
+        run: |
+          if [ -n "$APERTUS_COMMON_READ_TOKEN" ]; then
+            echo 'available=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'available=false' >> "$GITHUB_OUTPUT"
+            echo 'Native tests require the APERTUS_COMMON_READ_TOKEN secret with read access to swiss-ai/apertus-common.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  native-tests:
+    needs: native-access
+    if: needs.native-access.outputs.available == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: examples/code-sft
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: '3.13'
+          enable-cache: false
+          cache-dependency-glob: examples/code-sft/uv.lock
+      - name: Install pinned native library
+        env:
+          APERTUS_COMMON_READ_TOKEN: ${{ secrets.APERTUS_COMMON_READ_TOKEN }}
+        run: |
+          git config --global credential.https://github.com.helper '!f() { if [ "$1" = get ]; then printf "username=x-access-token\npassword=%s\n" "$APERTUS_COMMON_READ_TOKEN"; fi; }; f'
+          uv sync --locked
+      - run: uv run --no-sync pytest -c pyproject.toml -q

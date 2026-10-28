@@ -14,7 +14,7 @@ ENTRIES = {entry["repo"]: entry for entry in CATALOG["datasets"]}
 BENCHMARKS = {
     entry["repo"]: entry
     for entry in yaml.safe_load(
-        (BASE.parents[1] / "01-hf-download/code-sft/benchmarks.yaml").read_text()
+        (BASE.parents[1] / "04-decontamination/code-sft/benchmarks.yaml").read_text()
     )["datasets"]
 }
 

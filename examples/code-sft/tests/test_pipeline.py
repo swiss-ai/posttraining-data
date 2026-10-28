@@ -10,6 +10,7 @@ import unittest
 
 import pyarrow as pa
 import pyarrow.parquet as pq
+from apertus_common import Conversation, checkers_for
 from standardize import SCHEMA, normalize
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -59,8 +60,17 @@ class PipelineTests(unittest.TestCase):
                 "--revision",
                 "abc",
             )
+            for path in (root / "unified").rglob("part-*.parquet"):
+                for row in pq.ParquetFile(path).read().to_pylist():
+                    conversation = Conversation.from_json(row["conversation_json"])
+                    self.assertTrue(
+                        conversation.check(
+                            checkers=checkers_for("full", training=True)
+                        ).ok
+                    )
+                    self.assertIn("<|out|>reply<|hdr|>", row["native_text"])
             entries = json.loads(
-                (ROOT / "01-hf-download/code-sft/benchmarks.lock.json").read_text()
+                (ROOT / "04-decontamination/code-sft/benchmarks.lock.json").read_text()
             )["datasets"]
             for entry in entries:
                 directory = root / "evaluation" / entry["repo"]

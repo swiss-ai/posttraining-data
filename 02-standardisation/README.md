@@ -181,8 +181,9 @@ python 02-standardisation/browse-sample.py data/02-standardised/tulu-3-sft-mixtu
 - `convert-numinamath.py` - NuminaMath mathematical reasoning data
 - And more specialised converters for specific datasets
 
-## Coding SFT Parquet workflow
+## Apertus 2 native coding SFT
 
-The [code-sft](code-sft/README.md) subdirectory implements this stage for the
-[coding SFT recipe](../examples/code-sft/README.md), using source-preserving
-Parquet rather than the legacy HF DatasetDict schema.
+The [code-sft](code-sft/README.md) subdirectory converts existing downloader outputs
+into checked Apertus 2 native conversations, including reasoning, tool calls,
+results, native rendering and rejection ledgers. See the
+[recipe](../examples/code-sft/README.md) for commands and a separate locked environment.

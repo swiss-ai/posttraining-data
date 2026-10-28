@@ -1,12 +1,16 @@
-# Coding SFT standardisation
+# Checked Apertus 2 native standardisation
 
-`standardize.py` defines the common Parquet columns and alias mappings. `unified.py`
-adds original-source records, per-file provenance, selection accounting and resume
-checkpoints. `preprocessors/` contains source adapters and `adapter-policies.json`
-declares known source selection policies. `unify_local.py` handles existing local
-JSONL/Parquet files with an optional source-to-canonical column-name map.
+`standardise_native.py` consumes the existing downloader's saved Dataset/DatasetDict,
+JSONL or Parquet. Column mapping and source-specific chat conversion feed independent
+chat/schema checks, then pinned `apertus-common` maps, validates and renders native
+conversations. Reasoning becomes think items; calls, results and waits are preserved.
+Rejected rows retain the original source and explicit reasons.
 
-This schema preserves messages, prompt, response, reasoning, tools, tests and the
-original source object. It is separate from the existing stage-02 HF DatasetDict
-conversation-branches schema. See the [recipe](../../examples/code-sft/README.md)
-for mappings, limitations and commands.
+Output includes native `conversation_json`, rendered `native_text`, original records,
+provenance, matching fields and optional token IDs/loss weights. `native_format.py`
+contains the native adapter; `openai_*` modules validate source trace semantics.
+`unified.py` and `standardize.py` provide an intermediate source view, not the final
+training format.
+
+See the [recipe](../../examples/code-sft/README.md) for the locked environment,
+inputs, validation scope, native formatting/tokenization, quarantine and resume.

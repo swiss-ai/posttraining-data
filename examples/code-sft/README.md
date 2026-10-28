@@ -1,118 +1,153 @@
-# Coding SFT recipe
+# Checked Apertus 2 native coding SFT
 
-Revision-pinned download, source-column unification, exact/fuzzy deduplication and
-benchmark decontamination using the repository's existing stages:
+This recipe connects the existing downloader to full native chat standardisation
+in stage 02 and duplicate/benchmark filtering in stage 04.
 
-| Stage | Implementation | Output |
-| --- | --- | --- |
-| [01: download](../../01-hf-download/code-sft/) | Manifest resolution, source download, evaluation references | Pinned catalog and unified Parquet |
-| [02: standardisation](../../02-standardisation/code-sft/) | Column mappings, chat-role normalization, source adapters | Unified Parquet with original rows and provenance |
-| [04: decontamination](../../04-decontamination/code-sft/) | Global exact/optional fuzzy training dedup; evaluation matching | Clean Parquet, decisions and removal reports |
+| Location | Responsibility |
+| --- | --- |
+| Existing `01-hf-download/hf-download.py` | Save an HF Dataset or DatasetDict, with metadata |
+| [02-standardisation/code-sft](../../02-standardisation/code-sft/) | Column mapping, checked chat conversion, reasoning/tools, native mapping, validation and rendering |
+| [04-decontamination/code-sft](../../04-decontamination/code-sft/) | Exact/optional fuzzy dedup, separate evaluation references and retained native shards |
 
-The runner here connects these stages and supplies their import paths. It does not
-run license filtering, annotation, mixture selection or judge evaluation. This
-recipe's Parquet schema differs from the legacy HF DatasetDict conversation schema;
-use the appropriate conversion before passing its output to other numbered scripts.
+## Setup
 
-## Environment
-
-Run from this directory:
+Run recipe commands from this directory:
 
 ```bash
-uv sync --python 3.11 --locked
-uv run python pipeline.py --help
+uv sync --python 3.13 --locked
 uv run pytest -q
 ```
 
-The recipe has its own environment because it needs newer datasets/PyArrow packages
-than some legacy stages. Linux is required for the dedup engine's fork workers and
-advisory output locks. Set `HF_HOME` for the download cache and `HF_TOKEN` for gated
-sources. Access restrictions remain failures; no dataset is silently counted as
-downloaded.
-
-## Download and normalize
-
-Edit the example manifest for your selected sources and code-selection policies,
-then resolve source files at immutable dataset revisions:
+The environment pins `apertus-common` to an immutable Git revision. This reference
+library supplies native conversations, checking, formatting and optional tokenization.
+The legacy downloader keeps its existing environment and CLI:
 
 ```bash
-uv run python pipeline.py resolve --manifest manifest.example.yaml \
-  --output /path/to/catalog
-uv run python pipeline.py download --catalog /path/to/catalog/catalog.json \
-  --output /path/to/unified --workers 16
+# Run with the existing download environment, from the repository root:
+python 01-hf-download/hf-download.py OWNER/DATASET --split train \
+  --download-folder /path/to/downloads
 ```
 
-The resolver records source-card evidence and unresolved repositories. The downloader
-uses file-level checkpoints, writes per-source completion/failure markers and exits
-nonzero for incomplete runs. Source-specific code-selection policies are explicit
-in the catalog; excluded non-code/unknown row counts appear in completion reports.
-`code_source` preserves every row in an already scoped coding source. Do not apply
-this policy to mixed-domain releases without declaring the intended scope.
-
-For already downloaded JSONL/Parquet files, map source columns explicitly:
+## Full native standardisation
 
 ```bash
-uv run python pipeline.py unify --input /path/to/source.jsonl \
-  --repo example/source --revision source-version --output /path/to/unified \
+uv run python pipeline.py standardise \
+  --input /path/to/downloads/DATASET --output /path/to/native
+```
+
+Accepts saved HF Dataset/DatasetDict directories, JSONL or Parquet files. Repository
+and revision are read from downloader metadata when available. Supply
+`--repo owner/name --revision COMMIT` for local files or missing metadata. An absent
+revision is recorded as `unrecorded`; no immutable revision is invented. Multiple
+DatasetDict splits require an explicit `--split train` (or another selected split).
+
+For custom source columns:
+
+```bash
+uv run python pipeline.py standardise --input /path/to/source.jsonl \
+  --repo example/source --revision source-version --output /path/to/native \
   --column-map column-map.example.json
 ```
 
-The JSON map is source name to canonical name, for example
-`{"task_text": "prompt", "completion_text": "response"}`. Aliases such as
-`instruction`, `question`, `output`, `answer`, `conversations`, `human` and `gpt`
-are normalized as well. Unavailable values stay missing; conflicting explicit
-mappings fail. The original input object remains in `source_record_json`, alongside
-repository/revision/file/row provenance. The local unifier performs no domain
-filtering and refuses an existing output source directory; use a fresh directory
-after a failed local conversion.
+The column map is source name to canonical name, e.g.
+`{"task_text":"prompt","completion_text":"response"}`. Known message containers
+and role aliases are normalized too. The standardiser then:
 
-## Deduplicate and filter evaluation overlap
+1. Converts source traces to checked structured chats, retaining reasoning,
+   tool-schema provenance and original objects in `source_record_json`.
+2. Validates message structure, tool definitions/argument schemas, unique call IDs,
+   call/result links and reasoning boundaries. Ambiguous mappings and unresolved
+   inferred schemas are quarantined.
+3. Maps reasoning into native `think` items and answers into `reply` items, with
+   calls, results and waits. Leading system/developer instructions can be merged
+   with originals retained; mid-dialogue instruction changes are quarantined.
+4. Runs full reference-library checks including training rules, and uses
+   `render_str` for the Apertus 2 control-token sequence. The default `think-first`
+   convention adds an empty think when source reasoning is absent; `--convention
+   source` uses only source think items. The system defaults to medium thinking.
+
+Revision-guarded source adapters can recover released reference answers or wrap
+source execution protocols. These changes are recorded in provenance alongside
+the original record. Declared adapter tools still require the corresponding
+inference harness; native format validation does not supply that runtime.
+
+Accepted Parquet rows contain `conversation_json`, `native_text`, source IDs,
+original objects, checked-chat provenance and auxiliary matching fields. Shards
+are written under `CATEGORY/OWNER/DATASET/file=*/part-*.parquet`. Per-partition
+`rejected.jsonl` ledgers retain rejected source objects and failure reasons.
+Completion reports count read, written and quarantined rows: completion means a
+finished audit, not acceptance of every row.
+
+This is native Apertus 2, separate from the legacy conversation-branches schema.
+Use the appropriate downstream native reader. Source/split selection is explicit;
+this standardiser does not guess domain or perform license/quality/mixture filtering.
+
+## Optional native tokenization
+
+```bash
+uv run python pipeline.py standardise \
+  --input /path/to/downloads/DATASET --output /path/to/native-tokenized \
+  --tokenizer /path/to/approved-apertus2-tokenizer
+```
+
+`load_encoding` verifies a local native tokenizer artifact and writes aligned
+`tokens` and `loss_weights`. No tokenizer is downloaded or guessed. Without this
+option, token columns remain null; checked conversations and native rendering are
+still produced. No generic Jinja template substitutes for native formatting.
+
+## Resume and validation
+
+Identical reruns verify completed partition checksums and skip them. Interrupted,
+unpublished partitions restart. Changed input snapshots, code/resources, pinned
+library, settings or tokenizer require fresh output. A process lock prevents
+competing writers. `--rows-per-shard` controls accepted-row shard size. Processing
+streams one partition at a time; concurrent source jobs need distinct repository
+output paths.
+
+Tests cover downloader output, split selection, native roundtrips/rendering,
+reasoning, tool schemas/links, quarantine, provenance and resume integrity.
+Token/loss-weight plumbing has fixture coverage; a production tokenizer and full
+corpus are not bundled in tests.
+
+Hosted CI runs public chat/schema/reasoning/dedup checks independently. The full
+native job also needs the `APERTUS_COMMON_READ_TOKEN` Actions secret with read access
+to the private `swiss-ai/apertus-common` dependency. Without that secret, the native
+job is explicitly skipped and the workflow summary states the missing access.
+
+## Deduplicate and decontaminate native rows
 
 ```bash
 uv run python pipeline.py benchmarks --output /path/to/evaluation --workers 8
-uv run python pipeline.py dedup --input /path/to/unified \
+uv run python pipeline.py dedup --input /path/to/native \
   --benchmarks /path/to/evaluation --output /path/to/dedup \
   --categories code_sft code_agentic --workers 16 --memory-limit 32GB --no-fuzzy
 ```
 
-Evaluation references remain separate from training inputs. Their revision lock is
-under `01-hf-download/code-sft/`. Benchmark preparation excludes evaluation training
-splits according to the manifest, and dedup refuses incomplete reference coverage.
+Evaluation manifests/locks live in stage 04. References stay separate from training
+and incomplete coverage is an error. Exact fingerprints include checked messages,
+reasoning, tools and tests; case/code whitespace are preserved with line endings
+normalized. Benchmark matching also checks normalized text equality/containment
+(minimum 80 characters). `--fuzzy` adds LSH candidates with token-Jaccard
+verification; it can miss similar pairs and does not establish semantic equivalence.
+`--report-only` calculates decisions first. Optional `--exclusions PATH` reads an
+explicit repository-exclusion JSON.
 
-Exact sample dedup preserves case and code whitespace, normalizing line endings.
-It includes reasoning, tools and tests in sample fingerprints. Benchmark matching
-also checks normalized text equality and containment (minimum 80 characters).
-`--fuzzy` adds LSH candidate generation with token-Jaccard verification; it can miss
-near matches and is not a semantic-equivalence check. `--report-only` calculates
-decisions without materializing clean data. Optional `--exclusions PATH` reads
-`{"datasets": [{"repo": "owner/name", "reason": "..."}]}` and records omissions.
+Clean shards under `/path/to/dedup/clean/` retain native conversations, rendering,
+optional tokens/weights and provenance. `report.json` and `_work/` retain removal
+counts and decision evidence. Inputs/settings are frozen for resume.
 
-Clean shards are under `/path/to/dedup/clean/`; `report.json` summarizes reasons and
-per-source counts, while `_work/` retains fingerprint/decision evidence. Run
-identity includes input snapshots and matching settings. Resume with identical
-inputs/settings; choose a fresh output for a changed run.
-
-## Debug partition
+## Slurm debug partition
 
 ```bash
-sbatch debug.sh dedup --input /path/to/unified --benchmarks /path/to/evaluation \
-  --output /path/to/dedup --categories code_sft code_agentic --workers 16 --no-fuzzy
+sbatch debug.sh standardise --input /path/to/downloads/DATASET \
+  --output /path/to/native
 ```
 
-The example launcher requests `infra01`, partition `debug`, 16 CPUs and one hour.
-It expects this directory as the submission directory and an environment available
-on compute nodes. `CODE_SFT_PYTHON` can select another Python environment. Resubmit
-resumable stages explicitly if the allocation expires.
+Uses account `infra01`, partition `debug`, 16 CPUs and one hour. Submit from this
+directory with an environment available on compute nodes. `CODE_SFT_PYTHON` can
+select another interpreter. Resubmit after a time limit to resume completed
+partitions.
 
-## Validation and origin
-
-The code is adapted from [User3574/code-data-processing](https://github.com/User3574/code-data-processing/tree/be3ecc1),
-limited to these three stages. Historical audit utilities, inventories, native
-conversion, runtime archives and corpus artifacts are not included. The adapter
-registry uses explicit catalog policies and surviving source adapters; it has not
-been validated over the entire production corpus after restructuring.
-
-Tests cover source preservation, column mapping, role aliases, source selection,
-SQL/instruction/benchmark adapters, exact/fuzzy matching and resume checks. A local
-fixture test runs unification through materialized dedup output, checking that one
-duplicate and one benchmark match are removed. Tests do not download the full corpus.
+Source adapters and checked conversion are adapted from
+[code-data-processing](https://github.com/User3574/code-data-processing/tree/be3ecc1).
+Full-corpus reprocessing remains a separate validation run.
