@@ -45,13 +45,17 @@ WHITESPACE = re.compile(r"\s+")
 def user_prompts(initial_prompt, conversation_branches):
     """Texts of all user messages of a sample: the initial prompt, then the user turns of every branch.
 
-    A user turn is the text of its response parts. Repeated texts (e.g. shared by branches) are kept once."""
+    A user turn is the text of its response parts, or its content in datasets standardised before messages
+    had parts. Repeated texts (e.g. shared by branches) are kept once."""
     texts = [initial_prompt["content"] or ""]
     for branch in conversation_branches or []:
         for message in branch["messages"]:
             if message["role"] != "user":
                 continue
-            text = "\n".join(p["content"] for p in message["parts"] if p["type"] == "response" and p["content"])
+            if message.get("parts") is None:
+                text = message.get("content") or ""
+            else:
+                text = "\n".join(p["content"] for p in message["parts"] if p["type"] == "response" and p["content"])
             if text and text not in texts:
                 texts.append(text)
     return texts
