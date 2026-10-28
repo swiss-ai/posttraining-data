@@ -13,3 +13,16 @@ tests/
 judge-analysis/*.jsonl
 judge-analysis/*.json
 08-judge-evaluation/judge-analysis/
+
+# Code-SFT recipe environments, artifacts and tracked fixtures.
+.venv/
+.pytest_cache/
+uv-cache/
+!02-standardisation/code-sft/tests/
+!02-standardisation/code-sft/tests/**
+!04-decontamination/code-sft/tests/
+!04-decontamination/code-sft/tests/**
+!examples/code-sft/tests/
+!examples/code-sft/tests/**
+**/__pycache__/
+*.pyc

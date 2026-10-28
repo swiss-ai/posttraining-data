@@ -1,0 +1,15 @@
+{
+  "m-a-p/Code-Feedback": {
+    "dataset_revision": "f411b16a97c910ac9acf8b0d0948e340aa77cc34",
+    "selection_rule": "last_python_fence",
+    "source_url": "https://github.com/OpenCodeInterpreter/OpenCodeInterpreter/blob/9674d8a521df7f92becd8a7a8e60a8792e71869a/demo/code_interpreter/OpenCodeInterpreter.py#L62",
+    "producer_commit": "9674d8a521df7f92becd8a7a8e60a8792e71869a",
+    "source_sha256": "46daae0fd9269a4f5302e8b1a2d7c964ce535909256b770b3b39892a5c2d2937",
+    "evidence": [
+      "Published runtime extract_code_blocks returns matches[-1].strip().",
+      "Collector stores actual function_args_str as its final assistant entry before the function result.",
+      "Released multi-block examples include an appended executable cell (the final block)."
+    ],
+    "scope": "Compatible with the published producer runtime. The historical dataset export script and original function-call arguments are not included in the release."
+  }
+}

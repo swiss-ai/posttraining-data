@@ -1,0 +1,2403 @@
+{
+  "datasets": [
+    {
+      "category": "benchmarks",
+      "data_files": [
+        "*.parquet"
+      ],
+      "files": [
+        {
+          "bytes": 83920,
+          "path": "openai_humaneval/test-00000-of-00001.parquet",
+          "source_config": "openai_humaneval",
+          "source_split": "test"
+        }
+      ],
+      "gated": false,
+      "license": "[\"mit\"]",
+      "license_notes": "Publisher metadata declaration; underlying source licenses may also apply.",
+      "license_status": "declared",
+      "metadata_source": "https://huggingface.co/datasets/openai/openai_humaneval/blob/7dce6050a7d6d172f3cc5c32aa97f52fa1a2e544/README.md",
+      "prompt_fields": [
+        "prompt"
+      ],
+      "repo": "openai/openai_humaneval",
+      "response_fields": [
+        "canonical_solution"
+      ],
+      "revision": "7dce6050a7d6d172f3cc5c32aa97f52fa1a2e544",
+      "scope": "Public evaluation splits only; MBPP/CodeContests training splits excluded. Dataset versions retained as published.",
+      "source_bytes": 83920,
+      "synthetic_notes": "Evaluation reference only; excluded from SFT training.",
+      "synthetic_status": "not_applicable",
+      "test_fields": [
+        "test",
+        "tests",
+        "test_list",
+        "challenge_test_list",
+        "test_setup_code",
+        "test_patch",
+        "base_input",
+        "plus_input"
+      ]
+    },
+    {
+      "category": "benchmarks",
+      "data_files": [
+        "full/test-*.parquet",
+        "full/validation-*.parquet",
+        "sanitized/test-*.parquet",
+        "sanitized/validation-*.parquet"
+      ],
+      "files": [
+        {
+          "bytes": 115824,
+          "path": "full/test-00000-of-00001.parquet",
+          "source_config": "full",
+          "source_split": "test"
+        },
+        {
+          "bytes": 25144,
+          "path": "full/validation-00000-of-00001.parquet",
+          "source_config": "full",
+          "source_split": "validation"
+        },
+        {
+          "bytes": 60864,
+          "path": "sanitized/test-00000-of-00001.parquet",
+          "source_config": "sanitized",
+          "source_split": "test"
+        },
+        {
+          "bytes": 13987,
+          "path": "sanitized/validation-00000-of-00001.parquet",
+          "source_config": "sanitized",
+          "source_split": "validation"
+        }
+      ],
+      "gated": false,
+      "license": "[\"cc-by-4.0\"]",
+      "license_notes": "Publisher metadata declaration; underlying source licenses may also apply.",
+      "license_status": "declared",
+      "metadata_source": "https://huggingface.co/datasets/google-research-datasets/mbpp/blob/4bb6404fdc6cacfda99d4ac4205087b89d32030c/README.md",
+      "prompt_fields": [
+        "text",
+        "prompt"
+      ],
+      "repo": "google-research-datasets/mbpp",
+      "response_fields": [
+        "code"
+      ],
+      "revision": "4bb6404fdc6cacfda99d4ac4205087b89d32030c",
+      "scope": "Public evaluation splits only; MBPP/CodeContests training splits excluded. Dataset versions retained as published.",
+      "source_bytes": 215819,
+      "synthetic_notes": "Evaluation reference only; excluded from SFT training.",
+      "synthetic_status": "not_applicable",
+      "test_fields": [
+        "test",
+        "tests",
+        "test_list",
+        "challenge_test_list",
+        "test_setup_code",
+        "test_patch",
+        "base_input",
+        "plus_input"
+      ]
+    },
+    {
+      "category": "benchmarks",
+      "data_files": [
+        "**/test-*.parquet",
+        "**/dev-*.parquet"
+      ],
+      "files": [
+        {
+          "bytes": 3299303,
+          "path": "data/dev-00000-of-00001.parquet",
+          "source_config": "default",
+          "source_split": "dev"
+        },
+        {
+          "bytes": 33293897,
+          "path": "data/test-00000-of-00001.parquet",
+          "source_config": "default",
+          "source_split": "test"
+        }
+      ],
+      "gated": false,
+      "license": "unknown",
+      "license_notes": "Publisher metadata declaration; underlying source licenses may also apply.",
+      "license_status": "unknown",
+      "metadata_source": "https://huggingface.co/datasets/SWE-bench/SWE-bench/blob/c6fe717fd7a4c3ac1daa4055a4fd082c6a1d28a2/README.md",
+      "prompt_fields": [
+        "problem_statement"
+      ],
+      "repo": "SWE-bench/SWE-bench",
+      "response_fields": [
+        "patch"
+      ],
+      "revision": "c6fe717fd7a4c3ac1daa4055a4fd082c6a1d28a2",
+      "scope": "Public evaluation splits only; MBPP/CodeContests training splits excluded. Dataset versions retained as published.",
+      "source_bytes": 36593200,
+      "synthetic_notes": "Evaluation reference only; excluded from SFT training.",
+      "synthetic_status": "not_applicable",
+      "test_fields": [
+        "test",
+        "tests",
+        "test_list",
+        "challenge_test_list",
+        "test_setup_code",
+        "test_patch",
+        "base_input",
+        "plus_input"
+      ]
+    },
+    {
+      "category": "benchmarks",
+      "data_files": [
+        "**/test-*.parquet",
+        "**/dev-*.parquet"
+      ],
+      "files": [
+        {
+          "bytes": 217277,
+          "path": "data/dev-00000-of-00001.parquet",
+          "source_config": "default",
+          "source_split": "dev"
+        },
+        {
+          "bytes": 2702170,
+          "path": "data/test-00000-of-00001.parquet",
+          "source_config": "default",
+          "source_split": "test"
+        }
+      ],
+      "gated": false,
+      "license": "unknown",
+      "license_notes": "Publisher metadata declaration; underlying source licenses may also apply.",
+      "license_status": "unknown",
+      "metadata_source": "https://huggingface.co/datasets/SWE-bench/SWE-bench_Lite/blob/b0dde1093fe417d83b7184254edf8199c1f0dff5/README.md",
+      "prompt_fields": [
+        "problem_statement"
+      ],
+      "repo": "SWE-bench/SWE-bench_Lite",
+      "response_fields": [
+        "patch"
+      ],
+      "revision": "b0dde1093fe417d83b7184254edf8199c1f0dff5",
+      "scope": "Public evaluation splits only; MBPP/CodeContests training splits excluded. Dataset versions retained as published.",
+      "source_bytes": 2919447,
+      "synthetic_notes": "Evaluation reference only; excluded from SFT training.",
+      "synthetic_status": "not_applicable",
+      "test_fields": [
+        "test",
+        "tests",
+        "test_list",
+        "challenge_test_list",
+        "test_setup_code",
+        "test_patch",
+        "base_input",
+        "plus_input"
+      ]
+    },
+    {
+      "category": "benchmarks",
+      "data_files": [
+        "**/test-*.parquet",
+        "**/dev-*.parquet"
+      ],
+      "files": [
+        {
+          "bytes": 6304616,
+          "path": "data/test-00000-of-00001.parquet",
+          "source_config": "default",
+          "source_split": "test"
+        }
+      ],
+      "gated": false,
+      "license": "unknown",
+      "license_notes": "Publisher metadata declaration; underlying source licenses may also apply.",
+      "license_status": "unknown",
+      "metadata_source": "https://huggingface.co/datasets/SWE-bench/SWE-bench_Verified/blob/78f471bf655a3137b2e8a75af1501690ec009ec3/README.md",
+      "prompt_fields": [
+        "problem_statement"
+      ],
+      "repo": "SWE-bench/SWE-bench_Verified",
+      "response_fields": [
+        "patch"
+      ],
+      "revision": "78f471bf655a3137b2e8a75af1501690ec009ec3",
+      "scope": "Public evaluation splits only; MBPP/CodeContests training splits excluded. Dataset versions retained as published.",
+      "source_bytes": 6304616,
+      "synthetic_notes": "Evaluation reference only; excluded from SFT training.",
+      "synthetic_status": "not_applicable",
+      "test_fields": [
+        "test",
+        "tests",
+        "test_list",
+        "challenge_test_list",
+        "test_setup_code",
+        "test_patch",
+        "base_input",
+        "plus_input"
+      ]
+    },
+    {
+      "category": "benchmarks",
+      "data_files": [
+        "**/test-*.parquet",
+        "**/dev-*.parquet"
+      ],
+      "files": [
+        {
+          "bytes": 1875846,
+          "path": "data/test-00000-of-00001.parquet",
+          "source_config": "default",
+          "source_split": "test"
+        }
+      ],
+      "gated": false,
+      "license": "mit",
+      "license_notes": "Publisher metadata declaration; underlying source licenses may also apply.",
+      "license_status": "declared",
+      "metadata_source": "https://huggingface.co/datasets/SWE-bench/SWE-bench_Multilingual/blob/846e647b9f33c0b51b739d005d13d85493c9af09/README.md",
+      "prompt_fields": [
+        "problem_statement"
+      ],
+      "repo": "SWE-bench/SWE-bench_Multilingual",
+      "response_fields": [
+        "patch"
+      ],
+      "revision": "846e647b9f33c0b51b739d005d13d85493c9af09",
+      "scope": "Public evaluation splits only; MBPP/CodeContests training splits excluded. Dataset versions retained as published.",
+      "source_bytes": 1875846,
+      "synthetic_notes": "Evaluation reference only; excluded from SFT training.",
+      "synthetic_status": "not_applicable",
+      "test_fields": [
+        "test",
+        "tests",
+        "test_list",
+        "challenge_test_list",
+        "test_setup_code",
+        "test_patch",
+        "base_input",
+        "plus_input"
+      ]
+    },
+    {
+      "category": "benchmarks",
+      "data_files": [
+        "**/test-*.parquet",
+        "**/dev-*.parquet"
+      ],
+      "files": [
+        {
+          "bytes": 6511689,
+          "path": "data/default/test-00000-of-00001.parquet",
+          "source_config": "default",
+          "source_split": "test"
+        },
+        {
+          "bytes": 799741,
+          "path": "data/hard/test-00000-of-00001.parquet",
+          "source_config": "hard",
+          "source_split": "test"
+        },
+        {
+          "bytes": 7816820,
+          "path": "data/v1/test-00000-of-00001.parquet",
+          "source_config": "v1",
+          "source_split": "test"
+        }
+      ],
+      "gated": false,
+      "license": "unknown",
+      "license_notes": "Publisher metadata declaration; underlying source licenses may also apply.",
+      "license_status": "unknown",
+      "metadata_source": "https://huggingface.co/datasets/ScaleAI/SWE-bench_Pro/blob/2d52cb3df914a3fcf80c7f66738b3a88ae37fc50/README.md",
+      "prompt_fields": [
+        "problem_statement"
+      ],
+      "repo": "ScaleAI/SWE-bench_Pro",
+      "response_fields": [
+        "patch"
+      ],
+      "revision": "2d52cb3df914a3fcf80c7f66738b3a88ae37fc50",
+      "scope": "Public evaluation splits only; MBPP/CodeContests training splits excluded. Dataset versions retained as published.",
+      "source_bytes": 15128250,
+      "synthetic_notes": "Evaluation reference only; excluded from SFT training.",
+      "synthetic_status": "not_applicable",
+      "test_fields": [
+        "test",
+        "tests",
+        "test_list",
+        "challenge_test_list",
+        "test_setup_code",
+        "test_patch",
+        "base_input",
+        "plus_input"
+      ]
+    },
+    {
+      "category": "benchmarks",
+      "data_files": [
+        "*.parquet"
+      ],
+      "files": [
+        {
+          "bytes": 76995,
+          "path": "humaneval-adb/test-00000-of-00001.parquet",
+          "source_config": "humaneval-adb",
+          "source_split": "test"
+        },
+        {
+          "bytes": 70395,
+          "path": "humaneval-clj/test-00000-of-00001.parquet",
+          "source_config": "humaneval-clj",
+          "source_split": "test"
+        },
+        {
+          "bytes": 83221,
+          "path": "humaneval-cpp/test-00000-of-00001.parquet",
+          "source_config": "humaneval-cpp",
+          "source_split": "test"
+        },
+        {
+          "bytes": 82080,
+          "path": "humaneval-cs/test-00000-of-00001.parquet",
+          "source_config": "humaneval-cs",
+          "source_split": "test"
+        },
+        {
+          "bytes": 70027,
+          "path": "humaneval-d/test-00000-of-00001.parquet",
+          "source_config": "humaneval-d",
+          "source_split": "test"
+        },
+        {
+          "bytes": 75805,
+          "path": "humaneval-dart/test-00000-of-00001.parquet",
+          "source_config": "humaneval-dart",
+          "source_split": "test"
+        },
+        {
+          "bytes": 74798,
+          "path": "humaneval-elixir/test-00000-of-00001.parquet",
+          "source_config": "humaneval-elixir",
+          "source_split": "test"
+        },
+        {
+          "bytes": 78121,
+          "path": "humaneval-go/test-00000-of-00001.parquet",
+          "source_config": "humaneval-go",
+          "source_split": "test"
+        },
+        {
+          "bytes": 69373,
+          "path": "humaneval-hs/test-00000-of-00001.parquet",
+          "source_config": "humaneval-hs",
+          "source_split": "test"
+        },
+        {
+          "bytes": 86178,
+          "path": "humaneval-java/test-00000-of-00001.parquet",
+          "source_config": "humaneval-java",
+          "source_split": "test"
+        },
+        {
+          "bytes": 68620,
+          "path": "humaneval-jl/test-00000-of-00001.parquet",
+          "source_config": "humaneval-jl",
+          "source_split": "test"
+        },
+        {
+          "bytes": 70034,
+          "path": "humaneval-js/test-00000-of-00001.parquet",
+          "source_config": "humaneval-js",
+          "source_split": "test"
+        },
+        {
+          "bytes": 67117,
+          "path": "humaneval-lua/test-00000-of-00001.parquet",
+          "source_config": "humaneval-lua",
+          "source_split": "test"
+        },
+        {
+          "bytes": 68199,
+          "path": "humaneval-ml/test-00000-of-00001.parquet",
+          "source_config": "humaneval-ml",
+          "source_split": "test"
+        },
+        {
+          "bytes": 75195,
+          "path": "humaneval-php/test-00000-of-00001.parquet",
+          "source_config": "humaneval-php",
+          "source_split": "test"
+        },
+        {
+          "bytes": 77247,
+          "path": "humaneval-pl/test-00000-of-00001.parquet",
+          "source_config": "humaneval-pl",
+          "source_split": "test"
+        },
+        {
+          "bytes": 71602,
+          "path": "humaneval-r/test-00000-of-00001.parquet",
+          "source_config": "humaneval-r",
+          "source_split": "test"
+        },
+        {
+          "bytes": 72942,
+          "path": "humaneval-rb/test-00000-of-00001.parquet",
+          "source_config": "humaneval-rb",
+          "source_split": "test"
+        },
+        {
+          "bytes": 70785,
+          "path": "humaneval-rkt/test-00000-of-00001.parquet",
+          "source_config": "humaneval-rkt",
+          "source_split": "test"
+        },
+        {
+          "bytes": 75300,
+          "path": "humaneval-rs/test-00000-of-00001.parquet",
+          "source_config": "humaneval-rs",
+          "source_split": "test"
+        },
+        {
+          "bytes": 80950,
+          "path": "humaneval-scala/test-00000-of-00001.parquet",
+          "source_config": "humaneval-scala",
+          "source_split": "test"
+        },
+        {
+          "bytes": 67691,
+          "path": "humaneval-sh/test-00000-of-00001.parquet",
+          "source_config": "humaneval-sh",
+          "source_split": "test"
+        },
+        {
+          "bytes": 78057,
+          "path": "humaneval-swift/test-00000-of-00001.parquet",
+          "source_config": "humaneval-swift",
+          "source_split": "test"
+        },
+        {
+          "bytes": 70294,
+          "path": "humaneval-ts/test-00000-of-00001.parquet",
+          "source_config": "humaneval-ts",
+          "source_split": "test"
+        },
+        {
+          "bytes": 100314,
+          "path": "mbpp-adb/test-00000-of-00001.parquet",
+          "source_config": "mbpp-adb",
+          "source_split": "test"
+        },
+        {
+          "bytes": 76741,
+          "path": "mbpp-clj/test-00000-of-00001.parquet",
+          "source_config": "mbpp-clj",
+          "source_split": "test"
+        },
+        {
+          "bytes": 97734,
+          "path": "mbpp-cpp/test-00000-of-00001.parquet",
+          "source_config": "mbpp-cpp",
+          "source_split": "test"
+        },
+        {
+          "bytes": 99239,
+          "path": "mbpp-cs/test-00000-of-00001.parquet",
+          "source_config": "mbpp-cs",
+          "source_split": "test"
+        },
+        {
+          "bytes": 73269,
+          "path": "mbpp-d/test-00000-of-00001.parquet",
+          "source_config": "mbpp-d",
+          "source_split": "test"
+        },
+        {
+          "bytes": 84803,
+          "path": "mbpp-elixir/test-00000-of-00001.parquet",
+          "source_config": "mbpp-elixir",
+          "source_split": "test"
+        },
+        {
+          "bytes": 93635,
+          "path": "mbpp-go/test-00000-of-00001.parquet",
+          "source_config": "mbpp-go",
+          "source_split": "test"
+        },
+        {
+          "bytes": 71870,
+          "path": "mbpp-hs/test-00000-of-00001.parquet",
+          "source_config": "mbpp-hs",
+          "source_split": "test"
+        },
+        {
+          "bytes": 99991,
+          "path": "mbpp-java/test-00000-of-00001.parquet",
+          "source_config": "mbpp-java",
+          "source_split": "test"
+        },
+        {
+          "bytes": 77046,
+          "path": "mbpp-jl/test-00000-of-00001.parquet",
+          "source_config": "mbpp-jl",
+          "source_split": "test"
+        },
+        {
+          "bytes": 78109,
+          "path": "mbpp-js/test-00000-of-00001.parquet",
+          "source_config": "mbpp-js",
+          "source_split": "test"
+        },
+        {
+          "bytes": 78701,
+          "path": "mbpp-lua/test-00000-of-00001.parquet",
+          "source_config": "mbpp-lua",
+          "source_split": "test"
+        },
+        {
+          "bytes": 69995,
+          "path": "mbpp-ml/test-00000-of-00001.parquet",
+          "source_config": "mbpp-ml",
+          "source_split": "test"
+        },
+        {
+          "bytes": 82614,
+          "path": "mbpp-php/test-00000-of-00001.parquet",
+          "source_config": "mbpp-php",
+          "source_split": "test"
+        },
+        {
+          "bytes": 83295,
+          "path": "mbpp-pl/test-00000-of-00001.parquet",
+          "source_config": "mbpp-pl",
+          "source_split": "test"
+        },
+        {
+          "bytes": 78685,
+          "path": "mbpp-r/test-00000-of-00001.parquet",
+          "source_config": "mbpp-r",
+          "source_split": "test"
+        },
+        {
+          "bytes": 82986,
+          "path": "mbpp-rb/test-00000-of-00001.parquet",
+          "source_config": "mbpp-rb",
+          "source_split": "test"
+        },
+        {
+          "bytes": 77882,
+          "path": "mbpp-rkt/test-00000-of-00001.parquet",
+          "source_config": "mbpp-rkt",
+          "source_split": "test"
+        },
+        {
+          "bytes": 72084,
+          "path": "mbpp-rs/test-00000-of-00001.parquet",
+          "source_config": "mbpp-rs",
+          "source_split": "test"
+        },
+        {
+          "bytes": 92626,
+          "path": "mbpp-scala/test-00000-of-00001.parquet",
+          "source_config": "mbpp-scala",
+          "source_split": "test"
+        },
+        {
+          "bytes": 69685,
+          "path": "mbpp-sh/test-00000-of-00001.parquet",
+          "source_config": "mbpp-sh",
+          "source_split": "test"
+        },
+        {
+          "bytes": 89609,
+          "path": "mbpp-swift/test-00000-of-00001.parquet",
+          "source_config": "mbpp-swift",
+          "source_split": "test"
+        },
+        {
+          "bytes": 78505,
+          "path": "mbpp-ts/test-00000-of-00001.parquet",
+          "source_config": "mbpp-ts",
+          "source_split": "test"
+        }
+      ],
+      "gated": false,
+      "license": "[\"mit\"]",
+      "license_notes": "Publisher metadata declaration; underlying source licenses may also apply.",
+      "license_status": "declared",
+      "metadata_source": "https://huggingface.co/datasets/nuprl/MultiPL-E/blob/28441b6024e71d4a1c1c0f6bf171c935cd5a43f2/README.md",
+      "prompt_fields": [
+        "prompt"
+      ],
+      "repo": "nuprl/MultiPL-E",
+      "response_fields": [
+        "canonical_solution"
+      ],
+      "revision": "28441b6024e71d4a1c1c0f6bf171c935cd5a43f2",
+      "scope": "Public evaluation splits only; MBPP/CodeContests training splits excluded. Dataset versions retained as published.",
+      "source_bytes": 3690444,
+      "synthetic_notes": "Evaluation reference only; excluded from SFT training.",
+      "synthetic_status": "not_applicable",
+      "test_fields": [
+        "test",
+        "tests",
+        "test_list",
+        "challenge_test_list",
+        "test_setup_code",
+        "test_patch",
+        "base_input",
+        "plus_input"
+      ]
+    },
+    {
+      "category": "benchmarks",
+      "data_files": [
+        "generation/*.jsonl",
+        "explanation/*.jsonl",
+        "completion/*/*.jsonl"
+      ],
+      "files": [
+        {
+          "bytes": 48334,
+          "path": "completion/light/AWK.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 192886,
+          "path": "completion/light/C#.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 172762,
+          "path": "completion/light/C.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 173160,
+          "path": "completion/light/CPP.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 155629,
+          "path": "completion/light/CoffeeScript.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 120205,
+          "path": "completion/light/Common Lisp.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 382006,
+          "path": "completion/light/Dart.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 143258,
+          "path": "completion/light/Elixir.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 158697,
+          "path": "completion/light/Emacs Lisp.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 135395,
+          "path": "completion/light/Erlang.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 159916,
+          "path": "completion/light/F#.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 242205,
+          "path": "completion/light/Fortran.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 164233,
+          "path": "completion/light/Go.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 193934,
+          "path": "completion/light/Groovy.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 101614,
+          "path": "completion/light/HTML.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 148804,
+          "path": "completion/light/Haskell.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 186702,
+          "path": "completion/light/JSON.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 216634,
+          "path": "completion/light/Java.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 182232,
+          "path": "completion/light/JavaScript.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 181395,
+          "path": "completion/light/Julia.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 184986,
+          "path": "completion/light/Kotlin.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 169730,
+          "path": "completion/light/Lua.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 106772,
+          "path": "completion/light/Markdown.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 218070,
+          "path": "completion/light/PHP.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 178974,
+          "path": "completion/light/Pascal.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 156679,
+          "path": "completion/light/Perl.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 171059,
+          "path": "completion/light/PowerShell.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 305161,
+          "path": "completion/light/Python.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 207020,
+          "path": "completion/light/R.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 152861,
+          "path": "completion/light/Racket.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 171290,
+          "path": "completion/light/Ruby.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 220147,
+          "path": "completion/light/Rust.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 175277,
+          "path": "completion/light/Scala.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 143295,
+          "path": "completion/light/Scheme.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 182034,
+          "path": "completion/light/Shell.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 165993,
+          "path": "completion/light/Swift.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 180499,
+          "path": "completion/light/Tcl.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 184369,
+          "path": "completion/light/TypeScript.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 175038,
+          "path": "completion/light/VimScript.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 186554,
+          "path": "completion/light/Visual Basic.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 16936,
+          "path": "completion/multi/AWK.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 310808,
+          "path": "completion/multi/C#.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 279530,
+          "path": "completion/multi/C.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 286568,
+          "path": "completion/multi/CPP.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 251216,
+          "path": "completion/multi/CoffeeScript.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 154854,
+          "path": "completion/multi/Common Lisp.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 722946,
+          "path": "completion/multi/Dart.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 185198,
+          "path": "completion/multi/Elixir.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 244338,
+          "path": "completion/multi/Emacs Lisp.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 144030,
+          "path": "completion/multi/Erlang.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 181718,
+          "path": "completion/multi/F#.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 451018,
+          "path": "completion/multi/Fortran.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 266754,
+          "path": "completion/multi/Go.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 352540,
+          "path": "completion/multi/Groovy.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 100832,
+          "path": "completion/multi/HTML.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 130594,
+          "path": "completion/multi/Haskell.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 299860,
+          "path": "completion/multi/JSON.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 383016,
+          "path": "completion/multi/Java.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 291598,
+          "path": "completion/multi/JavaScript.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 317968,
+          "path": "completion/multi/Julia.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 302756,
+          "path": "completion/multi/Kotlin.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 268996,
+          "path": "completion/multi/Lua.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 66818,
+          "path": "completion/multi/Markdown.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 395358,
+          "path": "completion/multi/PHP.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 297024,
+          "path": "completion/multi/Pascal.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 225584,
+          "path": "completion/multi/Perl.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 298882,
+          "path": "completion/multi/PowerShell.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 555748,
+          "path": "completion/multi/Python.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 363478,
+          "path": "completion/multi/R.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 198526,
+          "path": "completion/multi/Racket.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 256166,
+          "path": "completion/multi/Ruby.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 375304,
+          "path": "completion/multi/Rust.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 282636,
+          "path": "completion/multi/Scala.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 192604,
+          "path": "completion/multi/Scheme.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 303386,
+          "path": "completion/multi/Shell.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 227564,
+          "path": "completion/multi/Swift.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 279772,
+          "path": "completion/multi/Tcl.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 291602,
+          "path": "completion/multi/TypeScript.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 269588,
+          "path": "completion/multi/VimScript.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 294442,
+          "path": "completion/multi/Visual Basic.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 20413,
+          "path": "completion/single/AWK.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 368093,
+          "path": "completion/single/C#.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 323615,
+          "path": "completion/single/C.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 330110,
+          "path": "completion/single/CPP.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 278585,
+          "path": "completion/single/CoffeeScript.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 181386,
+          "path": "completion/single/Common Lisp.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 790887,
+          "path": "completion/single/Dart.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 213442,
+          "path": "completion/single/Elixir.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 285120,
+          "path": "completion/single/Emacs Lisp.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 166154,
+          "path": "completion/single/Erlang.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 208949,
+          "path": "completion/single/F#.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 526810,
+          "path": "completion/single/Fortran.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 301707,
+          "path": "completion/single/Go.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 418915,
+          "path": "completion/single/Groovy.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 115903,
+          "path": "completion/single/HTML.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 148040,
+          "path": "completion/single/Haskell.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 349333,
+          "path": "completion/single/JSON.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 452069,
+          "path": "completion/single/Java.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 332208,
+          "path": "completion/single/JavaScript.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 368124,
+          "path": "completion/single/Julia.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 355743,
+          "path": "completion/single/Kotlin.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 310278,
+          "path": "completion/single/Lua.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 73465,
+          "path": "completion/single/Markdown.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 458952,
+          "path": "completion/single/PHP.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 341872,
+          "path": "completion/single/Pascal.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 257579,
+          "path": "completion/single/Perl.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 341634,
+          "path": "completion/single/PowerShell.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 625362,
+          "path": "completion/single/Python.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 426855,
+          "path": "completion/single/R.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 223863,
+          "path": "completion/single/Racket.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 290816,
+          "path": "completion/single/Ruby.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 430500,
+          "path": "completion/single/Rust.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 333487,
+          "path": "completion/single/Scala.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 225347,
+          "path": "completion/single/Scheme.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 348400,
+          "path": "completion/single/Shell.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 257272,
+          "path": "completion/single/Swift.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 318765,
+          "path": "completion/single/Tcl.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 335056,
+          "path": "completion/single/TypeScript.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 310978,
+          "path": "completion/single/VimScript.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 338958,
+          "path": "completion/single/Visual Basic.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 94820,
+          "path": "completion/span/AWK.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 377315,
+          "path": "completion/span/C#.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 347924,
+          "path": "completion/span/C.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 354783,
+          "path": "completion/span/CPP.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 312065,
+          "path": "completion/span/CoffeeScript.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 239147,
+          "path": "completion/span/Common Lisp.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 769937,
+          "path": "completion/span/Dart.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 285124,
+          "path": "completion/span/Elixir.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 307200,
+          "path": "completion/span/Emacs Lisp.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 270559,
+          "path": "completion/span/Erlang.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 321098,
+          "path": "completion/span/F#.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 491025,
+          "path": "completion/span/Fortran.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 325787,
+          "path": "completion/span/Go.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 389386,
+          "path": "completion/span/Groovy.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 204086,
+          "path": "completion/span/HTML.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 296252,
+          "path": "completion/span/Haskell.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 366900,
+          "path": "completion/span/JSON.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 429590,
+          "path": "completion/span/Java.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 358863,
+          "path": "completion/span/JavaScript.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 366351,
+          "path": "completion/span/Julia.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 364596,
+          "path": "completion/span/Kotlin.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 333679,
+          "path": "completion/span/Lua.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 214813,
+          "path": "completion/span/Markdown.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 436110,
+          "path": "completion/span/PHP.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 362778,
+          "path": "completion/span/Pascal.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 311438,
+          "path": "completion/span/Perl.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 341266,
+          "path": "completion/span/PowerShell.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 611618,
+          "path": "completion/span/Python.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 408757,
+          "path": "completion/span/R.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 305830,
+          "path": "completion/span/Racket.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 345244,
+          "path": "completion/span/Ruby.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 443681,
+          "path": "completion/span/Rust.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 348574,
+          "path": "completion/span/Scala.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 278169,
+          "path": "completion/span/Scheme.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 355230,
+          "path": "completion/span/Shell.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 332715,
+          "path": "completion/span/Swift.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 360857,
+          "path": "completion/span/Tcl.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 362510,
+          "path": "completion/span/TypeScript.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 347922,
+          "path": "completion/span/VimScript.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 366730,
+          "path": "completion/span/Visual Basic.jsonl",
+          "source_config": "completion",
+          "source_split": "test"
+        },
+        {
+          "bytes": 28116,
+          "path": "explanation/AWK.jsonl",
+          "source_config": "explanation",
+          "source_split": "test"
+        },
+        {
+          "bytes": 136245,
+          "path": "explanation/C#.jsonl",
+          "source_config": "explanation",
+          "source_split": "test"
+        },
+        {
+          "bytes": 127363,
+          "path": "explanation/C.jsonl",
+          "source_config": "explanation",
+          "source_split": "test"
+        },
+        {
+          "bytes": 130098,
+          "path": "explanation/CPP.jsonl",
+          "source_config": "explanation",
+          "source_split": "test"
+        },
+        {
+          "bytes": 114812,
+          "path": "explanation/CoffeeScript.jsonl",
+          "source_config": "explanation",
+          "source_split": "test"
+        },
+        {
+          "bytes": 87478,
+          "path": "explanation/Common Lisp.jsonl",
+          "source_config": "explanation",
+          "source_split": "test"
+        },
+        {
+          "bytes": 267977,
+          "path": "explanation/Dart.jsonl",
+          "source_config": "explanation",
+          "source_split": "test"
+        },
+        {
+          "bytes": 105120,
+          "path": "explanation/Elixir.jsonl",
+          "source_config": "explanation",
+          "source_split": "test"
+        },
+        {
+          "bytes": 113792,
+          "path": "explanation/Emacs Lisp.jsonl",
+          "source_config": "explanation",
+          "source_split": "test"
+        },
+        {
+          "bytes": 94039,
+          "path": "explanation/Erlang.jsonl",
+          "source_config": "explanation",
+          "source_split": "test"
+        },
+        {
+          "bytes": 116110,
+          "path": "explanation/F#.jsonl",
+          "source_config": "explanation",
+          "source_split": "test"
+        },
+        {
+          "bytes": 173034,
+          "path": "explanation/Fortran.jsonl",
+          "source_config": "explanation",
+          "source_split": "test"
+        },
+        {
+          "bytes": 121649,
+          "path": "explanation/Go.jsonl",
+          "source_config": "explanation",
+          "source_split": "test"
+        },
+        {
+          "bytes": 142222,
+          "path": "explanation/Groovy.jsonl",
+          "source_config": "explanation",
+          "source_split": "test"
+        },
+        {
+          "bytes": 58611,
+          "path": "explanation/HTML.jsonl",
+          "source_config": "explanation",
+          "source_split": "test"
+        },
+        {
+          "bytes": 110927,
+          "path": "explanation/Haskell.jsonl",
+          "source_config": "explanation",
+          "source_split": "test"
+        },
+        {
+          "bytes": 103461,
+          "path": "explanation/JSON.jsonl",
+          "source_config": "explanation",
+          "source_split": "test"
+        },
+        {
+          "bytes": 153853,
+          "path": "explanation/Java.jsonl",
+          "source_config": "explanation",
+          "source_split": "test"
+        },
+        {
+          "bytes": 134603,
+          "path": "explanation/JavaScript.jsonl",
+          "source_config": "explanation",
+          "source_split": "test"
+        },
+        {
+          "bytes": 126958,
+          "path": "explanation/Julia.jsonl",
+          "source_config": "explanation",
+          "source_split": "test"
+        },
+        {
+          "bytes": 131460,
+          "path": "explanation/Kotlin.jsonl",
+          "source_config": "explanation",
+          "source_split": "test"
+        },
+        {
+          "bytes": 121885,
+          "path": "explanation/Lua.jsonl",
+          "source_config": "explanation",
+          "source_split": "test"
+        },
+        {
+          "bytes": 59759,
+          "path": "explanation/Markdown.jsonl",
+          "source_config": "explanation",
+          "source_split": "test"
+        },
+        {
+          "bytes": 154074,
+          "path": "explanation/PHP.jsonl",
+          "source_config": "explanation",
+          "source_split": "test"
+        },
+        {
+          "bytes": 132698,
+          "path": "explanation/Pascal.jsonl",
+          "source_config": "explanation",
+          "source_split": "test"
+        },
+        {
+          "bytes": 112815,
+          "path": "explanation/Perl.jsonl",
+          "source_config": "explanation",
+          "source_split": "test"
+        },
+        {
+          "bytes": 126654,
+          "path": "explanation/PowerShell.jsonl",
+          "source_config": "explanation",
+          "source_split": "test"
+        },
+        {
+          "bytes": 221987,
+          "path": "explanation/Python.jsonl",
+          "source_config": "explanation",
+          "source_split": "test"
+        },
+        {
+          "bytes": 144256,
+          "path": "explanation/R.jsonl",
+          "source_config": "explanation",
+          "source_split": "test"
+        },
+        {
+          "bytes": 110518,
+          "path": "explanation/Racket.jsonl",
+          "source_config": "explanation",
+          "source_split": "test"
+        },
+        {
+          "bytes": 121896,
+          "path": "explanation/Ruby.jsonl",
+          "source_config": "explanation",
+          "source_split": "test"
+        },
+        {
+          "bytes": 154067,
+          "path": "explanation/Rust.jsonl",
+          "source_config": "explanation",
+          "source_split": "test"
+        },
+        {
+          "bytes": 123672,
+          "path": "explanation/Scala.jsonl",
+          "source_config": "explanation",
+          "source_split": "test"
+        },
+        {
+          "bytes": 101254,
+          "path": "explanation/Scheme.jsonl",
+          "source_config": "explanation",
+          "source_split": "test"
+        },
+        {
+          "bytes": 131993,
+          "path": "explanation/Shell.jsonl",
+          "source_config": "explanation",
+          "source_split": "test"
+        },
+        {
+          "bytes": 119848,
+          "path": "explanation/Swift.jsonl",
+          "source_config": "explanation",
+          "source_split": "test"
+        },
+        {
+          "bytes": 137189,
+          "path": "explanation/Tcl.jsonl",
+          "source_config": "explanation",
+          "source_split": "test"
+        },
+        {
+          "bytes": 136178,
+          "path": "explanation/TypeScript.jsonl",
+          "source_config": "explanation",
+          "source_split": "test"
+        },
+        {
+          "bytes": 128729,
+          "path": "explanation/VimScript.jsonl",
+          "source_config": "explanation",
+          "source_split": "test"
+        },
+        {
+          "bytes": 136372,
+          "path": "explanation/Visual Basic.jsonl",
+          "source_config": "explanation",
+          "source_split": "test"
+        },
+        {
+          "bytes": 27198,
+          "path": "generation/AWK.jsonl",
+          "source_config": "generation",
+          "source_split": "test"
+        },
+        {
+          "bytes": 132991,
+          "path": "generation/C#.jsonl",
+          "source_config": "generation",
+          "source_split": "test"
+        },
+        {
+          "bytes": 127086,
+          "path": "generation/C.jsonl",
+          "source_config": "generation",
+          "source_split": "test"
+        },
+        {
+          "bytes": 131206,
+          "path": "generation/CPP.jsonl",
+          "source_config": "generation",
+          "source_split": "test"
+        },
+        {
+          "bytes": 124540,
+          "path": "generation/CoffeeScript.jsonl",
+          "source_config": "generation",
+          "source_split": "test"
+        },
+        {
+          "bytes": 88573,
+          "path": "generation/Common Lisp.jsonl",
+          "source_config": "generation",
+          "source_split": "test"
+        },
+        {
+          "bytes": 228363,
+          "path": "generation/Dart.jsonl",
+          "source_config": "generation",
+          "source_split": "test"
+        },
+        {
+          "bytes": 108845,
+          "path": "generation/Elixir.jsonl",
+          "source_config": "generation",
+          "source_split": "test"
+        },
+        {
+          "bytes": 115041,
+          "path": "generation/Emacs Lisp.jsonl",
+          "source_config": "generation",
+          "source_split": "test"
+        },
+        {
+          "bytes": 103135,
+          "path": "generation/Erlang.jsonl",
+          "source_config": "generation",
+          "source_split": "test"
+        },
+        {
+          "bytes": 122674,
+          "path": "generation/F#.jsonl",
+          "source_config": "generation",
+          "source_split": "test"
+        },
+        {
+          "bytes": 167529,
+          "path": "generation/Fortran.jsonl",
+          "source_config": "generation",
+          "source_split": "test"
+        },
+        {
+          "bytes": 124701,
+          "path": "generation/Go.jsonl",
+          "source_config": "generation",
+          "source_split": "test"
+        },
+        {
+          "bytes": 132222,
+          "path": "generation/Groovy.jsonl",
+          "source_config": "generation",
+          "source_split": "test"
+        },
+        {
+          "bytes": 72228,
+          "path": "generation/HTML.jsonl",
+          "source_config": "generation",
+          "source_split": "test"
+        },
+        {
+          "bytes": 118741,
+          "path": "generation/Haskell.jsonl",
+          "source_config": "generation",
+          "source_split": "test"
+        },
+        {
+          "bytes": 121972,
+          "path": "generation/JSON.jsonl",
+          "source_config": "generation",
+          "source_split": "test"
+        },
+        {
+          "bytes": 148571,
+          "path": "generation/Java.jsonl",
+          "source_config": "generation",
+          "source_split": "test"
+        },
+        {
+          "bytes": 135728,
+          "path": "generation/JavaScript.jsonl",
+          "source_config": "generation",
+          "source_split": "test"
+        },
+        {
+          "bytes": 131379,
+          "path": "generation/Julia.jsonl",
+          "source_config": "generation",
+          "source_split": "test"
+        },
+        {
+          "bytes": 131086,
+          "path": "generation/Kotlin.jsonl",
+          "source_config": "generation",
+          "source_split": "test"
+        },
+        {
+          "bytes": 122711,
+          "path": "generation/Lua.jsonl",
+          "source_config": "generation",
+          "source_split": "test"
+        },
+        {
+          "bytes": 79610,
+          "path": "generation/Markdown.jsonl",
+          "source_config": "generation",
+          "source_split": "test"
+        },
+        {
+          "bytes": 156659,
+          "path": "generation/PHP.jsonl",
+          "source_config": "generation",
+          "source_split": "test"
+        },
+        {
+          "bytes": 130991,
+          "path": "generation/Pascal.jsonl",
+          "source_config": "generation",
+          "source_split": "test"
+        },
+        {
+          "bytes": 117416,
+          "path": "generation/Perl.jsonl",
+          "source_config": "generation",
+          "source_split": "test"
+        },
+        {
+          "bytes": 129254,
+          "path": "generation/PowerShell.jsonl",
+          "source_config": "generation",
+          "source_split": "test"
+        },
+        {
+          "bytes": 211992,
+          "path": "generation/Python.jsonl",
+          "source_config": "generation",
+          "source_split": "test"
+        },
+        {
+          "bytes": 143960,
+          "path": "generation/R.jsonl",
+          "source_config": "generation",
+          "source_split": "test"
+        },
+        {
+          "bytes": 119433,
+          "path": "generation/Racket.jsonl",
+          "source_config": "generation",
+          "source_split": "test"
+        },
+        {
+          "bytes": 130733,
+          "path": "generation/Ruby.jsonl",
+          "source_config": "generation",
+          "source_split": "test"
+        },
+        {
+          "bytes": 162924,
+          "path": "generation/Rust.jsonl",
+          "source_config": "generation",
+          "source_split": "test"
+        },
+        {
+          "bytes": 117558,
+          "path": "generation/Scala.jsonl",
+          "source_config": "generation",
+          "source_split": "test"
+        },
+        {
+          "bytes": 105321,
+          "path": "generation/Scheme.jsonl",
+          "source_config": "generation",
+          "source_split": "test"
+        },
+        {
+          "bytes": 131012,
+          "path": "generation/Shell.jsonl",
+          "source_config": "generation",
+          "source_split": "test"
+        },
+        {
+          "bytes": 129327,
+          "path": "generation/Swift.jsonl",
+          "source_config": "generation",
+          "source_split": "test"
+        },
+        {
+          "bytes": 139736,
+          "path": "generation/Tcl.jsonl",
+          "source_config": "generation",
+          "source_split": "test"
+        },
+        {
+          "bytes": 137228,
+          "path": "generation/TypeScript.jsonl",
+          "source_config": "generation",
+          "source_split": "test"
+        },
+        {
+          "bytes": 127558,
+          "path": "generation/VimScript.jsonl",
+          "source_config": "generation",
+          "source_split": "test"
+        },
+        {
+          "bytes": 138298,
+          "path": "generation/Visual Basic.jsonl",
+          "source_config": "generation",
+          "source_split": "test"
+        }
+      ],
+      "gated": false,
+      "license": "cc-by-sa-4.0",
+      "license_notes": "Publisher metadata declaration; underlying source licenses may also apply.",
+      "license_status": "declared",
+      "metadata_source": "https://huggingface.co/datasets/Multilingual-Multimodal-NLP/McEval/blob/c4767fec950de7decd487a40a4dab2795df4a094/README.md",
+      "prompt_fields": [
+        "prompt",
+        "instruction",
+        "problem",
+        "question"
+      ],
+      "repo": "Multilingual-Multimodal-NLP/McEval",
+      "response_fields": [
+        "canonical_solution",
+        "solution",
+        "code"
+      ],
+      "revision": "c4767fec950de7decd487a40a4dab2795df4a094",
+      "scope": "Public evaluation splits only; MBPP/CodeContests training splits excluded. Dataset versions retained as published.",
+      "source_bytes": 55319441,
+      "synthetic_notes": "Evaluation reference only; excluded from SFT training.",
+      "synthetic_status": "not_applicable",
+      "test_fields": [
+        "test",
+        "tests",
+        "test_list",
+        "challenge_test_list",
+        "test_setup_code",
+        "test_patch",
+        "base_input",
+        "plus_input"
+      ]
+    },
+    {
+      "category": "benchmarks",
+      "data_files": [
+        "*.parquet"
+      ],
+      "files": [
+        {
+          "bytes": 2902210,
+          "path": "data/test-00000-of-00001-5973903632b82d40.parquet",
+          "source_config": "default",
+          "source_split": "test"
+        }
+      ],
+      "gated": false,
+      "license": "apache-2.0",
+      "license_notes": "Publisher metadata declaration; underlying source licenses may also apply.",
+      "license_status": "declared",
+      "metadata_source": "https://huggingface.co/datasets/evalplus/humanevalplus/blob/d32357cf319e50e9c8d8dab5ea876c72b0fd321b/README.md",
+      "prompt_fields": [
+        "prompt"
+      ],
+      "repo": "evalplus/humanevalplus",
+      "response_fields": [
+        "canonical_solution"
+      ],
+      "revision": "d32357cf319e50e9c8d8dab5ea876c72b0fd321b",
+      "scope": "Public evaluation splits only; MBPP/CodeContests training splits excluded. Dataset versions retained as published.",
+      "source_bytes": 2902210,
+      "synthetic_notes": "Evaluation reference only; excluded from SFT training.",
+      "synthetic_status": "not_applicable",
+      "test_fields": [
+        "test",
+        "tests",
+        "test_list",
+        "challenge_test_list",
+        "test_setup_code",
+        "test_patch",
+        "base_input",
+        "plus_input"
+      ]
+    },
+    {
+      "category": "benchmarks",
+      "data_files": [
+        "*.parquet"
+      ],
+      "files": [
+        {
+          "bytes": 1129135,
+          "path": "data/test-00000-of-00001-d5781c9c51e02795.parquet",
+          "source_config": "default",
+          "source_split": "test"
+        }
+      ],
+      "gated": false,
+      "license": "apache-2.0",
+      "license_notes": "Publisher metadata declaration; underlying source licenses may also apply.",
+      "license_status": "declared",
+      "metadata_source": "https://huggingface.co/datasets/evalplus/mbppplus/blob/b2d74c91837c3f2a20c1299ae98133cbe7cfa077/README.md",
+      "prompt_fields": [
+        "prompt"
+      ],
+      "repo": "evalplus/mbppplus",
+      "response_fields": [
+        "canonical_solution"
+      ],
+      "revision": "b2d74c91837c3f2a20c1299ae98133cbe7cfa077",
+      "scope": "Public evaluation splits only; MBPP/CodeContests training splits excluded. Dataset versions retained as published.",
+      "source_bytes": 1129135,
+      "synthetic_notes": "Evaluation reference only; excluded from SFT training.",
+      "synthetic_status": "not_applicable",
+      "test_fields": [
+        "test",
+        "tests",
+        "test_list",
+        "challenge_test_list",
+        "test_setup_code",
+        "test_patch",
+        "base_input",
+        "plus_input"
+      ]
+    },
+    {
+      "category": "benchmarks",
+      "data_files": [
+        "test*.jsonl"
+      ],
+      "files": [
+        {
+          "bytes": 1252609773,
+          "path": "test.jsonl",
+          "source_config": ".",
+          "source_split": "test"
+        },
+        {
+          "bytes": 713377060,
+          "path": "test2.jsonl",
+          "source_config": ".",
+          "source_split": "test"
+        },
+        {
+          "bytes": 623360766,
+          "path": "test3.jsonl",
+          "source_config": ".",
+          "source_split": "test"
+        },
+        {
+          "bytes": 1204644685,
+          "path": "test4.jsonl",
+          "source_config": ".",
+          "source_split": "test"
+        },
+        {
+          "bytes": 557699297,
+          "path": "test5.jsonl",
+          "source_config": ".",
+          "source_split": "test"
+        },
+        {
+          "bytes": 134303240,
+          "path": "test6.jsonl",
+          "source_config": ".",
+          "source_split": "test"
+        }
+      ],
+      "gated": false,
+      "license": "cc",
+      "license_notes": "Publisher metadata declaration; underlying source licenses may also apply.",
+      "license_status": "declared",
+      "metadata_source": "https://huggingface.co/datasets/livecodebench/code_generation_lite/blob/0fe84c3912ea0c4d4a78037083943e8f0c4dd505/README.md",
+      "prompt_fields": [
+        "question_content"
+      ],
+      "raw_split": "test",
+      "repo": "livecodebench/code_generation_lite",
+      "response_fields": [],
+      "revision": "0fe84c3912ea0c4d4a78037083943e8f0c4dd505",
+      "scope": "Public evaluation splits only; MBPP/CodeContests training splits excluded. Dataset versions retained as published.",
+      "source_bytes": 4485994821,
+      "synthetic_notes": "Evaluation reference only; excluded from SFT training.",
+      "synthetic_status": "not_applicable",
+      "test_fields": [
+        "public_test_cases",
+        "private_test_cases"
+      ]
+    },
+    {
+      "category": "benchmarks",
+      "data_files": [
+        "data/v0.1.4-*.parquet"
+      ],
+      "files": [
+        {
+          "bytes": 2362110,
+          "path": "data/v0.1.4-00000-of-00001.parquet",
+          "source_config": "default",
+          "source_split": "v0.1.4"
+        }
+      ],
+      "gated": false,
+      "license": "apache-2.0",
+      "license_notes": "Publisher metadata declaration; underlying source licenses may also apply.",
+      "license_status": "declared",
+      "metadata_source": "https://huggingface.co/datasets/bigcode/bigcodebench/blob/b74c0d0bf70d2c0bc459be537895cca163007f1a/README.md",
+      "prompt_fields": [
+        "complete_prompt",
+        "instruct_prompt"
+      ],
+      "repo": "bigcode/bigcodebench",
+      "response_fields": [
+        "canonical_solution"
+      ],
+      "revision": "b74c0d0bf70d2c0bc459be537895cca163007f1a",
+      "scope": "Public evaluation splits only; MBPP/CodeContests training splits excluded. Dataset versions retained as published.",
+      "source_bytes": 2362110,
+      "synthetic_notes": "Evaluation reference only; excluded from SFT training.",
+      "synthetic_status": "not_applicable",
+      "test_fields": [
+        "test",
+        "tests",
+        "test_list",
+        "challenge_test_list",
+        "test_setup_code",
+        "test_patch",
+        "base_input",
+        "plus_input"
+      ]
+    },
+    {
+      "category": "benchmarks",
+      "data_files": [
+        "test.jsonl"
+      ],
+      "files": [
+        {
+          "bytes": 1292436853,
+          "path": "test.jsonl",
+          "source_config": ".",
+          "source_split": "test"
+        }
+      ],
+      "gated": false,
+      "license": "[\"mit\"]",
+      "license_notes": "Publisher metadata declaration; underlying source licenses may also apply.",
+      "license_status": "declared",
+      "metadata_source": "https://huggingface.co/datasets/codeparrot/apps/blob/21e74ddf8de1a21436da12e3e653065c5213e9d1/README.md",
+      "prompt_fields": [
+        "question"
+      ],
+      "raw_split": "test",
+      "repo": "codeparrot/apps",
+      "response_fields": [],
+      "revision": "21e74ddf8de1a21436da12e3e653065c5213e9d1",
+      "scope": "Public evaluation splits only; MBPP/CodeContests training splits excluded. Dataset versions retained as published.",
+      "source_bytes": 1292436853,
+      "synthetic_notes": "Evaluation reference only; excluded from SFT training.",
+      "synthetic_status": "not_applicable",
+      "test_fields": [
+        "input_output"
+      ]
+    },
+    {
+      "category": "benchmarks",
+      "data_files": [
+        "data/test-*.parquet",
+        "data/valid-*.parquet"
+      ],
+      "files": [
+        {
+          "bytes": 63077400,
+          "path": "data/test-00000-of-00001-9c49eeff30aacaa8.parquet",
+          "source_config": "data",
+          "source_split": "test"
+        },
+        {
+          "bytes": 51829044,
+          "path": "data/valid-00000-of-00001-5e672c5751f060d3.parquet",
+          "source_config": "data",
+          "source_split": "validation"
+        }
+      ],
+      "gated": false,
+      "license": "[\"cc-by-4.0\"]",
+      "license_notes": "Publisher metadata declaration; underlying source licenses may also apply.",
+      "license_status": "declared",
+      "metadata_source": "https://huggingface.co/datasets/deepmind/code_contests/blob/802411c3010cb00d1b05bad57ca77365a3c699d6/README.md",
+      "prompt_fields": [
+        "description"
+      ],
+      "repo": "deepmind/code_contests",
+      "response_fields": [],
+      "revision": "802411c3010cb00d1b05bad57ca77365a3c699d6",
+      "scope": "Public evaluation splits only; MBPP/CodeContests training splits excluded. Dataset versions retained as published.",
+      "source_bytes": 114906444,
+      "synthetic_notes": "Evaluation reference only; excluded from SFT training.",
+      "synthetic_status": "not_applicable",
+      "test_fields": [
+        "public_tests",
+        "private_tests",
+        "generated_tests"
+      ]
+    }
+  ]
+}
