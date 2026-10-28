@@ -1,4 +1,4 @@
-"""Selections of a merged tokenize run: a token cap, length buckets, or a validation split."""
+"""Selections of a merged tokenize run: a token cap, length buckets, a split or a sample."""
 
 import fcntl
 import hashlib
@@ -144,7 +144,11 @@ def _hashed(value, seed):
         if value.denominator == 1:
             value = value.numerator
     digest = hashlib.blake2b(f"{seed}:{value!r}".encode(), digest_size=8).digest()
-    return int.from_bytes(digest) / 2**64
+    return (int.from_bytes(digest) >> 11) / 2**53  # 53 bits convert exactly, so never 1.0
+
+
+def _hashes(keys, seed):
+    return np.array([_hashed(key, seed) for key in keys])
 
 
 def split(run, output, fraction, *, seed=0, group_by=None):
@@ -163,7 +167,7 @@ def split(run, output, fraction, *, seed=0, group_by=None):
         keys = [values[i] for i in keys]
         if any(key is None or (isinstance(key, float) and math.isnan(key)) for key in keys):
             raise ValueError(f"column {group_by!r} has missing values")
-    validation = np.array([_hashed(key, seed) < fraction for key in keys], bool)
+    validation = _hashes(keys, seed) < fraction
     if validation.all() or not validation.any():
         raise ValueError("the split leaves train or validation empty; change --validation")
     settings = {"fraction": fraction, "seed": seed, "group_by": group_by}
@@ -175,3 +179,41 @@ def split(run, output, fraction, *, seed=0, group_by=None):
             result[name] = totals(parent.lengths[keep])
         write_json(directory / SUMMARY, result)
     return result
+
+
+def sample(run, output, *, fraction=None, documents=None, tokens=None, seed=0):
+    """Write a seeded random sample of the documents to `output`, in run order.
+
+    A seeded hash of each document's original index orders the documents. `fraction` keeps
+    those hashing below it, so every selection of one run samples the same way; `documents`
+    or `tokens` keeps the longest prefix of the order within that limit. With one seed, a
+    smaller sample is a subset of a larger one.
+    """
+    if [fraction, documents, tokens].count(None) != 2:
+        raise ValueError("give exactly one of --fraction, --documents and --tokens")
+    if fraction is not None and not 0 < fraction <= 1:
+        raise ValueError("--fraction must be in (0, 1]")
+    if (documents is not None and documents < 1) or (tokens is not None and tokens < 1):
+        raise ValueError("--documents and --tokens must be positive")
+    parent = _Parent(run, output)
+    # The salt keeps the order independent of a split with the same seed.
+    hashes = _hashes(parent.origin.tolist(), f"sample:{seed}")
+    order = np.argsort(hashes, kind="stable")
+    if fraction is not None:
+        count = np.count_nonzero(hashes < fraction)
+    elif documents is not None:
+        count = documents
+    else:
+        count = np.searchsorted(np.cumsum(parent.lengths[order]), tokens, side="right")
+    keep = np.zeros(len(hashes), bool)
+    keep[order[:count]] = True
+    if not keep.any():
+        raise ValueError("the sample is empty; raise the limit")
+    # A prefix depends on the parent's documents, so record its range and splits.
+    within = {k: v for k, v in parent.selection.items() if k not in ("run", "samples")}
+    settings = {"fraction": fraction, "documents": documents, "tokens": tokens, "seed": seed}
+    samples = [*parent.selection.get("samples", []), settings | {"within": within}]
+    with parent.stage() as directory:
+        return parent.write(
+            directory, keep, {"samples": samples}, dropped=totals(parent.lengths[~keep])
+        )

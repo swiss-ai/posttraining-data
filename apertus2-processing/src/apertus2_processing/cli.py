@@ -1,4 +1,4 @@
-"""apertus-data: check or tokenize native data in shards; inspect, cap, bucket or split tokens.
+"""apertus-data: check or tokenize native data; inspect, cap, bucket, split or sample tokens.
 
 Exit codes: 0 success, 1 check found failing samples, 2 error.
 """
@@ -11,7 +11,7 @@ import traceback
 
 from ._inspect import documents, overview, overview_text, render, write_report
 from ._run import encode, merge, prepare
-from ._selection import bucket, cap, split
+from ._selection import bucket, cap, sample, split
 
 
 def parser():
@@ -115,6 +115,22 @@ def parser():
         metavar="COLUMN",
         help="Column of the tokenized input; documents sharing its value stay on one side",
     )
+    cmd = commands.add_parser("sample", help="Keep a seeded random sample of a merged tokenize run")
+    cmd.add_argument("run", help="Merged tokenize run directory")
+    cmd.add_argument("output", help="New or empty directory for the sample")
+    limit = cmd.add_mutually_exclusive_group(required=True)
+    limit.add_argument(
+        "--fraction", type=float, help="Approximate share of documents to keep, 0 < FRACTION <= 1"
+    )
+    limit.add_argument("--documents", type=int, help="Number of documents to keep")
+    limit.add_argument(
+        "--tokens",
+        type=int,
+        help="Token budget, filled in hash order up to the first document that does not fit",
+    )
+    cmd.add_argument(
+        "--seed", type=int, default=0, help="Seed of the ordering hash (default: %(default)s)"
+    )
     return root
 
 
@@ -142,14 +158,23 @@ def main(argv=None):
             summary = merge(args.run)
             print(json.dumps(summary, indent=1))
             return 1 if summary.get("failed_rows") else 0
-        elif args.command in ("cap", "bucket", "split"):
+        elif args.command in ("cap", "bucket", "split", "sample"):
             if args.command == "cap":
                 result = cap(args.run, args.output, args.max_tokens)
             elif args.command == "bucket":
                 result = bucket(args.run, args.output, args.bounds)
-            else:
+            elif args.command == "split":
                 result = split(
                     args.run, args.output, args.validation, seed=args.seed, group_by=args.group_by
+                )
+            else:
+                result = sample(
+                    args.run,
+                    args.output,
+                    fraction=args.fraction,
+                    documents=args.documents,
+                    tokens=args.tokens,
+                    seed=args.seed,
                 )
             print(json.dumps(result, indent=1))
         else:

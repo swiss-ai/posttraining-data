@@ -1,6 +1,6 @@
 """Prepared runs: workers on any node claim shards; merge combines the results.
 
-Also reads merged tokenize runs and their selections, for inspect, cap, bucket and split.
+Also reads merged tokenize runs and their selections, for inspect, cap, bucket, split and sample.
 """
 
 import importlib.metadata
@@ -45,7 +45,7 @@ def library():
 
 def _refuse_selection(run, config):
     if "selection" in config:
-        raise ValueError(f"{run} is a selection (cap, bucket or split), not a prepared run")
+        raise ValueError(f"{run} is a selection (cap, bucket, split or sample), not a prepared run")
 
 
 def load(run):

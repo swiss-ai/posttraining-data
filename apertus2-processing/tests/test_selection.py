@@ -170,7 +170,12 @@ def test_selections_are_marked_and_refused_as_prepared_runs(tmp_path, artifact, 
 
 @pytest.mark.parametrize(
     "command, options",
-    [("cap", ["--max-tokens", "4096"]), ("bucket", ["--bounds", "4096"]), ("split", HALF)],
+    [
+        ("cap", ["--max-tokens", "4096"]),
+        ("bucket", ["--bounds", "4096"]),
+        ("split", HALF),
+        ("sample", ["--fraction", "0.5"]),
+    ],
 )
 def test_selections_lock_active_writers_and_recover_after_exit(
     tmp_path, artifact, records, capsys, command, options
@@ -317,3 +322,95 @@ def test_split_groups_rows_of_a_saved_hf_dataset(tmp_path, artifact, records):
     output = tmp_path / "split"
     assert main(["split", str(run), str(output), *HALF, "--group-by", "group"]) == 0
     assert_grouped(output)
+
+
+def sample_hashes(count, seed=0):
+    """Per-index hashes that `sample` sorts by (pins its `sample:{seed}` salt)."""
+    return _selection._hashes(range(count), f"sample:{seed}").tolist()
+
+
+def test_sample_takes_a_seeded_prefix_by_documents_or_tokens(tmp_path, artifact, records):
+    _, run, tokens, weights, lengths = tokenized(tmp_path, artifact, records)
+    hashes = sample_hashes(len(records))
+    order = sorted(range(len(records)), key=hashes.__getitem__)
+    budget = sum(lengths[i] for i in order[:4]) - 1  # the fourth document does not fit
+    for name, options, kept in [
+        ("first-two", ["--documents", "2"], order[:2]),
+        ("budget", ["--tokens", str(budget)], order[:3]),
+        ("all", ["--documents", str(len(records) + 1)], order),
+    ]:
+        output = tmp_path / name
+        assert main(["sample", str(run), str(output), *options]) == 0
+        assert_selected(output, sorted(kept), tokens, weights)
+        summary = json.loads((output / "summary.json").read_text())
+        dropped = [length for i, length in enumerate(lengths) if i not in kept]
+        assert summary["tokens"] == sum(lengths[i] for i in kept)
+        assert summary["dropped"] == {"documents": len(dropped), "tokens": sum(dropped)}
+
+
+def test_sample_fraction_agrees_across_selections(tmp_path, artifact, records):
+    _, run, tokens, weights, lengths = tokenized(tmp_path, artifact, records)
+    hashes = sample_hashes(len(records))
+    fraction = sorted(hashes)[5]
+    kept = [i for i, value in enumerate(hashes) if value < fraction]
+    output = tmp_path / "sample"
+    assert main(["sample", str(run), str(output), "--fraction", str(fraction)]) == 0
+    assert_selected(output, kept, tokens, weights)
+    selection = json.loads((output / "run.json").read_text())["selection"]
+    within = {"min_tokens": 1, "max_tokens": None}
+    expected = {"fraction": fraction, "documents": None, "tokens": None, "seed": 0}
+    assert selection["samples"] == [expected | {"within": within}]
+
+    # A fraction of 1 keeps every document.
+    assert main(["sample", str(run), str(tmp_path / "whole"), "--fraction", "1"]) == 0
+    assert np.load(tmp_path / "whole" / "documents.npy").tolist() == list(range(len(records)))
+
+    # A cap samples like the full run.
+    limit = sorted(set(lengths))[-2]
+    capped = tmp_path / "capped"
+    assert main(["cap", str(run), str(capped), "--max-tokens", str(limit)]) == 0
+    capped_sample = tmp_path / "capped-sample"
+    assert main(["sample", str(capped), str(capped_sample), "--fraction", str(fraction)]) == 0
+    in_cap = [i for i in kept if lengths[i] <= limit]
+    assert np.load(capped_sample / "documents.npy").tolist() == in_cap
+
+    # A sample splits like the full run.
+    assert main(["split", str(run), str(tmp_path / "full"), *HALF]) == 0
+    assert main(["split", str(output), str(tmp_path / "part"), *HALF]) == 0
+    validation = sides(tmp_path / "full")[1]
+    assert sides(tmp_path / "part")[1] == [i for i in validation if i in kept]
+
+
+def test_sample_records_the_selection_it_was_drawn_from(tmp_path, artifact, records):
+    run = tokenized(tmp_path, artifact, records)[1]
+    first, capped, second = (tmp_path / name for name in ("first", "capped", "second"))
+    assert main(["sample", str(run), str(first), "--documents", "5"]) == 0
+    limit = 4096
+    assert main(["cap", str(first), str(capped), "--max-tokens", str(limit)]) == 0
+    assert main(["sample", str(capped), str(second), "--documents", "1", "--seed", "1"]) == 0
+    selection = json.loads((second / "run.json").read_text())["selection"]
+    unset = {"fraction": None, "tokens": None}
+    assert selection["max_tokens"] == limit
+    assert selection["samples"] == [
+        {**unset, "documents": 5, "seed": 0, "within": {"min_tokens": 1, "max_tokens": None}},
+        {**unset, "documents": 1, "seed": 1, "within": {"min_tokens": 1, "max_tokens": limit}},
+    ]
+
+
+def test_sample_rejects_bad_limits(tmp_path, artifact, records, capsys):
+    run = tokenized(tmp_path, artifact, records)[1]
+    command = ["sample", str(run), str(tmp_path / "out")]
+    for args, error in [
+        (["--fraction", "0"], "must be in (0, 1]"),
+        (["--fraction", "1.5"], "must be in (0, 1]"),
+        (["--documents", "0"], "must be positive"),
+        (["--tokens", "0"], "must be positive"),
+        (["--tokens", "1"], "the sample is empty"),
+    ]:
+        assert main([*command, *args]) == 2
+        assert error in capsys.readouterr().err
+    with pytest.raises(SystemExit):
+        main([*command, "--fraction", "0.5", "--documents", "1"])
+    with pytest.raises(ValueError, match="exactly one"):
+        _selection.sample(run, tmp_path / "out", fraction=0.5, documents=1)
+    assert not (tmp_path / "out").exists()
