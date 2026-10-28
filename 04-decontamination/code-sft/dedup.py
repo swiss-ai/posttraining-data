@@ -212,6 +212,15 @@ def contamination(row):
     # Scan all conversation roles and reasoning, not provenance metadata or generic test boilerplate.
     texts = [row.get("prompt"), row.get("response"), row.get("reasoning")]
     texts.extend(string_leaves(messages(row)))
+    if row.get("conversation_json"):
+        native = json.loads(row["conversation_json"])
+        texts.extend(
+            item["payload"]
+            for item in native["items"]
+            if item.get("type")
+            in {"user", "reply", "think", "call", "result", "document", "host"}
+            and isinstance(item.get("payload"), str)
+        )
     for text in texts:
         if not isinstance(text, str) or not text.strip():
             continue
@@ -252,7 +261,12 @@ def fingerprint(task):
                 "tools_json",
                 "tests_json",
                 "metadata_json",
-            ],
+            ]
+            + (
+                ["conversation_json"]
+                if "conversation_json" in pq.ParquetFile(path).schema_arrow.names
+                else []
+            ),
         ):
             result = []
             for row in batch.to_pylist():
@@ -318,11 +332,12 @@ def classify(
             SELECT *, row_number() OVER w AS duplicate_rank,
               first_value(file_index) OVER w AS keeper_file_index,
               first_value(row_index) OVER w AS keeper_row_index,
-              first_value(id) OVER w AS keeper_id
+              first_value(id) OVER w AS keeper_id,
+              bool_or(benchmark_match IS NOT NULL) OVER (PARTITION BY sample_hash) AS group_benchmark_match
             FROM fingerprints
             WINDOW w AS (PARTITION BY sample_hash ORDER BY file_index, row_index)
           ) SELECT *, CASE WHEN duplicate_rank > 1 THEN 'duplicate'
-                           WHEN benchmark_match IS NOT NULL THEN 'benchmark'
+                           WHEN group_benchmark_match THEN 'benchmark'
                            ELSE 'keep' END AS decision FROM ranked""")
         if files is not None:
             from fuzzy import apply_training

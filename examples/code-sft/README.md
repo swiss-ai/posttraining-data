@@ -151,3 +151,36 @@ partitions.
 Source adapters and checked conversion are adapted from
 [code-data-processing](https://github.com/User3574/code-data-processing/tree/be3ecc1).
 Full-corpus reprocessing remains a separate validation run.
+
+## Code Alchemy
+
+`process_code_alchemy.py` processes a locally rehydrated, validated Code Alchemy
+collection at revision `d367da91def5024929d0fa8d46d47d4ef616b467`:
+
+```bash
+uv run python process_code_alchemy.py --input /path/to/code_alchemy_rehydrated \
+  --output /path/to/prepared-code-alchemy --benchmarks /path/to/benchmarks \
+  --reference /path/to/existing-native-decontaminated --workers 96
+```
+
+It covers all five training subsets. Explicit User/Assistant conversations and
+educational QA headings become checked native SFT. Role boundaries are parsed
+before source placeholders are substituted, excluding code fences and reasoning
+spans. Missing required source context, ambiguous boundaries and malformed reasoning
+are quarantined. Original records, scores, source-status fields and language metadata
+are retained; no quality-score filter is applied.
+
+`code-enhance` and MultiPL-E completion-only rows from `code-qa` remain separate
+pretraining text records. A chat prompt is never invented for these records.
+`dev-eval` and `trace-eval` are evaluation references only; their source blob IDs
+are held out across training subsets, including exact duplicate groups.
+
+Native conversations and pretraining text receive separate exact fingerprints.
+With `--reference`, existing native rows take precedence over new duplicates.
+Benchmark equality/containment checks use the registered revision lock plus Code
+Alchemy evaluation prompts. Accepted output is fully materialized and read back,
+with per-shard hashes, decisions and source-row accounting. `--limit-files N` is a
+smoke-run option and never publishes the collection completion marker.
+
+Completed source shards resume by checksum; interrupted source shards restart.
+The final summary exposes separate `training_path` and `pretraining_path` values.

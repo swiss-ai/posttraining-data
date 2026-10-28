@@ -88,6 +88,10 @@ def sources(paths, split):
 
 def checked_row(original, entry, spec, index, mapping, convention, encoding=None):
     mapped = rename(original, mapping)
+    if entry["repo"] == "open-alchemy/code-alchemy":
+        from code_alchemy import adapt
+
+        mapped = adapt(mapped, spec["source_config"], entry["revision"])
     row = normalize_v2(mapped, entry, spec, index)
     row["source_record_json"] = dumps(original)
     # Preserve explicitly stored instruction fields that are outside the message list.
@@ -188,6 +192,7 @@ def standardise(
     convention="think-first",
     tokenizer=None,
     rows_per_shard=50000,
+    source_config=None,
 ):
     inputs = [p.resolve() for p in inputs]
     output = output.resolve()
@@ -248,6 +253,7 @@ def standardise(
         split=split,
         mapping=mapping,
         convention=convention,
+        source_config=source_config,
         rows_per_shard=rows_per_shard,
         code={
             str(p.relative_to(code_root)): digest(p)
@@ -276,7 +282,7 @@ def standardise(
         for path, name, iterator in sources(inputs, split):
             spec = dict(
                 path=str(path),
-                source_config=metadata.get("subset") or "local",
+                source_config=source_config or metadata.get("subset") or "local",
                 source_split=name,
             )
             partition = directory / (
@@ -385,6 +391,7 @@ def main():
     parser.add_argument("--repo")
     parser.add_argument("--revision")
     parser.add_argument("--split")
+    parser.add_argument("--source-config", help="Original dataset configuration/subset")
     parser.add_argument("--column-map", type=Path)
     parser.add_argument(
         "--category", choices=["code_sft", "code_agentic"], default="code_sft"
@@ -409,6 +416,7 @@ def main():
         args.convention,
         args.tokenizer,
         args.rows_per_shard,
+        args.source_config,
     )
     print(json.dumps(result))
 
