@@ -32,11 +32,11 @@ jobs:
           python-version: '3.13'
           enable-cache: true
           cache-dependency-glob: examples/code-sft/uv.lock
-      - run: uv venv --python 3.13
+      - run: uv venv .venv --python 3.13
       - name: Install locked public dependencies
         run: |
           uv export --frozen --all-groups --no-emit-package apertus-common --no-hashes --output-file "$RUNNER_TEMP/code-sft-public.txt"
-          uv pip sync "$RUNNER_TEMP/code-sft-public.txt"
+          uv pip sync --python .venv/bin/python "$RUNNER_TEMP/code-sft-public.txt"
       - run: .venv/bin/ruff check --select E9,F63,F7,F82 ../../02-standardisation/code-sft ../../04-decontamination/code-sft .
       - run: .venv/bin/ruff format --check ../../02-standardisation/code-sft ../../04-decontamination/code-sft .
       - name: Chat conversion, schemas, reasoning and deduplication
