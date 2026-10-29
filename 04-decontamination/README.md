@@ -31,31 +31,20 @@ If significant overlap is detected, the sample is removed from the training data
 Only near-verbatim overlap in user messages is detected; system prompts and assistant responses are not
 checked.
 
-## Test set for the decontamination strategy
+## Test sets (`validation/`)
 
-`validation/contamination_dataset.jsonl` is a synthetically generated, labelled test set for measuring how many false positives
-and false negatives the decontamination produces. It has 720 samples (`id`, `question`, `choices`, `answer`,
-`item_type`):
+Labelled, synthetically generated sets for measuring false positives (clean samples removed) and false
+negatives (contaminated samples kept):
 
-- **360 contaminated** (`is_contaminated: true`): 60 each from MMLU, MATH (`EleutherAI/hendrycks_math`),
-  ARC-Challenge, TruthfulQA, HellaSwag and GSM8K. `benchmark_hf_dir`, `benchmark_config`,
-  `benchmark_split` and `benchmark_row` point to the source item, and `contamination_type` says how it was
-  altered: `exact_copy` (110), `surface_change` (120), `light_rewording` (80) or `option_shuffle` (50).
-- **360 clean** (`is_contaminated: false`): 60 per benchmark, written in the style of that benchmark
-  (`item_type` names it) but not taken from it, so they are near misses that test for false positives.
+| File | Samples | Contaminated | Clean |
+|---|---|---|---|
+| `contamination_dataset.jsonl` | 720 | 360 from MMLU, MATH, ARC-Challenge, TruthfulQA, HellaSwag, GSM8K (exact copies, surface changes, light rewordings, shuffled options) | 360 near misses in the style of those benchmarks |
+| `contamination_dataset_v3.jsonl` | 19,722 | 9,361 from 72 benchmarks (also partial items) | 10,361, mostly wrapped in chat templates, JSON records, few-shot prompts or quizzes |
 
-A clean sample that is removed is a false positive; a contaminated sample that is kept is a false
-negative. The file is not in the unified schema, so convert it first with
-`02-standardisation/convert-contamination-test.py` (`question` as `initial_prompt`, the test set's `id` kept in
-`original_metadata`).
-
-`validation/contamination_dataset_v3.jsonl` is a larger set in the same format: 19,722 samples, 9,361
-contaminated from 72 benchmarks (also `partial`, a part of a benchmark item) and 10,361 clean, most of them
-wrapped in chat templates, JSON records, few-shot prompts or quizzes. Its `answer` can be null.
-
-An earlier version, `contamination_dataset_v1_old.jsonl` (removed, still in commit `7564cae`), has the
-same 360 contaminated samples, but its 360 clean samples are short, generic math, multiple-choice, QA and
-completion items (`item_type` `math`, `mcq`, `qa`, `completion`).
+Each sample has `is_contaminated`; contaminated ones point to their source item (`benchmark_hf_dir`,
+`benchmark_config`, `benchmark_split`, `benchmark_row`) and say how it was altered (`contamination_type`).
+Convert a set to the unified schema before decontaminating it:
+`02-standardisation/convert-contamination-test.py -i <file> -o <output>`.
 
 ## Files
 
