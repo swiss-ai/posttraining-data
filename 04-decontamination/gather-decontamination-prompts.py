@@ -27,20 +27,37 @@ from typing import Iterable
 DEFAULT_BENCHMARKS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "benchmarks.yaml")
 
 
+def names_clash(a, b):
+    """Whether two prompt-set names can be the same ("<name>__*" stands for all configs of a dataset)."""
+    if a.endswith("*"):
+        return b.startswith(a[:-1])
+    if b.endswith("*"):
+        return a.startswith(b[:-1])
+    return a == b
+
+
 def load_benchmark_datasets(path):
     """Read the benchmark list (see benchmarks.yaml for the fields of an entry)."""
     with open(path) as f:
         benchmarks = yaml.safe_load(f)["benchmarks"]
     required = {"name_or_path", "config_name", "split_name", "prompt_col_name"}
-    names = set()
+    names = []  # the names in the prompt set; "<name>__*" for all configs of an "iterate" entry
     for entry in benchmarks:
         missing = required - entry.keys()
         if missing:
             raise ValueError(f"Benchmark entry {entry} is missing {sorted(missing)}")
         name = entry.get("name", entry["name_or_path"].replace("/", "__"))
-        if name in names:
-            raise ValueError(f"Duplicate benchmark entry {name}; give one of them its own 'name'")
-        names.add(name)
+        config = entry["config_name"]
+        if config == "iterate":
+            new = [f"{name}__*"]
+        elif isinstance(config, list):
+            new = [f"{name}__{c.replace('/', '_')}" for c in config]
+        else:
+            new = [name]
+        for n in new:
+            if any(names_clash(n, m) for m in names):
+                raise ValueError(f"Duplicate benchmark name {n}; give one of the entries its own 'name'")
+            names.append(n)
     return benchmarks
 
 
@@ -184,9 +201,11 @@ def main(args):
                         dataset_args["prompt_col_name"],
                         args.num_proc,
                     )
-                except (
-                    Exception
-                ) as e:  # Error with INCLUDE (some subsets are empty) or m_hellaswag (errors with the subset ZH)
+                except Exception as e:
+                    # With "iterate", some subsets cannot be loaded (INCLUDE has empty ones, m_hellaswag fails
+                    # for zh); configs listed explicitly must load
+                    if dataset_args["config_name"] != "iterate":
+                        raise
                     print(f"Skipping config name {config_name} due to exception {e}")
                     continue
                 decontamination_prompts[
@@ -219,8 +238,9 @@ if __name__ == "__main__":
     parser.add_argument(
         "--num_proc",
         type=int,
-        default=16,
-        help="Number of processes to use for map operations.",
+        default=1,
+        help="Number of processes for loading and mapping the benchmarks. More than 1 can deadlock in "
+             "load_dataset (seen with 16 on the cluster).",
     )
     args = parser.parse_args()
     main(args)

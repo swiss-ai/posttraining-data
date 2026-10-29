@@ -4,7 +4,8 @@
 # Each entry:
 #   name_or_path:    HF dataset (lmarena-ai/arena-hard-auto and DAMO-NLP-SG/MultiJail are handled
 #                    specially in the script)
-#   config_name:     a config, a list of configs, "iterate" (all configs of the dataset) or null
+#   config_name:     a config, a list of configs, "iterate" (all configs of the dataset) or null;
+#                    a listed config that cannot be loaded stops the gathering, "iterate" skips it
 #   split_name:      a split or a list of splits (concatenated); the splits that are evaluated on,
 #                    never a train split of a benchmark that has separate evaluation splits
 #   prompt_col_name: column holding the prompt (for a list of turns, the first turn is used)
@@ -342,10 +343,15 @@ benchmarks:
     config_name: null
     split_name: train
     prompt_col_name: prompt
-  # swiss-ai/polyglotoxicityprompts is a subset of this.
+  # swiss-ai/polyglotoxicityprompts is a subset of this. The ptp-* configs have the splits full and small
+  # (a subset of full), the wildchat-* configs only the split wildchat.
   - name_or_path: ToxicityPrompts/PolygloToxicityPrompts
-    config_name: iterate
+    config_name: [ptp-ar, ptp-cs, ptp-de, ptp-en, ptp-es, ptp-fr, ptp-hi, ptp-id, ptp-it, ptp-ja, ptp-ko, ptp-nl, ptp-pl, ptp-pt, ptp-ru, ptp-sv, ptp-zh]
     split_name: full
+    prompt_col_name: prompt
+  - name_or_path: ToxicityPrompts/PolygloToxicityPrompts
+    config_name: [wildchat-ar, wildchat-cs, wildchat-de, wildchat-en, wildchat-es, wildchat-fr, wildchat-hi, wildchat-id, wildchat-it, wildchat-ja, wildchat-ko, wildchat-nl, wildchat-pl, wildchat-pt, wildchat-ru, wildchat-sv, wildchat-zh]
+    split_name: wildchat
     prompt_col_name: prompt
   - name_or_path: oskarvanderwal/bbq
     config_name: All
