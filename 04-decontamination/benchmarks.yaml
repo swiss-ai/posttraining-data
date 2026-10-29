@@ -62,6 +62,12 @@ benchmarks:
     config_name: gpqa_main
     split_name: train
     prompt_col_name: Pre-Revision Question
+  # Evaluations use the revised "Question" text; the pre-revision entry is kept.
+  - name_or_path: Idavidrein/gpqa
+    name: Idavidrein__gpqa__gpqa_main__question
+    config_name: gpqa_main
+    split_name: train
+    prompt_col_name: Question
   - name_or_path: lukaemon/bbh
     config_name: iterate
     split_name: test
@@ -120,6 +126,12 @@ benchmarks:
     config_name: [en, de, es, fr, it]
     split_name: test
     prompt_col_name: text
+  # All configs share the same validation and test splits; validation is the split evaluated on
+  # (test has no labels).
+  - name_or_path: allenai/winogrande
+    config_name: winogrande_xl
+    split_name: [validation, test]
+    prompt_col_name: sentence
 
   # ── Truthfulness and hallucination ───────────────────────────────────────
   # The multiple_choice config has the same 817 questions.
@@ -140,6 +152,10 @@ benchmarks:
     config_name: iterate
     split_name: test
     prompt_col_name: prompt
+  - name_or_path: basicv8vc/SimpleQA
+    config_name: null
+    split_name: test
+    prompt_col_name: problem
 
   # ── Math ─────────────────────────────────────────────────────────────────
   - name_or_path: openai/gsm8k
@@ -172,6 +188,31 @@ benchmarks:
     config_name: iterate
     split_name: [top, high, medium, low]
     prompt_col_name: question
+  # AI-MO/aimo-validation-aime only covers AIME 2022-2024.
+  - name_or_path: MathArena/aime_2025
+    config_name: null
+    split_name: train
+    prompt_col_name: problem
+  - name_or_path: MathArena/aime_2026
+    config_name: null
+    split_name: train
+    prompt_col_name: problem
+  - name_or_path: MathArena/hmmt_feb_2025
+    config_name: null
+    split_name: train
+    prompt_col_name: problem
+  - name_or_path: MathArena/hmmt_feb_2026
+    config_name: null
+    split_name: train
+    prompt_col_name: problem
+  - name_or_path: MathArena/brumo_2025
+    config_name: null
+    split_name: train
+    prompt_col_name: problem
+  - name_or_path: math-ai/amc23
+    config_name: null
+    split_name: test
+    prompt_col_name: question
 
   # ── Code ─────────────────────────────────────────────────────────────────
   - name_or_path: openai/openai_humaneval
@@ -186,6 +227,12 @@ benchmarks:
     config_name: null
     split_name: v0.1.0_hf
     prompt_col_name: instruct_prompt
+  # Parquet copy of livecodebench/code_generation_lite (which needs a loading script);
+  # release_latest contains all earlier releases.
+  - name_or_path: lighteval/code_generation_lite
+    config_name: release_latest
+    split_name: test
+    prompt_col_name: question_content
 
   # ── Long context ─────────────────────────────────────────────────────────
   - name_or_path: THUDM/LongBench
@@ -222,6 +269,22 @@ benchmarks:
     config_name: iterate
     split_name: test
     prompt_col_name: prompt
+
+  # ── Medical ──────────────────────────────────────────────────────────────
+  # openlifescienceai/medmcqa: validation is the split evaluated on (test has no labels).
+  - name_or_path: openlifescienceai/medmcqa
+    config_name: null
+    split_name: validation
+    prompt_col_name: question
+  - name_or_path: GBaker/MedQA-USMLE-4-options
+    config_name: null
+    split_name: test
+    prompt_col_name: question
+  # pqa_labeled is the evaluated set; pqa_artificial and pqa_unlabeled are training data.
+  - name_or_path: qiaojin/PubMedQA
+    config_name: [pqa_labeled]
+    split_name: train
+    prompt_col_name: question
 
   # ── Culture ──────────────────────────────────────────────────────────────
   # swiss-ai/blend-sample is a subset of this.
