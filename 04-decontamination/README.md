@@ -181,9 +181,9 @@ relaunch (in either mode) recomputes only the missing ones.
 - `chunk_size`: benchmarks per array job (default: 20)
 - `max_parallel_jobs`: maximum array jobs running at once (default: 64)
 
-The script submits a job array and a merge job that runs after it (`afterany`). The merge checks the
-completion markers (`--expected-jobs`) and that every benchmark has a report; if an array job failed, it
-stops without saving.
+The script submits a job array and a merge job that runs after it (`afterany`). The merge checks that
+every benchmark has a readable report (reports are written atomically); if an array job failed, it stops
+without saving.
 
 **Single job** — one job that writes the reports of all benchmarks and then runs the merge, e.g. on the
 debug partition (at most 2 submitted jobs per user):
@@ -200,8 +200,7 @@ Manual merge (e.g. after fixing a failed array job):
 ```bash
 python 04-decontamination/merge-decontamination-reports.py \
   <input_dataset> <output_dataset> <output_dataset>_parallel_reports \
-  --decontamination_prompts "$DECONTAMINATION_PROMPTS" \
-  --expected-jobs <number_of_array_jobs>
+  --decontamination_prompts "$DECONTAMINATION_PROMPTS"
 ```
 
 ### 3. Without SLURM (e.g. interactively)
@@ -214,15 +213,12 @@ python 04-decontamination/merge-decontamination-reports.py \
 ```
 
 The tokenizer, prompt set, cache and matching settings come from `decontamination_settings.py` (or the
-environment variables above). Without `--benchmark-start`/`--benchmark-end` the first command checks all benchmarks. Leave out
-`--expected-jobs` here: only the SLURM jobs write completion markers. The merge still requires a report for
-every benchmark.
+environment variables above). Without `--benchmark-start`/`--benchmark-end` the first command checks all
+benchmarks. The merge requires a report for every benchmark.
 
 Useful flags of `decontamination-parallel.py`: `--overwrite` recomputes existing reports,
 `--show_contaminated` prints examples of contaminated pairs, `--benchmark_name` restricts the run to
-specific benchmarks. `--base_report_path` takes the 8-gram matches from the reports of an earlier run
-with the same units but without the short benchmark prompt check, and runs only that check (much faster
-than a full run).
+specific benchmarks (comma-separated).
 
 ### Monitoring
 

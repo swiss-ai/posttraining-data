@@ -76,12 +76,13 @@ def verify_contamination_worker_optimized(args_tuple):
     Optimized worker function for parallel contamination verification using shared memory.
 
     Args:
-        args_tuple: (train_idx, eval_indices, train_tokens, threshold, train_conversation_id)
+        args_tuple: (eval_indices, train_tokens, threshold, train_conversation_id)
 
     Returns:
-        tuple: (train_conversation_id, eval_idx, match_ratio, train_tokens_full, eval_tokens_full) if contaminated, None otherwise
+        tuple: (train_conversation_id, eval_idx, match_ratio) for the first benchmark prompt at or above
+        the threshold, None if there is none
     """
-    train_idx, eval_indices, train_tokens, threshold, train_conversation_id = args_tuple
+    eval_indices, train_tokens, threshold, train_conversation_id = args_tuple
 
     for eval_idx in eval_indices:
         eval_tokens = shared_eval_ngrams_dict[eval_idx]["tokens"]
@@ -92,7 +93,7 @@ def verify_contamination_worker_optimized(args_tuple):
 
         match_ratio = match_length / len(eval_tokens)
         if match_ratio >= threshold:
-            return (train_conversation_id, eval_idx, match_ratio, train_tokens, eval_tokens)
+            return (train_conversation_id, eval_idx, match_ratio)
 
     return None
 

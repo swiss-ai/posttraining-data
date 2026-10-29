@@ -147,14 +147,11 @@ python 04-decontamination/decontamination-parallel.py \\
       --benchmark-start \$BENCHMARK_START \\
       --benchmark-end \$BENCHMARK_END \\
       --num_proc 4
-
-# Check exit status
-if [ \$? -eq 0 ]; then
+STATUS=\$?
+if [ \$STATUS -eq 0 ]; then
     echo "Parallel job \$TASK_ID completed successfully."
-    # Create completion marker
-    touch "${REPORTS_DIR}/job_\${TASK_ID}.completed"
 else
-    echo "Parallel job \$TASK_ID failed with exit code \$?"
+    echo "Parallel job \$TASK_ID failed with exit code \$STATUS"
     exit 1
 fi
 EOF
@@ -178,15 +175,13 @@ python 04-decontamination/merge-decontamination-reports.py \\
       "${OUTPUT_PATH}" \\
       "${REPORTS_DIR}" \\
       --decontamination_prompts "${DECONTAMINATION_PROMPTS}" \\
-      --expected-jobs ${NUM_JOBS} \\
       --tokenizer_name "${TOKENIZER_NAME}"
-
-# Check exit status
-if [ \$? -eq 0 ]; then
+STATUS=\$?
+if [ \$STATUS -eq 0 ]; then
     echo "Merge completed successfully."
     echo "Final filtered dataset saved to: ${OUTPUT_PATH}"
 else
-    echo "Merge failed with exit code \$?"
+    echo "Merge failed with exit code \$STATUS"
     exit 1
 fi
 EOF
@@ -293,8 +288,8 @@ if [ $? -eq 0 ]; then
         echo "=== MONITORING COMMANDS ==="
         echo "Monitor parallel jobs:  squeue -j $PARALLEL_JOB_ID"
         echo "Monitor merge job:      squeue -j $MERGE_JOB_ID" 
-        echo "Watch parallel progress:"
-        echo "  watch -n 5 'ls ${REPORTS_DIR}/*.completed 2>/dev/null | wc -l; echo \"/ $NUM_JOBS jobs completed\"'"
+        echo "Watch parallel progress (reports written):"
+        echo "  watch -n 5 'ls ${REPORTS_DIR}/*__contamination_report.json 2>/dev/null | wc -l; echo \"/ $TOTAL_BENCHMARKS benchmarks\"'"
         echo "View parallel job logs:"
         echo "  tail -f ${SLURM_LOG_DIR}/pdecontam_${DATASET_NAME}_${TIMESTAMP}_*.out"
         echo "View merge job log:"
@@ -302,7 +297,7 @@ if [ $? -eq 0 ]; then
     else
         echo "Error: Failed to submit merge job"
         echo "You can run the merge manually after parallel jobs complete:"
-        echo "  python 04-decontamination/merge-decontamination-reports.py $INPUT_PATH $OUTPUT_PATH $REPORTS_DIR --decontamination_prompts $DECONTAMINATION_PROMPTS --expected-jobs $NUM_JOBS"
+        echo "  python 04-decontamination/merge-decontamination-reports.py $INPUT_PATH $OUTPUT_PATH $REPORTS_DIR --decontamination_prompts $DECONTAMINATION_PROMPTS --tokenizer_name $TOKENIZER_NAME"
     fi
 else
     echo "Error: Failed to submit parallel jobs"

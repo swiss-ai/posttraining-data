@@ -44,16 +44,6 @@ def user_prompt_units(batch, tokenizer):
     return {"conversation_id": conversation_ids, "prompt_token_ids": to_units(tokenizer, texts)}
 
 
-def get_benchmark_subset(all_benchmarks, start_idx=None, end_idx=None):
-    """Get a subset of benchmarks for parallel processing."""
-    if start_idx is not None and end_idx is not None:
-        # Use range-based subsetting
-        return all_benchmarks[start_idx:end_idx]
-    else:
-        # Use all benchmarks (default behavior)
-        return all_benchmarks
-
-
 def main(args):
     print(f"\n=== PARALLEL DECONTAMINATION PIPELINE ===\nLoading decontamination prompts from: {args.decontamination_prompts}")
     eval_data = load_from_disk(args.decontamination_prompts)
@@ -66,21 +56,11 @@ def main(args):
     
     # Determine benchmark subset to process
     if args.benchmark_name is not None:
-        # Legacy behavior: specific benchmarks
-        benchmark_list = args.benchmark_name if isinstance(args.benchmark_name, list) else [args.benchmark_name]
+        benchmark_list = [name.strip() for name in args.benchmark_name.split(",") if name.strip()]
         print(f"Using specified benchmark(s): {benchmark_list}")
-    elif args.benchmark_list is not None:
-        # New: explicit benchmark list
-        with open(args.benchmark_list, 'r') as f:
-            benchmark_list = [line.strip() for line in f if line.strip() and not line.startswith('#')]
-        print(f"Using benchmarks from file {args.benchmark_list}: {len(benchmark_list)} benchmarks")
     else:
-        # Use range-based subsetting for parallel processing
-        benchmark_list = get_benchmark_subset(
-            all_available_benchmarks, 
-            args.benchmark_start, 
-            args.benchmark_end
-        )
+        # A range of the benchmark list (one array job), or all benchmarks
+        benchmark_list = all_available_benchmarks[args.benchmark_start:args.benchmark_end]
         if args.benchmark_start is not None or args.benchmark_end is not None:
             print(f"Processing benchmark subset [{args.benchmark_start}:{args.benchmark_end}]: {len(benchmark_list)} benchmarks")
         else:
@@ -107,10 +87,7 @@ def main(args):
 
     # Load and preprocess training data
     train_data = load_from_disk(args.dataset_path)
-    # Original single split extraction (commented out for processing all splits):
-    # if args.train_dataset_split:
-    #     train_data = train_data[args.train_dataset_split]
-    
+
     # Process all splits in DatasetDict for complete decontamination
     if hasattr(train_data, 'keys'):  # DatasetDict
         # Concatenate all splits for contamination detection
@@ -213,11 +190,6 @@ def main(args):
         step1_time = time.time() - step_start
         print(f"  Step 1 (Load/compute n-grams): {step1_time:.1f}s")
 
-        if args.base_report_path:  # take the n-gram matches from an earlier run: steps 2-3 find nothing
-            with open(os.path.join(args.base_report_path, os.path.basename(output_path))) as f:
-                base_report = json.load(f)
-            eval_ngram_to_eval_idx = {}
-
         # Step 2: Find n-gram matches (with pre-filtering optimization)
         step_start = time.time()
         print(f"  Finding n-gram matches with training data...")
@@ -266,7 +238,6 @@ def main(args):
         verification_tasks = []
         for train_idx, eval_indices in train_idx_match_indices.items():
             verification_tasks.append((
-                train_idx,
                 eval_indices,
                 train_ngrams[train_idx]["tokens"],
                 args.diff_threshold,
@@ -285,23 +256,20 @@ def main(args):
             # Process results
             for result in results:
                 if result is not None:
-                    train_conversation_id, eval_idx, match_ratio, train_tokens_full, eval_tokens_full = result
+                    train_conversation_id, eval_idx, match_ratio = result
                     contamination_mapping[train_conversation_id] = eval_idx
-                    
-                    # Show contaminated samples if requested
+
+                    # Show contaminated samples if requested (units: numbers are not tokens, so they are left out)
                     if args.show_contaminated and contaminated_samples_shown < 10:
+                        decode = lambda units: tokenizer.decode([u for u in units if u >= 0])
                         print(f"\n  [CONTAMINATED] Sample {train_conversation_id}")
-                        print(f"    Training prompt: {tokenizer.decode(train_tokens_full)}")
-                        print(f"    Benchmark prompt: {tokenizer.decode(eval_tokens_full)}")
+                        print(f"    Training prompt: {decode(next(t[1] for t in verification_tasks if t[3] == train_conversation_id))}")
+                        print(f"    Benchmark prompt: {decode(eval_ngrams[eval_idx]['tokens'])}")
                         print(f"    Match ratio: {match_ratio:.2f}")
                         contaminated_samples_shown += 1
         step3_time = time.time() - step_start
         print(f"  Found {len(contamination_mapping)} contaminated samples")
         print(f"  Step 3 (Verify contamination): {step3_time:.1f}s")
-
-        if args.base_report_path:
-            contamination_mapping.update(base_report)
-            print(f"  {len(base_report)} contaminated samples from the base report")
 
         # Step 3b: benchmark prompts shorter than the n-gram length have no n-gram (see matching_units.py)
         short_index, counts = short_prompt_index([x["tokens"] for x in eval_ngrams], args.ngram_length)
@@ -319,24 +287,16 @@ def main(args):
         del eval_ngrams, train_idx_match_indices, short_index
         gc.collect()
 
-        # Step 4: Save report
-        step_start = time.time()
-        json.dump(contamination_mapping, open(output_path, "w"), separators=(",", ":"))
-        # The merge sums these into short_benchmark_prompts of the processing log
+        # Step 4: Save report. The counts first: the merge sums them into short_benchmark_prompts of the
+        # processing log. The report last and atomically, since an existing report is never recomputed.
         with open(output_path.replace("__contamination_report.json", "__short_prompts.json"), "w") as f:
-            json.dump({**counts, "base_report_path": args.base_report_path}, f)
-        step4_time = time.time() - step_start
-        print(f"  Step 4 (Save report): {step4_time:.1f}s")
-        
-        # Total time summary
+            json.dump(counts, f)
+        with open(output_path + ".tmp", "w") as f:
+            json.dump(contamination_mapping, f, separators=(",", ":"))
+        os.replace(output_path + ".tmp", output_path)
         running_time = time.time() - start_time
         print(f"  Total benchmark time: {int(running_time/60)}m {running_time%60:.1f}s")
-        print(f"    - Load/compute n-grams: {step1_time:.1f}s ({step1_time/running_time*100:.1f}%)")
-        print(f"    - Find n-gram matches: {step2_time:.1f}s ({step2_time/running_time*100:.1f}%)")
-        print(f"      * Pre-filtering: {prefilter_time:.1f}s")
-        print(f"    - Verify contamination: {step3_time:.1f}s ({step3_time/running_time*100:.1f}%)")
-        print(f"    - Save report: {step4_time:.1f}s ({step4_time/running_time*100:.1f}%)")
-        
+
         processed_benchmarks.append(eval_dataset_name)
         del contamination_mapping
         gc.collect()
@@ -392,7 +352,7 @@ if __name__ == "__main__":
         "--benchmark_name",
         type=str,
         default=None,
-        help="Name of the benchmark samples to use for decontamination. Use either a single benchmark's name or a list with comma separation."
+        help="Benchmarks to check (comma-separated names of the prompt set), e.g. for debugging. Default: all."
     )
     parser.add_argument(
         "--benchmark-start",
@@ -407,12 +367,6 @@ if __name__ == "__main__":
         help="End index for benchmark subset (for parallel processing)"
     )
     parser.add_argument(
-        "--benchmark-list",
-        type=str,
-        default=None,
-        help="File containing list of benchmarks to process (one per line, # for comments)"
-    )
-    parser.add_argument(
         "--report_path",
         type=str,
         required=True,
@@ -422,13 +376,6 @@ if __name__ == "__main__":
         "--overwrite",
         action="store_true",
         help="Regenerate contamination reports even if they already exist. Without this flag, existing reports are skipped.",
-    )
-    parser.add_argument(
-        "--base_report_path",
-        type=str,
-        default=None,
-        help="Reports of an earlier run with the same units (UNITS_VERSION) but without the short "
-             "benchmark prompt check: their n-gram matches are used and only that check runs.",
     )
     parser.add_argument(
         "--ngram_length",

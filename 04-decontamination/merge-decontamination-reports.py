@@ -24,7 +24,7 @@ from removal_log import write_removal_log
 def save_dataset_and_metadata(train_data, output_path: Path, input_path: Path,
                               contaminated_ids: set, processed_benchmarks: list,
                               tokenizer_name: str, ngram_length: int, diff_threshold: float,
-                              parallel_job_count: int, samples_removed: int, removal_summary: dict,
+                              samples_removed: int, removal_summary: dict,
                               matching_settings: dict):
     """Save filtered dataset and update metadata with processing log."""
     # Ensure output directory exists
@@ -66,7 +66,6 @@ def save_dataset_and_metadata(train_data, output_path: Path, input_path: Path,
         "contaminated_ids_flagged": len(contaminated_ids),
         "contaminated_samples_removed": samples_removed,
         "samples_after_filtering": total_samples_after,
-        "parallel_jobs_used": parallel_job_count,
         **removal_summary,
         "decontamination_success": True
     }
@@ -136,22 +135,17 @@ def collect_short_prompt_counts(reports_dir: Path, benchmarks: List[str]) -> Dic
     than the number of benchmarks.
     """
     counts = {"empty": 0, "exact_only": 0, "contained": 0, "benchmarks_counted": 0}
-    base_report_paths = set()
     for benchmark_name in benchmarks:
         counts_file = Path(reports_dir) / f"{benchmark_name}__short_prompts.json"
         if not counts_file.exists():
             continue
         with open(counts_file) as f:
             entry = json.load(f)
-        base_report_paths.add(entry.pop("base_report_path"))
+        entry.pop("base_report_path", None)  # written by older runs
         for k, v in entry.items():
             counts[k] += v
         counts["benchmarks_counted"] += 1
-    if len(base_report_paths) > 1:
-        base_report_path = sorted(base_report_paths, key=str)
-    else:
-        base_report_path = next(iter(base_report_paths), None)
-    return {"short_benchmark_prompts": counts, "base_report_path": base_report_path}
+    return {"short_benchmark_prompts": counts}
 
 
 def merge_contamination_reports(all_reports: Dict[str, Dict]) -> tuple:
@@ -168,37 +162,6 @@ def merge_contamination_reports(all_reports: Dict[str, Dict]) -> tuple:
             contamination_summary.append((benchmark_name, len(report)))
 
     return contaminated_ids, contamination_summary, processed_benchmarks
-
-
-def validate_parallel_completion(reports_dir: Path, expected_jobs: Optional[int] = None) -> bool:
-    """Validate that all parallel jobs completed successfully."""
-    reports_dir = Path(reports_dir)
-
-    # Count completion markers
-    completion_files = list(reports_dir.glob("job_*.completed"))
-    completed_jobs = len(completion_files)
-
-    if expected_jobs:
-        if completed_jobs < expected_jobs:
-            print(f"Warning: Only {completed_jobs}/{expected_jobs} parallel jobs completed")
-            missing_jobs = []
-            for job_id in range(expected_jobs):
-                marker_file = reports_dir / f"job_{job_id}.completed"
-                if not marker_file.exists():
-                    missing_jobs.append(job_id)
-
-            if missing_jobs:
-                print(f"Missing completion markers for jobs: {missing_jobs[:10]}")
-                if len(missing_jobs) > 10:
-                    print(f"... and {len(missing_jobs) - 10} more")
-
-            return False
-        else:
-            print(f"All {expected_jobs} parallel jobs completed successfully")
-            return True
-    else:
-        print(f"Found completion markers for {completed_jobs} parallel jobs")
-        return completed_jobs > 0
 
 
 def main():
@@ -220,8 +183,7 @@ Examples:
     /path/to/output/dataset \\
     /path/to/parallel_reports \\
     --decontamination_prompts /path/to/decontamination_prompts \\
-    --tokenizer_name "swiss-ai/Apertus-8B-Instruct-2509" \\
-    --expected-jobs 20
+    --tokenizer_name "swiss-ai/Apertus-8B-Instruct-2509"
         """
     )
 
@@ -271,16 +233,6 @@ Examples:
         default=16,
         help="Number of processes for scoring the matches of the removal log"
     )
-    parser.add_argument(
-        "--expected-jobs",
-        type=int,
-        help="Expected number of parallel jobs (for validation)"
-    )
-    parser.add_argument(
-        "--force",
-        action="store_true",
-        help="Proceed even if some parallel jobs are missing"
-    )
 
     args = parser.parse_args()
 
@@ -308,14 +260,6 @@ Examples:
     print(f"Reports directory: {reports_dir}")
     print(f"Output dataset:   {output_path}")
     print("=" * 50)
-
-    # Validate parallel job completion
-    if not args.force:
-        completion_ok = validate_parallel_completion(reports_dir, args.expected_jobs)
-        if not completion_ok and args.expected_jobs:
-            print("\nError: Not all parallel jobs completed successfully.")
-            print("Use --force to proceed anyway, or check failed jobs and rerun.")
-            return 1
 
     # Collect all contamination reports
     print(f"\n=== COLLECTING CONTAMINATION REPORTS ===")
@@ -428,7 +372,6 @@ Examples:
 
     # Save filtered dataset with metadata
     print(f"\n=== SAVING FILTERED DATASET ===")
-    parallel_job_count = len(all_reports)  # Estimate based on number of unique reports
 
     try:
         save_dataset_and_metadata(
@@ -440,7 +383,6 @@ Examples:
             args.tokenizer_name,
             args.ngram_length,
             args.diff_threshold,
-            parallel_job_count,
             removed_samples,
             removal_summary,
             matching_settings,
