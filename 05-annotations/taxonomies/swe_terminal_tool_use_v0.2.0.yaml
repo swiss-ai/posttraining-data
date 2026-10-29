@@ -1,0 +1,221 @@
+# Compact experimental taxonomy for the first semantic-classifier comparison.
+#
+# This version intentionally removes task domain, work context, interaction
+# style, and fine-grained expert dimensions.  It does not replace v0.1.0:
+# existing runs remain reproducible against their pinned taxonomy file.
+
+schema_version: "1.0"
+
+taxonomy:
+  id: swe_terminal_tool_use
+  version: "0.2.0"
+  status: experimental
+  description: >-
+    Compact record-level taxonomy for measuring SWE, Terminal, and Tool Use
+    SFT data while minimizing overlap and semantic-judge prompt complexity.
+  intended_unit: training_record
+
+conventions:
+  multi_label: >-
+    Expert domains and expert-specific categories may contain multiple labels
+    when each label describes a material part of the record. Incidental steps
+    must not be labeled.
+  model_visible_tool: >-
+    Tool Use requires a callable interface exposed to the model. A library,
+    function, API, SQL query, or command mentioned only in ordinary text is not
+    a model-visible tool.
+  expert_category_applicability: >-
+    An expert-specific category is not_applicable when its expert domain is
+    absent. It is unknown when the expert applies but none of the five labels
+    can be supported.
+
+classification_statuses:
+  labeled: At least one supported label was assigned.
+  unknown: There is not enough evidence to assign a label.
+  ambiguous: Evidence supports multiple incompatible interpretations.
+  not_applicable: The dimension does not apply to this record.
+  error: Classification could not be completed.
+
+semantic_judge:
+  # Programming language is deliberately excluded from this compact prompt.
+  # It is extracted independently from metadata, paths, and code fences.
+  dimensions:
+    - expert_domains
+    - swe_categories
+    - terminal_categories
+    - tool_use_categories
+
+dimensions:
+  expert_domains:
+    cardinality: multi
+    required: true
+    description: Specialized capability streams materially represented by the record.
+    labels:
+      swe:
+        description: >-
+          Work on an existing software artifact, project, repository, patch, or
+          implementation. Standalone code generation and technical Q&A are not SWE.
+      terminal:
+        description: >-
+          Work that executes, generates, interprets, or predicts commands and
+          state in a command-line environment. A shell snippet mentioned only as
+          code is not by itself a Terminal task.
+      tool_use:
+        description: >-
+          Work where the model is offered or invokes a structured, callable tool
+          through a harness protocol. Ordinary functions, libraries, commands,
+          and APIs mentioned in text do not qualify.
+      none_of_the_above:
+        description: >-
+          None of SWE, Terminal, or Tool Use materially applies, including
+          standalone coding, code explanation, technical Q&A, and text-to-SQL
+          without an existing project, terminal environment, or callable tool.
+        constraints:
+          mutually_exclusive_with: [swe, terminal, tool_use]
+
+  programming_languages:
+    cardinality: multi
+    required: true
+    description: >-
+      Programming, command, or query languages materially present in the task,
+      response, or trajectory. Incidental mentions are excluded.
+    canonical_labels:
+      - ada
+      - assembly
+      - awk
+      - c
+      - csharp
+      - cpp
+      - clojure
+      - coffeescript
+      - common_lisp
+      - cuda
+      - d
+      - dart
+      - elixir
+      - emacs_lisp
+      - erlang
+      - fortran
+      - fsharp
+      - go
+      - groovy
+      - haskell
+      - java
+      - javascript
+      - julia
+      - kotlin
+      - lua
+      - objective_cpp
+      - ocaml
+      - pascal
+      - perl
+      - php
+      - powershell
+      - python
+      - r
+      - racket
+      - ruby
+      - rust
+      - scala
+      - scheme
+      - shell
+      - solidity
+      - sql
+      - swift
+      - tcl
+      - typescript
+      - vimscript
+      - visual_basic
+      - zig
+      - other
+
+  swe_categories:
+    cardinality: multi
+    required: true
+    applies_when_expert_domain: swe
+    description: High-level intent of an SWE record; incidental implementation steps are excluded.
+    labels:
+      bug_fixing:
+        description: Correct defective, failing, regressed, or unintended existing behavior.
+      feature_implementation:
+        description: Add new user-visible or system behavior to an existing software artifact.
+      testing:
+        description: Create, extend, or repair tests when testing is an explicit requested outcome.
+      refactoring:
+        description: Restructure existing code while intending to preserve its externally visible behavior.
+      build_dependency_configuration:
+        description: >-
+          Change build, CI, packaging, dependencies, or project configuration as
+          the requested outcome, including repair of those systems.
+
+  terminal_categories:
+    cardinality: multi
+    required: true
+    applies_when_expert_domain: terminal
+    description: High-level command-line activity materially required by a Terminal record.
+    labels:
+      filesystem_inspection:
+        description: Navigate the filesystem or inspect files, directories, and their metadata.
+      text_search_processing:
+        description: Search, filter, transform, or summarize text, files, or command output.
+      version_control:
+        description: Inspect or modify version-control state, history, branches, commits, or patches.
+      build_test_debug:
+        description: Build, compile, run tests, execute programs, or inspect runtime failures.
+      environment_system_operations:
+        description: >-
+          Install packages or configure and operate environments, containers,
+          networks, databases, processes, services, permissions, or operating-system state.
+
+  tool_use_categories:
+    cardinality: multi
+    required: true
+    applies_when_expert_domain: tool_use
+    description: High-level capability of model-visible tools actually offered or invoked.
+    labels:
+      shell_execution:
+        description: Execute commands through a model-visible shell or terminal tool.
+      file_read_search:
+        description: Read files or search filenames and file contents through dedicated tools.
+      file_editing:
+        description: Create, replace, patch, move, or otherwise modify files through dedicated tools.
+      code_build_test_execution:
+        description: Execute code, build software, or run tests through dedicated non-shell tools.
+      external_service_interaction:
+        description: >-
+          Browse the web or call a database, remote API, or other external
+          application through a model-visible tool.
+
+annotation_contract:
+  classifications:
+    required_dimensions:
+      - expert_domains
+      - programming_languages
+      - swe_categories
+      - terminal_categories
+      - tool_use_categories
+    per_dimension_fields:
+      - status
+      - labels
+      - method
+      - confidence
+      - evidence
+
+reporting_contract:
+  required_denominators:
+    - records
+    - source_tokens
+    - training_loss_tokens
+  required_breakdowns:
+    - source_dataset
+    - expert_domains
+    - programming_languages
+    - swe_categories
+    - terminal_categories
+    - tool_use_categories
+  overlap_policy: >-
+    Multi-label percentages may sum to more than 100 percent. Reports must state
+    the denominator and provide intersection counts for expert_domains.
+  unknown_policy: >-
+    unknown, ambiguous, not_applicable, and error counts are reported rather
+    than silently excluded.

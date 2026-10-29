@@ -13,3 +13,6 @@ tests/
 judge-analysis/*.jsonl
 judge-analysis/*.json
 08-judge-evaluation/judge-analysis/
+dataset_website
+!05-annotations/tests/
+!05-annotations/tests/test_mixture_analysis.py

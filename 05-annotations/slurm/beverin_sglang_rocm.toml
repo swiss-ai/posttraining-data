@@ -1,0 +1,9 @@
+image = "/capstor/scratch/cscs/${USER}/ce-images/sglang-v0.5.18-rocm720-mi30x.sqfs"
+writable = true
+entrypoint = false
+
+mounts = [
+    "/users/${USER}:/users/${USER}",
+    "/capstor/scratch/cscs/${USER}:/capstor/scratch/cscs/${USER}",
+    "/ritom/scratch/cscs/${USER}:/ritom/scratch/cscs/${USER}",
+]

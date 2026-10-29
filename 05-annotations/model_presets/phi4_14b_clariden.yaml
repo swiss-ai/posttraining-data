@@ -1,0 +1,45 @@
+schema_version: "1.0"
+
+preset:
+  id: phi4_14b_clariden_v0.1.0
+  purpose: compact semantic taxonomy judge comparison on the fixed Glaive subset
+
+model:
+  provider: huggingface
+  id: microsoft/phi-4
+  revision: 2db69c1c3e91a05d2c64a3185acfbaf36f744e25
+  architecture: Phi3ForCausalLM
+  advertised_parameter_class: 14B
+  exact_parameter_count: 14659507200
+  checkpoint_size_bytes: 29319042992
+  license: MIT
+
+taxonomy:
+  path: 05-annotations/taxonomies/swe_terminal_tool_use_v0.2.0.yaml
+  version: 0.2.0
+  semantic_dimensions:
+    - expert_domains
+    - swe_categories
+    - terminal_categories
+    - tool_use_categories
+  deterministic_dimensions:
+    - programming_languages
+
+generation:
+  dtype: bfloat16
+  temperature: 0.0
+  max_input_tokens: 8192
+  max_output_tokens: 384
+  batch_size_per_gpu: 2
+
+clariden:
+  partition_for_comparison: debug
+  accelerator: NVIDIA GH200
+  model_replicas_per_node: 4
+  gpus_per_replica: 1
+  input_partitioning: global_row_index_modulo
+  environment_activation: explicit_per_slurm_step
+  pytorch_uenv:
+    label: pytorch/v2.9.1:v2@clariden%gh200
+    image_id: c05f143d5fbf092714650697c821ee9fcf3d00c3580d56dabeacb2370a824b0f
+    squashfs_sha256: b9cb3fd2e59c4e71643c1505d2f57b31438ef4b3843c32972a3534160d116b00

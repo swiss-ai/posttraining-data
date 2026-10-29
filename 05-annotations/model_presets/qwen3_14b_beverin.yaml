@@ -1,0 +1,35 @@
+schema_version: "1.0"
+
+preset:
+  id: qwen3_14b_beverin_v0.1.0
+  purpose: semantic taxonomy judge for the SWE/Terminal/Tool Use SFT mixture
+
+model:
+  provider: huggingface
+  id: Qwen/Qwen3-14B
+  revision: 40c069824f4251a91eefaf281ebe4c544efd3e18
+  architecture: Qwen3ForCausalLM
+  parameter_count_billions: 14.8
+  checkpoint_size_gb: 29.6
+  license: Apache-2.0
+
+generation:
+  dtype: bfloat16
+  enable_thinking: false
+  temperature: 0.0
+  max_input_tokens: 8192
+  max_output_tokens: 512
+  batch_size_per_gpu: 2
+
+beverin:
+  partition: mi300
+  accelerator: AMD MI300A
+  accelerators_per_node: 4
+  model_replicas_per_node: 4
+  gpus_per_replica: 1
+  cpu_cores_per_replica: 18
+  input_partitioning: global_row_index_modulo
+  runtime: ROCm 7.2 container
+  container: lmsysorg/sglang:v0.5.18-rocm720-mi30x
+  torch_device_name: cuda
+  note: PyTorch intentionally retains the torch.cuda API on ROCm

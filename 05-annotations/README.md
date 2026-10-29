@@ -2,6 +2,10 @@
 
 LLM-based classification tools for annotating chat format datasets with refusal detection, ideological sensitivity, AI assistant identification, and question quality assessment.
 
+For the draft SWE/Terminal/Tool Use mixture measurement pipeline, see
+[`mixture_analysis/README.md`](mixture_analysis/README.md). Its versioned taxonomy
+is stored under [`taxonomies/`](taxonomies/).
+
 ## Environment Setup
 ```bash
 export SWISSAI_API_KEY="your_swiss_ai_api_key"

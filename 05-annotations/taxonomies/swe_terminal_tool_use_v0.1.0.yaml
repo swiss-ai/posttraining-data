@@ -1,0 +1,490 @@
+# First-version capability taxonomy for quantifying the Apertus post-training mixture.
+#
+# This file defines what may be measured. It does not decide which datasets are
+# legally eligible, select a training mixture, or contain classifier prompts.
+
+schema_version: "1.0"
+
+taxonomy:
+  id: swe_terminal_tool_use
+  version: "0.1.0"
+  status: draft
+  description: >-
+    Shared record-level taxonomy for SWE, Terminal, and Tool Use SFT data,
+    with expert-specific extensions and reproducible classification metadata.
+  intended_unit: training_record
+  intended_record_types:
+    - instruction_response
+    - conversation
+    - agent_trajectory
+  out_of_scope:
+    - licence eligibility decisions
+    - dataset selection and mixture weights
+    - benchmark scoring categories
+    - general response-quality scoring
+
+conventions:
+  multi_label: >-
+    Dimensions marked multi may contain several labels. A record can, for
+    example, be both SWE and Terminal and can involve both Python and Shell.
+  primary_task: >-
+    A classifier may additionally select one primary task domain when the
+    evidence supports it. Secondary labels are retained.
+  model_visible_tool: >-
+    A tool is model-visible only when the harness exposes it as a callable
+    interface. grep invoked inside a bash tool is a shell command, not a
+    separately exposed tool.
+  available_vs_invoked: >-
+    Tools offered to the model and tools actually invoked must be recorded
+    separately.
+  mixed_records: >-
+    Mixed content is represented by multiple labels rather than a generic
+    mixed label whenever the constituent labels can be identified.
+  evidence_first: >-
+    Labels must be supported by source metadata, structured fields,
+    deterministic parsing, model classification, or human review.
+
+classification_statuses:
+  labeled: At least one supported label was assigned.
+  unknown: There is not enough evidence to assign a label.
+  ambiguous: Evidence supports multiple incompatible interpretations.
+  not_applicable: The dimension does not apply to this record.
+  error: Classification could not be completed.
+
+dimensions:
+  expert_domains:
+    cardinality: multi
+    required: true
+    description: Specialized capability streams represented by the record.
+    labels:
+      swe:
+        name: Software engineering
+        description: >-
+          Work involving an existing software artifact or codebase, including
+          modification, diagnosis, validation, or repository-level reasoning.
+        include_when:
+          - The task operates on an existing repository, project, patch, or implementation.
+          - The task asks for an engineering change such as a fix, feature, test, or refactor.
+        exclude_when:
+          - The task only asks for an isolated algorithmic solution with no existing artifact.
+      terminal:
+        name: Terminal interaction
+        description: >-
+          Work that uses, reasons about, or predicts the behavior of a command-line
+          environment.
+        include_when:
+          - Commands and environment observations are part of the task or trajectory.
+          - The target is a command, terminal output, or environment state transition.
+        exclude_when:
+          - Shell syntax is mentioned only as explanatory prose.
+      tool_use:
+        name: Tool use
+        description: >-
+          Work in which the model is offered or uses one or more explicitly
+          callable tools through a harness protocol.
+        include_when:
+          - Structured tool definitions, calls, or results are present.
+          - Publisher documentation establishes a model-visible tool interface.
+        exclude_when:
+          - A command name appears only inside ordinary text without a tool protocol.
+      none_of_the_above:
+        name: None of the target experts
+        description: The record belongs to none of SWE, Terminal, or Tool Use.
+        constraints:
+          mutually_exclusive_with:
+            - swe
+            - terminal
+            - tool_use
+
+  task_domains:
+    cardinality: multi
+    primary_label: optional
+    required: true
+    description: The intent of the task, independent of its language or tools.
+    groups:
+      software_engineering:
+        labels:
+          feature_implementation:
+            description: Add new behavior or functionality to an existing software artifact.
+            include_when:
+              - A new capability, endpoint, command, option, or supported behavior is requested.
+            exclude_when:
+              - Existing behavior is incorrect and the goal is to restore it.
+          bug_fixing:
+            description: Correct existing behavior that is defective or inconsistent with intent.
+            include_when:
+              - A failure, regression, incorrect result, or crash must be fixed.
+            exclude_when:
+              - The record only investigates a problem without implementing a correction.
+          debugging_diagnosis:
+            description: Locate, explain, or diagnose the cause of a software problem.
+            include_when:
+              - The primary goal is investigation, reproduction, or root-cause analysis.
+            exclude_when:
+              - Diagnosis is merely an incidental step in a clearly requested fix.
+          test_creation:
+            description: Add tests for behavior not previously covered.
+          test_repair:
+            description: Correct existing tests, fixtures, or test infrastructure.
+          refactoring:
+            description: Restructure existing code while intending to preserve behavior.
+          performance_optimization:
+            description: Improve runtime, memory use, scalability, or resource consumption.
+          code_review:
+            description: Assess code or a patch and identify defects, risks, or improvements.
+          build_ci_repair:
+            description: Fix build systems, continuous-integration jobs, or packaging failures.
+          dependency_configuration:
+            description: Change dependencies, configuration, or project setup.
+          security_remediation:
+            description: Identify or correct a security weakness in software.
+          documentation:
+            description: Create or update documentation for a software artifact.
+          repository_navigation:
+            description: Locate, inspect, or understand relevant parts of a repository.
+            note: Usually a secondary label unless discovery itself is the requested task.
+          commit_transformation:
+            description: >-
+              Generate, explain, summarize, or reconstruct a code change represented
+              as a commit, diff, old/new file pair, or patch.
+      standalone_coding:
+        labels:
+          code_generation:
+            description: Produce a new standalone implementation from a specification.
+          code_completion:
+            description: Complete a partial code fragment or fill a missing implementation.
+          code_explanation:
+            description: Explain code, an algorithm, or program behavior.
+          code_translation:
+            description: Translate an implementation between programming languages.
+          code_output_prediction:
+            description: Predict the output or behavior of given code without modifying it.
+          algorithmic_problem_solving:
+            description: Solve a self-contained algorithmic or competitive-programming problem.
+      data_and_queries:
+        labels:
+          text_to_sql:
+            description: Generate a database query from a natural-language request and schema.
+          sql_reasoning:
+            description: Explain, repair, optimize, or reason about an existing SQL query.
+          data_analysis:
+            description: Use code or queries primarily to inspect, transform, or analyze data.
+      knowledge_and_qa:
+        labels:
+          technical_qa:
+            description: Answer a technical question without a requested codebase modification.
+          api_usage_guidance:
+            description: Explain how to use a programming library, framework, API, or command.
+      terminal_tasks:
+        labels:
+          terminal_task_execution:
+            description: Complete a task by issuing commands and reacting to terminal results.
+          command_generation:
+            description: Produce one or more commands without executing an interactive trajectory.
+          terminal_output_prediction:
+            description: Predict command output or the resulting environment state.
+          environment_setup:
+            description: Install, configure, or initialize a development/runtime environment.
+          system_administration:
+            description: Operate or configure an operating system or infrastructure environment.
+      other:
+        labels:
+          non_coding_task:
+            description: The primary task is not coding or software engineering.
+          other_coding_task:
+            description: A coding task not covered by another defined label.
+
+  programming_languages:
+    cardinality: multi
+    required: true
+    description: >-
+      Programming or command/query languages materially involved in the task,
+      solution, or trajectory. Incidental mentions should not be labeled.
+    include_shell_and_sql: true
+    canonical_labels:
+      - ada
+      - assembly
+      - awk
+      - c
+      - csharp
+      - cpp
+      - clojure
+      - coffeescript
+      - common_lisp
+      - cuda
+      - d
+      - dart
+      - elixir
+      - emacs_lisp
+      - erlang
+      - fortran
+      - fsharp
+      - go
+      - groovy
+      - haskell
+      - java
+      - javascript
+      - julia
+      - kotlin
+      - lua
+      - objective_cpp
+      - ocaml
+      - pascal
+      - perl
+      - php
+      - powershell
+      - python
+      - r
+      - racket
+      - ruby
+      - rust
+      - scala
+      - scheme
+      - shell
+      - solidity
+      - sql
+      - swift
+      - tcl
+      - typescript
+      - vimscript
+      - visual_basic
+      - zig
+      - other
+    aliases:
+      c#:
+        canonical: csharp
+      c++:
+        canonical: cpp
+      objective-c++:
+        canonical: objective_cpp
+      f#:
+        canonical: fsharp
+      bash:
+        canonical: shell
+      sh:
+        canonical: shell
+      ts:
+        canonical: typescript
+      js:
+        canonical: javascript
+
+  work_context:
+    cardinality: multi
+    required: true
+    description: The scope or environment in which the task is situated.
+    labels:
+      standalone_snippet:
+        description: A self-contained code fragment with no surrounding project.
+      single_file:
+        description: Work scoped to one existing file.
+      multi_file:
+        description: Work involving multiple files without clear repository context.
+      repository:
+        description: Work situated in a version-controlled project or codebase.
+      terminal_environment:
+        description: Work situated in a command-line environment with observable state.
+      database_schema:
+        description: Work grounded in a database schema or database state.
+      notebook:
+        description: Work grounded in a notebook or interactive computational document.
+
+  interaction_styles:
+    cardinality: multi
+    required: true
+    description: The structural form of the example.
+    labels:
+      direct_response:
+        description: One prompt followed by a target answer, with no environment interaction.
+      multi_turn_conversation:
+        description: Multiple user/assistant turns without an action-observation loop.
+      reasoning_trace:
+        description: Explicit reasoning is stored separately or with a documented delimiter.
+      agent_trajectory:
+        description: Actions and environment observations form a multi-step trajectory.
+      tool_calling_trajectory:
+        description: Structured tool calls and corresponding results appear in the trajectory.
+      terminal_trajectory:
+        description: Commands and terminal observations appear as an interaction trajectory.
+      environment_transition_prediction:
+        description: The target predicts an environment state or observation after an action.
+
+  swe:
+    applies_when_expert_domain: swe
+    dimensions:
+      change_scope:
+        cardinality: single
+        labels:
+          no_change: The task requires understanding or assessment but no modification.
+          localized_change: The requested change is confined to one logical location or file.
+          cross_file_change: The requested change spans multiple files or components.
+          repository_wide_change: The requested change affects broad repository structure or behavior.
+      artifact_types:
+        cardinality: multi
+        labels:
+          source_code: Production source code.
+          tests: Tests, fixtures, or testing infrastructure.
+          build_configuration: Build, packaging, or CI configuration.
+          dependency_manifest: Dependency declarations or lock files.
+          documentation: Documentation or examples.
+          database_schema: Database schema or migration files.
+          infrastructure_configuration: Deployment or infrastructure configuration.
+
+  terminal:
+    applies_when_expert_domain: terminal
+    dimensions:
+      activities:
+        cardinality: multi
+        labels:
+          command_execution: General command execution not covered more specifically.
+          filesystem_navigation: Navigate directories or inspect filesystem structure.
+          file_inspection: Read or display file contents and metadata.
+          text_search: Search file contents, filenames, or command output.
+          file_editing: Create, modify, move, or remove files.
+          version_control: Inspect or modify version-control state.
+          build_compilation: Build, compile, or package software.
+          test_execution: Run or inspect tests.
+          runtime_debugging: Execute or inspect a program to diagnose behavior.
+          package_management: Install, remove, or inspect software dependencies.
+          environment_configuration: Configure environment variables, shells, or runtime settings.
+          container_operations: Build or operate containers.
+          network_operations: Perform network requests or inspect network state.
+          database_cli: Interact with a database through a command-line client.
+          system_administration: Manage processes, services, permissions, or operating-system state.
+          data_processing: Transform or inspect data using command-line programs.
+          other_terminal_activity: Terminal activity not covered above.
+      command_names:
+        cardinality: multi_open_vocabulary
+        normalization: Store executable basename in lowercase when safely parseable.
+        examples:
+          - git
+          - grep
+          - pytest
+          - sed
+          - curl
+
+  tool_use:
+    applies_when_expert_domain: tool_use
+    dimensions:
+      tool_types:
+        cardinality: multi
+        labels:
+          shell:
+            description: Execute commands in a shell or terminal session.
+          file_read:
+            description: Read files through a dedicated model-visible interface.
+          file_search:
+            description: Search filenames or file contents through a dedicated interface.
+          file_edit:
+            description: Create or modify files through a dedicated interface.
+          version_control:
+            description: Operate a version-control system through a dedicated interface.
+          code_execution:
+            description: Execute code through a non-shell execution interface.
+          test_runner:
+            description: Run tests through a dedicated test interface.
+          build_compiler:
+            description: Build or compile software through a dedicated interface.
+          package_manager:
+            description: Manage dependencies through a dedicated interface.
+          browser_web:
+            description: Browse, search, or retrieve web content.
+          database:
+            description: Query or modify a database through a dedicated interface.
+          notebook:
+            description: Inspect or execute notebook cells through a dedicated interface.
+          external_api:
+            description: Call an application-specific or remote API.
+          other_tool:
+            description: A model-visible tool not covered above.
+      available_tool_names:
+        cardinality: multi_open_vocabulary
+        description: Exact normalized names of tools exposed to the model.
+      invoked_tool_names:
+        cardinality: multi_open_vocabulary
+        description: Exact normalized names of tools actually called by the model.
+      trajectory_properties:
+        cardinality: multi
+        labels:
+          parallel_calls: Multiple calls are issued before their corresponding results.
+          iterative_calls: A result informs a later call in the same trajectory.
+          call_error_recovery: The model reacts to an errored or rejected call.
+          unused_available_tools: At least one offered tool is never invoked.
+          undeclared_tool_call: A call targets a tool not declared to the model.
+
+annotation_contract:
+  record_id:
+    type: string
+    required: true
+    description: Stable identifier linking the annotation to its source record.
+  taxonomy_version:
+    type: string
+    required: true
+  classifier_version:
+    type: string
+    required: true
+  input_hash:
+    type: string
+    required: true
+  classifications:
+    type: mapping
+    required: true
+    per_dimension_fields:
+      status: One of classification_statuses.
+      labels: List of labels from the applicable dimension.
+      primary_label: Optional primary label where the dimension supports it.
+      method:
+        allowed_values:
+          - source_metadata
+          - deterministic_rule
+          - dataset_adapter
+          - llm_classifier
+          - human_review
+          - explicit_override
+      confidence:
+        allowed_values:
+          - high
+          - medium
+          - low
+      evidence: Compact references to the fields or text spans supporting the label.
+  run_metadata:
+    required_fields:
+      - code_commit
+      - created_at_utc
+      - source_dataset
+      - source_revision
+    conditional_fields:
+      llm_classifier:
+        - model_id
+        - prompt_version
+        - generation_parameters
+
+reporting_contract:
+  required_denominators:
+    - records
+    - source_tokens
+    - training_loss_tokens
+  required_breakdowns:
+    - source_dataset
+    - expert_domains
+    - task_domains
+    - programming_languages
+    - work_context
+    - interaction_styles
+  expert_breakdowns:
+    swe:
+      - change_scope
+      - artifact_types
+    terminal:
+      - activities
+      - command_names
+    tool_use:
+      - tool_types
+      - available_tool_names
+      - invoked_tool_names
+      - trajectory_properties
+  overlap_policy: >-
+    Multi-label percentages may sum to more than 100 percent. Reports must state
+    the denominator and provide intersection counts for expert_domains.
+  unknown_policy: >-
+    unknown, ambiguous, not_applicable, and error counts must be reported rather
+    than silently excluded from denominators.
