@@ -247,7 +247,7 @@ Examples:
     parser.add_argument(
         "--tokenizer_name",
         type=str,
-        default="alehc/swissai-tokenizer",
+        default="swiss-ai/Apertus-8B-Instruct-2509",
         help="Tokenizer name used for decontamination (for metadata)"
     )
     parser.add_argument(

@@ -378,7 +378,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--tokenizer_name",
         type=str,
-        default="alehc/swissai-tokenizer",
+        default="swiss-ai/Apertus-8B-Instruct-2509",
         help="Name of the tokenizer to use for decontamination. "
     )
     parser.add_argument(
