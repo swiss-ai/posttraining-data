@@ -95,15 +95,14 @@ Convert a set to the unified schema before decontaminating it:
 ## Settings
 
 All decontamination settings are in `decontamination_settings.py`; every script takes its defaults from
-there, and the submit script reads the tokenizer and the paths from it. The tokenizer and the paths can be
-overridden from the environment; the matching settings are changed in the file only, so that all scripts
-use the same values.
+there, and the submit script reads the paths from it. The paths can be overridden from the environment; the
+tokenizer and the matching settings are changed in the file only, so that all scripts use the same values.
 
 | Setting | Default | Meaning |
 |---|---|---|
-| `TOKENIZER_NAME` (env) | `swiss-ai/Apertus-8B-Instruct-2509` | tokenizer the units are built from |
 | `DECONTAMINATION_PROMPTS` (env) | `/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/decontamination_prompts` | prompt set |
 | `DECONTAMINATION_CACHE_DIR` (env) | `/iopsstor/scratch/cscs/$USER/posttraining-data/decontamination_cache` | benchmark n-gram cache |
+| `TOKENIZER_NAME` | `swiss-ai/Apertus-8B-Instruct-2509` | tokenizer the units are built from (fixed, see below) |
 | `NGRAM_LENGTH` | 8 | n-gram length of the candidate search |
 | `DIFF_THRESHOLD` | 0.5 | share of the benchmark prompt that matched runs must cover |
 | `MIN_BLOCK` | 5 | minimum length of a matched run that counts towards that share |

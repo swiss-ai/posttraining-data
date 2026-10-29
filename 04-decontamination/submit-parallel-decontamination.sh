@@ -60,7 +60,7 @@ TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 cd "$REPO_ROOT"
 source "$PYTHON_ENV_ACTIVATE"
 
-# Tokenizer, prompts and cache directory (decontamination_settings.py, overridable via environment);
+# Prompts and cache directory (decontamination_settings.py, overridable via environment); the tokenizer and
 # the matching settings are the defaults of the Python scripts
 SETTINGS=$(python 04-decontamination/decontamination_settings.py) || exit 1
 eval "$SETTINGS"
@@ -70,7 +70,6 @@ if [ ! -d "$DECONTAMINATION_PROMPTS" ]; then
     exit 1
 fi
 mkdir -p "$DECONTAMINATION_CACHE_DIR"
-echo "Tokenizer: $TOKENIZER_NAME"
 echo "Prompts:   $DECONTAMINATION_PROMPTS"
 echo "Cache:     $DECONTAMINATION_CACHE_DIR"
 
@@ -141,7 +140,6 @@ source "${PYTHON_ENV_ACTIVATE}"
 python 04-decontamination/decontamination-parallel.py \\
       "${INPUT_PATH}" \\
       --decontamination_prompts "${DECONTAMINATION_PROMPTS}" \\
-      --tokenizer_name "${TOKENIZER_NAME}" \\
       --report_path "${REPORTS_DIR}" \\
       --cache_dir "${DECONTAMINATION_CACHE_DIR}" \\
       --benchmark-start \$BENCHMARK_START \\
@@ -174,8 +172,7 @@ python 04-decontamination/merge-decontamination-reports.py \\
       "${INPUT_PATH}" \\
       "${OUTPUT_PATH}" \\
       "${REPORTS_DIR}" \\
-      --decontamination_prompts "${DECONTAMINATION_PROMPTS}" \\
-      --tokenizer_name "${TOKENIZER_NAME}"
+      --decontamination_prompts "${DECONTAMINATION_PROMPTS}"
 STATUS=\$?
 if [ \$STATUS -eq 0 ]; then
     echo "Merge completed successfully."
@@ -297,7 +294,7 @@ if [ $? -eq 0 ]; then
     else
         echo "Error: Failed to submit merge job"
         echo "You can run the merge manually after parallel jobs complete:"
-        echo "  python 04-decontamination/merge-decontamination-reports.py $INPUT_PATH $OUTPUT_PATH $REPORTS_DIR --decontamination_prompts $DECONTAMINATION_PROMPTS --tokenizer_name $TOKENIZER_NAME"
+        echo "  python 04-decontamination/merge-decontamination-reports.py $INPUT_PATH $OUTPUT_PATH $REPORTS_DIR --decontamination_prompts $DECONTAMINATION_PROMPTS"
     fi
 else
     echo "Error: Failed to submit parallel jobs"

@@ -4,9 +4,9 @@ Every script of 04-decontamination takes its defaults from here, and submit-para
 reads them by running this file (it prints them as shell assignments). Slurm settings (account, partition,
 time limits, ...) are in slurm_config.sh.
 
-The tokenizer and the paths can be overridden from the environment (TOKENIZER_NAME,
-DECONTAMINATION_PROMPTS, DECONTAMINATION_CACHE_DIR). The matching settings cannot: change them here, so
-that every script uses the same values.
+The paths can be overridden from the environment (DECONTAMINATION_PROMPTS, DECONTAMINATION_CACHE_DIR).
+The matching settings, including the tokenizer, cannot: change them here, so that every script uses the
+same values.
 
 The matching settings are recorded in the reports directory (decontamination_settings.json): reports are
 reused on a relaunch, so reports made with other settings must not be mixed in.
@@ -16,10 +16,7 @@ import os
 import shlex
 from pathlib import Path
 
-# ── Tokenizer and paths (overridable from the environment) ──────────────────
-# Only cuts the text into comparable units (see matching_units.py), so it is independent of the model being
-# trained: keep it fixed (the Apertus 1.5 tokenizer) to keep results comparable across runs.
-TOKENIZER_NAME = os.environ.get("TOKENIZER_NAME", "swiss-ai/Apertus-8B-Instruct-2509")
+# ── Paths (overridable from the environment) ────────────────────────────────
 DECONTAMINATION_PROMPTS = os.environ.get(
     "DECONTAMINATION_PROMPTS",
     "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/decontamination_prompts",
@@ -30,6 +27,9 @@ DECONTAMINATION_CACHE_DIR = os.environ.get(
 )
 
 # ── Matching (see matching_units.py and decontamination_common.py) ──────────
+# The tokenizer only cuts the text into comparable units, so it is independent of the model being trained:
+# keep it fixed (the Apertus 1.5 tokenizer) to keep results comparable across runs.
+TOKENIZER_NAME = "swiss-ai/Apertus-8B-Instruct-2509"
 NGRAM_LENGTH = 8         # a training prompt is a candidate if it shares an n-gram of this many units
 DIFF_THRESHOLD = 0.5     # contaminated if matched runs cover at least this share of the benchmark prompt
 MIN_BLOCK = 5            # only matched runs of at least this many units count towards that share
@@ -87,5 +87,5 @@ def format_mismatch(report_path, mismatches):
 
 if __name__ == "__main__":
     # Shell assignments for submit-parallel-decontamination.sh: eval "$(python decontamination_settings.py)"
-    for name in ["TOKENIZER_NAME", "DECONTAMINATION_PROMPTS", "DECONTAMINATION_CACHE_DIR"]:
+    for name in ["DECONTAMINATION_PROMPTS", "DECONTAMINATION_CACHE_DIR"]:
         print(f"{name}={shlex.quote(str(globals()[name]))}")
