@@ -31,10 +31,10 @@ from typing import Dict
 from datasets import Dataset, DatasetDict, Features, Value
 from transformers import AutoTokenizer
 
+from decontamination_settings import MIN_BLOCK
 from matching_units import units_with_spans, user_prompts
 
 REMOVAL_LOG_DIR = "decontamination_removed"
-MIN_BLOCK = 5  # same minimum block size as the decontamination matching
 MATCH_FEATURES = {
     "benchmark": Value("string"),
     "eval_idx": Value("int64"),

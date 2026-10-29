@@ -7,7 +7,7 @@
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 # Get the repository root (parent of 04-decontamination)
 REPO_ROOT="$( cd "${SCRIPT_DIR}/.." && pwd )"
-# Account, partition, QOS, log folder, Python env, prompts, ... (overridable via environment)
+# Account, partition, QOS, log folder, Python env, ... (overridable via environment)
 source "${SCRIPT_DIR}/slurm_config.sh"
 
 # Default parameters
@@ -57,10 +57,25 @@ mkdir -p "$REPORTS_DIR"
 # Generate unique timestamp for this run
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 
-# Get total number of benchmarks and calculate job array size
-echo "Counting available benchmarks..."
 cd "$REPO_ROOT"
 source "$PYTHON_ENV_ACTIVATE"
+
+# Tokenizer, prompts and cache directory (decontamination_settings.py, overridable via environment);
+# the matching settings are the defaults of the Python scripts
+SETTINGS=$(python 04-decontamination/decontamination_settings.py) || exit 1
+eval "$SETTINGS"
+if [ ! -d "$DECONTAMINATION_PROMPTS" ]; then
+    echo "Error: Decontamination prompts not found: $DECONTAMINATION_PROMPTS"
+    echo "Run gather-decontamination-prompts.py first to create benchmark prompts"
+    exit 1
+fi
+mkdir -p "$DECONTAMINATION_CACHE_DIR"
+echo "Tokenizer: $TOKENIZER_NAME"
+echo "Prompts:   $DECONTAMINATION_PROMPTS"
+echo "Cache:     $DECONTAMINATION_CACHE_DIR"
+
+# Get total number of benchmarks and calculate job array size
+echo "Counting available benchmarks..."
 
 TOTAL_BENCHMARKS=$(python -c 'import sys; sys.path.insert(0, "04-decontamination"); from benchmark_filters import expected_benchmark_names; print(len(expected_benchmark_names(sys.argv[1])))' "$DECONTAMINATION_PROMPTS")
 if [ -z "$TOTAL_BENCHMARKS" ] || [ "$TOTAL_BENCHMARKS" -eq 0 ]; then
@@ -131,8 +146,6 @@ python 04-decontamination/decontamination-parallel.py \\
       --cache_dir "${DECONTAMINATION_CACHE_DIR}" \\
       --benchmark-start \$BENCHMARK_START \\
       --benchmark-end \$BENCHMARK_END \\
-      --ngram_length 8 \\
-      --diff_threshold 0.5 \\
       --num_proc 4
 
 # Check exit status
@@ -166,9 +179,7 @@ python 04-decontamination/merge-decontamination-reports.py \\
       "${REPORTS_DIR}" \\
       --decontamination_prompts "${DECONTAMINATION_PROMPTS}" \\
       --expected-jobs ${NUM_JOBS} \\
-      --tokenizer_name "${TOKENIZER_NAME}" \\
-      --ngram_length 8 \\
-      --diff_threshold 0.5
+      --tokenizer_name "${TOKENIZER_NAME}"
 
 # Check exit status
 if [ \$? -eq 0 ]; then

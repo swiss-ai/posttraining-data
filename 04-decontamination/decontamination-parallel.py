@@ -25,6 +25,7 @@ import gc
 
 from benchmark_filters import filter_benchmark_names, report_stem
 from conversation_id_checks import validate_conversation_ids
+import decontamination_settings as settings
 from decontamination_common import (compute_benchmark_ngrams, get_benchmark_cache_key, get_benchmark_cache_path,
                                     get_eval_match_indices, init_contamination_worker, init_get_eval_match_indices,
                                     load_cached_benchmark_ngrams, process_tokens, save_benchmark_ngrams_to_cache,
@@ -126,6 +127,12 @@ def main(args):
     if not os.path.exists(args.report_path):
         print(f"Creating contamination reports directory: {args.report_path}")
         os.makedirs(args.report_path, exist_ok=True)
+    # Existing reports are reused: they must have been made with the same settings
+    mismatches = settings.check_report_settings(
+        args.report_path, settings.matching_settings(args.tokenizer_name, args.ngram_length, args.diff_threshold),
+        write=True)
+    if mismatches:
+        raise SystemExit(settings.format_mismatch(args.report_path, mismatches))
     print(f"Training data loaded: {len(train_data)} samples")
     print("Tokenizing training prompts (every user message)...")
     num_samples = len(train_data)
@@ -370,7 +377,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--decontamination_prompts",
         type=str,
-        default=None,
+        default=settings.DECONTAMINATION_PROMPTS,
         help="Name of the dataset with benchmark samples to use for decontamination. "
              "It expects a DatasetDict with multiple benchmark samples init, each with columns:"
              " config_name, split_name, prompts",
@@ -378,7 +385,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--tokenizer_name",
         type=str,
-        default="swiss-ai/Apertus-8B-Instruct-2509",
+        default=settings.TOKENIZER_NAME,
         help="Name of the tokenizer to use for decontamination. "
     )
     parser.add_argument(
@@ -426,13 +433,13 @@ if __name__ == "__main__":
     parser.add_argument(
         "--ngram_length",
         type=int,
-        default=8,
+        default=settings.NGRAM_LENGTH,
         help="Length of the n-grams to consider.",
     )
     parser.add_argument(
         "--diff_threshold",
         type=float,
-        default=0.5,
+        default=settings.DIFF_THRESHOLD,
         help="Threshold for filtering based on difference ratio.",
     )
     parser.add_argument(
@@ -444,8 +451,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--cache_dir",
         type=str,
-        default="./benchmark_cache",
-        help="Directory to store cached benchmark n-grams (default: ./benchmark_cache).",
+        default=settings.DECONTAMINATION_CACHE_DIR,
+        help="Directory to store cached benchmark n-grams.",
     )
     parser.add_argument(
         "--show_contaminated",

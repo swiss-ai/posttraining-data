@@ -15,7 +15,7 @@ numbers into single digits, so without this one number would count as up to ~10 
 a negative id derived from the number's text: equal numbers match, and it never equals a token id.
 
 Benchmark prompts shorter than the n-gram length have no n-gram, so the n-gram check never sees them.
-They are checked by short_prompt_match instead:
+They are checked by short_prompt_match instead (the limits are in decontamination_settings.py):
   - 0 units: skipped (counted as empty)
   - 1 to EXACT_MAX_UNITS units: the training prompt must be identical to the benchmark prompt
   - EXACT_MAX_UNITS + 1 to n - 1 units: the whole benchmark prompt must appear as one run in the training
@@ -26,6 +26,8 @@ import re
 import unicodedata
 from collections import defaultdict
 
+from decontamination_settings import EXACT_MAX_UNITS, SHORT_MIN_COVERAGE
+
 # Part of the benchmark n-gram cache key: bump when the units change.
 # v2: units as above; also get_ngrams no longer drops the last n-gram.
 UNITS_VERSION = "v2"
@@ -33,9 +35,6 @@ UNITS_VERSION = "v2"
 # v3: benchmark prompts shorter than the n-gram length are checked by short_prompt_match.
 # v4: every user message is checked (user_prompts), not only the initial prompt.
 MATCHING_VERSION = "v4"
-
-EXACT_MAX_UNITS = 3
-SHORT_MIN_COVERAGE = 0.5
 
 NUMBER = re.compile(r"\d+(?:[.,'’]\d+)*")
 REPEATED = re.compile(r"([^\w\s]|_)\1+")

@@ -16,6 +16,7 @@ from datasets import load_from_disk, DatasetDict
 from benchmark_filters import expected_benchmark_names, report_stem
 from conversation_id_checks import validate_conversation_ids
 from decontamination_common import load_existing_metadata
+import decontamination_settings as settings
 from matching_units import MATCHING_VERSION
 from removal_log import write_removal_log
 
@@ -23,7 +24,8 @@ from removal_log import write_removal_log
 def save_dataset_and_metadata(train_data, output_path: Path, input_path: Path,
                               contaminated_ids: set, processed_benchmarks: list,
                               tokenizer_name: str, ngram_length: int, diff_threshold: float,
-                              parallel_job_count: int, samples_removed: int, removal_summary: dict):
+                              parallel_job_count: int, samples_removed: int, removal_summary: dict,
+                              matching_settings: dict):
     """Save filtered dataset and update metadata with processing log."""
     # Ensure output directory exists
     output_path = Path(output_path)
@@ -58,6 +60,7 @@ def save_dataset_and_metadata(train_data, output_path: Path, input_path: Path,
         "ngram_length": ngram_length,
         "matching_version": MATCHING_VERSION,
         "diff_threshold": diff_threshold,
+        "matching_settings": matching_settings,
         "benchmarks_processed": len(processed_benchmarks),
         "benchmark_names": processed_benchmarks,
         "contaminated_ids_flagged": len(contaminated_ids),
@@ -240,27 +243,27 @@ Examples:
     parser.add_argument(
         "--decontamination_prompts",
         type=str,
-        required=True,
+        default=settings.DECONTAMINATION_PROMPTS,
         help="Benchmark prompts the reports were computed from. Every benchmark in it "
              "(minus DECONTAM_EXCLUDE_BENCHMARK_PATTERNS) must have a readable report."
     )
     parser.add_argument(
         "--tokenizer_name",
         type=str,
-        default="swiss-ai/Apertus-8B-Instruct-2509",
-        help="Tokenizer name used for decontamination (for metadata)"
+        default=settings.TOKENIZER_NAME,
+        help="Tokenizer the reports were made with (checked against the reports' settings)"
     )
     parser.add_argument(
         "--ngram_length",
         type=int,
-        default=8,
-        help="N-gram length used for decontamination (for metadata)"
+        default=settings.NGRAM_LENGTH,
+        help="N-gram length the reports were made with (checked against the reports' settings)"
     )
     parser.add_argument(
         "--diff_threshold",
         type=float,
-        default=0.5,
-        help="Difference threshold used for decontamination (for metadata)"
+        default=settings.DIFF_THRESHOLD,
+        help="Threshold the reports were made with (checked against the reports' settings)"
     )
     parser.add_argument(
         "--num_proc",
@@ -293,6 +296,12 @@ Examples:
         return 1
 
     output_path = Path(args.output_dataset)
+
+    matching_settings = settings.matching_settings(args.tokenizer_name, args.ngram_length, args.diff_threshold)
+    mismatches = settings.check_report_settings(reports_dir, matching_settings)
+    if mismatches:
+        print(f"Error: {settings.format_mismatch(reports_dir, mismatches)}")
+        return 1
 
     print(f"=== MERGING DECONTAMINATION REPORTS ===")
     print(f"Input dataset:    {input_path}")
@@ -433,7 +442,8 @@ Examples:
             args.diff_threshold,
             parallel_job_count,
             removed_samples,
-            removal_summary
+            removal_summary,
+            matching_settings,
         )
     except Exception as e:
         print(f"Error saving dataset: {e}")

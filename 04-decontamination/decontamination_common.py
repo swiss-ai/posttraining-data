@@ -17,6 +17,7 @@ from multiprocessing import Pool
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from decontamination_settings import MIN_BLOCK
 from matching_units import UNITS_VERSION, to_units
 
 
@@ -86,7 +87,7 @@ def verify_contamination_worker_optimized(args_tuple):
         eval_tokens = shared_eval_ngrams_dict[eval_idx]["tokens"]
         matcher = difflib.SequenceMatcher(None, train_tokens, eval_tokens, autojunk=False)
         matching_blocks = matcher.get_matching_blocks()
-        match_length = sum([x.size if x.size >= 5 else 0 for x in matching_blocks])
+        match_length = sum([x.size if x.size >= MIN_BLOCK else 0 for x in matching_blocks])
         del matcher, matching_blocks
 
         match_ratio = match_length / len(eval_tokens)

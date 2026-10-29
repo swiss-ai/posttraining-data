@@ -65,6 +65,7 @@ completion items (`item_type` `math`, `mcq`, `qa`, `completion`).
 - **`matching_units.py`** - Normalisation and units compared by the check (shared by all scripts)
 - **`decontamination_common.py`** - N-gram matching, verification and benchmark n-gram cache
 - **`gather-decontamination-prompts.py`** - Gathers the evaluation benchmark prompts listed in `benchmarks.yaml`
+- **`decontamination_settings.py`** - All decontamination settings: tokenizer, prompt and cache paths, matching
 - **`benchmark_filters.py`** - Benchmark exclusion patterns and the expected benchmark list
 - **`conversation_id_checks.py`** - Validation of `conversation_id`s
 - **`removal_log.py`** - Writes the removal log (removed samples with their matched benchmark prompts)
@@ -74,7 +75,7 @@ completion items (`item_type` `math`, `mcq`, `qa`, `completion`).
 
 ### Shell Scripts
 - **`submit-parallel-decontamination.sh`** - SLURM job array + merge job, or one job running both (`single`)
-- **`slurm_config.sh`** - Settings of the submit script
+- **`slurm_config.sh`** - Slurm settings of the submit script
 
 ## Requirements and guarantees
 
@@ -97,15 +98,36 @@ completion items (`item_type` `math`, `mcq`, `qa`, `completion`).
   `benchmark`, `eval_idx`, `benchmark_prompt`, `benchmark_prompt_tokens`, `match_ratio`, `longest_block`
   `matched_text` (the matched runs, joined with ` [...] `) and `user_turn` (the user message with the
   highest `match_ratio`, 0 = `initial_prompt`). `match_ratio` is recomputed at filter
-  time, so pass the tokenizer the reports were made with (also to the merge script); the processing-log
-  entry records `logged_matches_below_threshold`, which is non-zero when it was not. Reports keep only the
+  time with the merge's tokenizer, which must be the one the reports were made with (the merge checks
+  `decontamination_settings.json`); the processing-log entry records `logged_matches_below_threshold`. Reports keep only the
   first benchmark prompt above the threshold, so `benchmark_prompt` is a match, not necessarily the
   closest one. The entry also gets `removed_by_benchmark` and `removal_log_path`.
 
 ## Settings
 
-The submit script reads its settings from `slurm_config.sh`. Every value can be overridden from the
-environment:
+All decontamination settings are in `decontamination_settings.py`; every script takes its defaults from
+there, and the submit script reads the tokenizer and the paths from it. The tokenizer and the paths can be
+overridden from the environment; the matching settings are changed in the file only, so that all scripts
+use the same values.
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `TOKENIZER_NAME` (env) | `swiss-ai/Apertus-8B-Instruct-2509` | tokenizer the units are built from |
+| `DECONTAMINATION_PROMPTS` (env) | `/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/decontamination_prompts` | prompt set |
+| `DECONTAMINATION_CACHE_DIR` (env) | `/iopsstor/scratch/cscs/$USER/posttraining-data/decontamination_cache` | benchmark n-gram cache |
+| `NGRAM_LENGTH` | 8 | n-gram length of the candidate search |
+| `DIFF_THRESHOLD` | 0.5 | share of the benchmark prompt that matched runs must cover |
+| `MIN_BLOCK` | 5 | minimum length of a matched run that counts towards that share |
+| `EXACT_MAX_UNITS` | 3 | benchmark prompts up to this length must match the training prompt exactly |
+| `SHORT_MIN_COVERAGE` | 0.5 | longer short prompts must make up this share of the training prompt |
+
+**Reports record their settings.** The first job writes the matching settings (with `UNITS_VERSION` and
+`MATCHING_VERSION`) to `<reports>/decontamination_settings.json`. A relaunch or merge with other settings
+on the same reports stops with an error instead of reusing reports made with the old ones; use a new output
+path. Reports from before this file existed are assumed to match (with a warning). The merge also records
+the settings in the processing log (`matching_settings`).
+
+The Slurm settings are in `slurm_config.sh`; every value can be overridden from the environment:
 
 | Variable | Default |
 |---|---|
@@ -116,15 +138,11 @@ environment:
 | `SLURM_LOG_DIR` | `/iopsstor/scratch/cscs/$USER/posttraining-data/slurm_logs` |
 | `DECONTAM_TIME_LIMIT` / `PARALLEL_TIME_LIMIT` / `MERGE_TIME_LIMIT` | `12:00:00` / `8:00:00` / `2:00:00` |
 | `PYTHON_ENV_ACTIVATE` | `<repo>/.venv/bin/activate` (created by `uv sync`) |
-| `DECONTAMINATION_PROMPTS` | `/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/decontamination_prompts` |
-| `DECONTAMINATION_CACHE_DIR` | `/iopsstor/scratch/cscs/$USER/posttraining-data/decontamination_cache` |
-| `TOKENIZER_NAME` | `swiss-ai/Apertus-8B-Instruct-2509` |
 
 **Tokenizer: adjust it for new model versions.** The n-grams are built from token IDs, so
 `TOKENIZER_NAME` should be the tokenizer of the model being trained (currently Apertus 1.5:
 `swiss-ai/Apertus-8B-Instruct-2509`). For a new model version with a different tokenizer, update the
-default in `slurm_config.sh` (and pass the same `--tokenizer_name` when calling the Python scripts
-directly). The benchmark n-gram cache is keyed by tokenizer and `UNITS_VERSION` (`matching_units.py`), so
+default in `decontamination_settings.py`. The benchmark n-gram cache is keyed by tokenizer and `UNITS_VERSION` (`matching_units.py`), so
 a new tokenizer or a change of the units builds its own cache entries; results from runs with different tokenizers are not directly comparable (v1.0 used
 `alehc/swissai-tokenizer`).
 
@@ -183,26 +201,20 @@ Manual merge (e.g. after fixing a failed array job):
 python 04-decontamination/merge-decontamination-reports.py \
   <input_dataset> <output_dataset> <output_dataset>_parallel_reports \
   --decontamination_prompts "$DECONTAMINATION_PROMPTS" \
-  --expected-jobs <number_of_array_jobs> \
-  --tokenizer_name "swiss-ai/Apertus-8B-Instruct-2509"
+  --expected-jobs <number_of_array_jobs>
 ```
 
 ### 3. Without SLURM (e.g. interactively)
 
 ```bash
 python 04-decontamination/decontamination-parallel.py <input_dataset> \
-  --report_path <output_dataset>_parallel_reports \
-  --decontamination_prompts /capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/decontamination_prompts \
-  --tokenizer_name "swiss-ai/Apertus-8B-Instruct-2509" \
-  --cache_dir /iopsstor/scratch/cscs/$USER/posttraining-data/decontamination_cache \
-  --ngram_length 8 --diff_threshold 0.5 --num_proc 16
+  --report_path <output_dataset>_parallel_reports --num_proc 16
 python 04-decontamination/merge-decontamination-reports.py \
-  <input_dataset> <output_dataset> <output_dataset>_parallel_reports \
-  --decontamination_prompts /capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/decontamination_prompts \
-  --tokenizer_name "swiss-ai/Apertus-8B-Instruct-2509"
+  <input_dataset> <output_dataset> <output_dataset>_parallel_reports
 ```
 
-Without `--benchmark-start`/`--benchmark-end` the first command checks all benchmarks. Leave out
+The tokenizer, prompt set, cache and matching settings come from `decontamination_settings.py` (or the
+environment variables above). Without `--benchmark-start`/`--benchmark-end` the first command checks all benchmarks. Leave out
 `--expected-jobs` here: only the SLURM jobs write completion markers. The merge still requires a report for
 every benchmark.
 
