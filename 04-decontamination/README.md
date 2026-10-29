@@ -57,14 +57,17 @@ An earlier version, `contamination_dataset_v1_old.jsonl` (removed, still in comm
 same 360 contaminated samples, but its 360 clean samples are short, generic math, multiple-choice, QA and
 completion items (`item_type` `math`, `mcq`, `qa`, `completion`).
 
-## Available Scripts
+## Files
 
-### Python Scripts
+### Pipeline (in run order)
+- **`gather-decontamination-prompts.py`** - Gathers the evaluation benchmark prompts listed in `benchmarks.yaml`
 - **`decontamination-parallel.py`** - Writes reports for a subset of benchmarks (one array job), or for all
 - **`merge-decontamination-reports.py`** - Combines the reports and filters the dataset
-- **`matching_units.py`** - Normalisation and units compared by the check (shared by all scripts)
+- **`submit-parallel-decontamination.sh`** - SLURM job array + merge job, or one job running both (`single`)
+
+### Shared modules
+- **`matching_units.py`** - Normalisation and units compared by the check
 - **`decontamination_common.py`** - N-gram matching, verification and benchmark n-gram cache
-- **`gather-decontamination-prompts.py`** - Gathers the evaluation benchmark prompts listed in `benchmarks.yaml`
 - **`benchmark_filters.py`** - Benchmark exclusion patterns and the expected benchmark list
 - **`conversation_id_checks.py`** - Validation of `conversation_id`s
 - **`removal_log.py`** - Writes the removal log (removed samples with their matched benchmark prompts)
@@ -73,9 +76,6 @@ completion items (`item_type` `math`, `mcq`, `qa`, `completion`).
 - **`benchmarks.yaml`** - The benchmarks to decontaminate against (HF dataset, configs, splits, prompt column)
 - **`decontamination_settings.py`** - Tokenizer, prompt and cache paths, matching settings (see [Settings](#settings))
 - **`slurm_config.sh`** - Slurm settings of the submit script: account, partition, time limits, logs, Python env
-
-### Shell Scripts
-- **`submit-parallel-decontamination.sh`** - SLURM job array + merge job, or one job running both (`single`)
 
 ## Requirements and guarantees
 
