@@ -24,10 +24,10 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, Optional
 
 from datasets import Dataset, DatasetDict, load_dataset, load_from_disk
+from conversation_ids import add_conversation_ids_for_output
 
 
 SRC = "miriad/miriad-4.4M"
-DEFAULT_HF_HOME = "/iopsstor/scratch/cscs/hyukhymenko/.cache/huggingface"
 
 
 def clean_text(value: Any) -> str:
@@ -157,6 +157,7 @@ def save_dataset_and_metadata(
     stats: Dict[str, int],
 ) -> None:
     output_path.mkdir(parents=True, exist_ok=True)
+    dataset_dict = add_conversation_ids_for_output(dataset_dict, output_path)
     dataset_dict.save_to_disk(str(output_path))
 
     metadata = load_existing_metadata(output_path) or {}
@@ -211,8 +212,7 @@ def iter_input(args: argparse.Namespace) -> Iterable[Dict[str, Any]]:
             return iter(loaded[args.split])
         return iter(loaded)
 
-    os.environ.setdefault("HF_HOME", DEFAULT_HF_HOME)
-    print(f"Streaming {SRC} from Hugging Face with HF_HOME={os.environ['HF_HOME']}")
+    print(f"Streaming {SRC} from Hugging Face with HF_HOME={os.environ.get('HF_HOME', '<default>')}")
     data = load_dataset(SRC, split=args.split, streaming=True)
     if not args.no_shuffle:
         data = data.shuffle(buffer_size=args.shuffle_buffer_size, seed=args.seed)

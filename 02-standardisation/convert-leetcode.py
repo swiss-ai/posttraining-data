@@ -10,6 +10,7 @@ from subprocess import run
 from datetime import datetime, UTC
 from typing import Dict, Any, Optional
 from datasets import Dataset, DatasetDict, load_dataset, concatenate_datasets
+from conversation_ids import add_conversation_ids_for_output
 
 SRC = "newfacade/LeetCodeDataset"
 
@@ -79,11 +80,15 @@ def convert_sample(sample: Dict[str, Any], generate_ir: bool = False) -> Dict[st
 
     if random.random() < 0.5:
         starter_code = starter_code.strip()
-    
+
+    problem_description = (
+        sample['problem_description'].strip().replace('\n\n\xa0\n', '\n\n').replace('\n\n\n', '\n\n')
+    )
+
     # Process initial_prompt
     converted["initial_prompt"] = {
         "role": "user",
-        "content": f"{sample['problem_description'].strip().replace('\n\n\xa0\n', '\n\n').replace('\n\n\n', '\n\n')}\n\nStarter code:\n\n```python\n{starter_code}\n```",
+        "content": f"{problem_description}\n\nStarter code:\n\n```python\n{starter_code}\n```",
         "metadata": {}
     }
     
@@ -163,6 +168,7 @@ def save_dataset_and_metadata(dataset_dict: DatasetDict, output_path: Path, args
     output_path.mkdir(parents=True, exist_ok=True)
     
     # Save dataset
+    dataset_dict = add_conversation_ids_for_output(dataset_dict, output_path)
     dataset_dict.save_to_disk(str(output_path))
     
     # Load existing metadata or create new

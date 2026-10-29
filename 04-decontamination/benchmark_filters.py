@@ -31,3 +31,21 @@ def filter_benchmark_names(benchmark_names: Sequence[str]) -> Tuple[List[str], L
         else:
             kept.append(benchmark_name)
     return kept, excluded
+
+
+def expected_benchmark_names(decontamination_prompts_path: str) -> List[str]:
+    """Benchmarks every dataset must be checked against: the splits of the
+    decontamination prompts DatasetDict minus the excluded patterns (the same
+    list the decontamination jobs iterate over)."""
+    import json
+
+    dataset_dict_file = os.path.join(decontamination_prompts_path, "dataset_dict.json")
+    with open(dataset_dict_file) as f:
+        splits = json.load(f)["splits"]
+    kept, _ = filter_benchmark_names(splits)
+    return kept
+
+
+def report_stem(benchmark_name: str) -> str:
+    """Benchmark name as used in '<stem>__contamination_report.json'."""
+    return benchmark_name.replace("/", "_")

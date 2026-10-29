@@ -47,6 +47,7 @@ from datetime import datetime, UTC
 from typing import Dict, Any, Optional
 from pathlib import Path
 from datasets import Dataset, DatasetDict, load_dataset, concatenate_datasets
+from conversation_ids import add_conversation_ids_for_output
 
 SRC = "riddle_sense"
 
@@ -124,7 +125,7 @@ def convert_sample(sample: Dict[str, Any], idx: int) -> Dict[str, Any]:
     if random.random() < 0.5:
         texts = [text.capitalize() for text in texts]
     punct = random.choice(['.', ')'])
-    spacing = f"{random.choice([' ', '\n'])}"
+    spacing = random.choice([' ', '\n'])
     formatted_choices = [
         f"{spacing}"  # Random spacing
         f"{label}{punct} {text}"  # Label format, punctuation, and Answer text
@@ -192,6 +193,7 @@ def save_dataset_and_metadata(dataset_dict: DatasetDict, output_path: Path, args
     output_path.mkdir(parents=True, exist_ok=True)
     
     # Save dataset
+    dataset_dict = add_conversation_ids_for_output(dataset_dict, output_path)
     dataset_dict.save_to_disk(str(output_path))
     
     # Load existing metadata or create new

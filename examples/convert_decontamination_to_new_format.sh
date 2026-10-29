@@ -5,7 +5,7 @@
 INPUT_DIR="/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated"
 OUTPUT_DIR="/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated_newformat"
 CONVERT_SCRIPT="./07-dataset-aggregation/convert_old_to_new_format.py"
-PYTHON_ENV="./venv/bin/python"
+PYTHON_ENV="./.venv/bin/python"
 
 # Create output directory
 mkdir -p "$OUTPUT_DIR"

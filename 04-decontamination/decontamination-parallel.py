@@ -2,299 +2,46 @@
 """
 decontamination-parallel.py
 ───────────────────────────
-High-performance parallel decontamination for large datasets.
+Writes a contamination report for each benchmark of a subset (one array job), or of all benchmarks.
 
-This script provides parallelised decontamination processing for datasets that
-are too large for single-threaded processing. Uses multiprocessing to distribute
-contamination detection across multiple cores while maintaining memory efficiency.
+For every benchmark, the training prompts (every user message of a sample) are matched against the
+benchmark prompts (see matching_units.py for the units and rules) and `<report_path>/<benchmark>__contamination_report.json`
+maps each contaminated conversation_id to the matched benchmark prompt. Existing reports are reused.
+merge-decontamination-reports.py combines the reports and filters the dataset.
 
-Key features:
-- Parallel processing with configurable worker count
-- Chunk-based processing for memory management
-- Progress tracking across parallel workers
-- Detailed contamination reporting and statistics
-- Optimised for datasets with millions of samples
+Code modified from: https://github.com/huggingface/cosmopedia/blob/main/decontamination/decontaminate.py
+(training samples without any n-gram overlap are skipped before the verification, which runs in
+parallel with the benchmark n-grams shared by the worker processes).
 """
 import argparse
-import difflib
 from datasets import load_from_disk
 from transformers import AutoTokenizer
 from multiprocessing import Pool
-from collections import defaultdict
 from functools import partial
 import json
 import os
 import time
 import gc
-import pickle
-import hashlib
-import tempfile
-from pathlib import Path
-from datetime import datetime
-from typing import Dict, Any, Optional
 
-from benchmark_filters import filter_benchmark_names
-
-"""
-Parallel decontamination script for processing benchmark subsets.
-
-Code modified from: https://github.com/huggingface/cosmopedia/blob/main/decontamination/decontaminate.py
-Enhanced with pre-filtering and parallelization optimizations.
-V2: Optimizes n-gram matching by pre-filtering training samples that have no n-gram overlap.
-V3: Parallelizes Step 3 (contamination verification) using shared memory to avoid serialization overhead.
-V4: Adds benchmark subsetting for parallel job processing across multiple benchmark chunks.
-"""
-
-def load_existing_metadata(input_path: Path) -> Optional[Dict[str, Any]]:
-    """Load existing dataset metadata if it exists."""
-    metadata_file = Path(input_path) / "dataset_metadata.json"
-    if metadata_file.exists():
-        try:
-            with open(metadata_file, 'r') as f:
-                return json.load(f)
-        except (json.JSONDecodeError, IOError):
-            pass
-    return None
+from benchmark_filters import filter_benchmark_names, report_stem
+from conversation_id_checks import validate_conversation_ids
+import decontamination_settings as settings
+from decontamination_common import (compute_benchmark_ngrams, get_benchmark_cache_key, get_benchmark_cache_path,
+                                    get_eval_match_indices, init_contamination_worker, init_get_eval_match_indices,
+                                    load_cached_benchmark_ngrams, process_tokens, save_benchmark_ngrams_to_cache,
+                                    verify_contamination_worker_optimized)
+from matching_units import max_short_train_units, short_prompt_index, short_prompt_match, to_units, user_prompts
 
 
-def save_dataset_and_metadata(train_data, output_path: Path, input_path: Path, 
-                            contaminated_ids: set, processed_benchmarks: list,
-                            tokenizer_name: str, ngram_length: int, diff_threshold: float):
-    """Save filtered dataset and update metadata with processing log."""
-    # Ensure output directory exists
-    output_path = Path(output_path)
-    output_path.mkdir(parents=True, exist_ok=True)
-    
-    # Save dataset
-    print(f"Saving filtered dataset to {output_path}...")
-    train_data.save_to_disk(str(output_path))
-    
-    # Load or create metadata
-    metadata = load_existing_metadata(input_path) or {}
-    
-    # Calculate samples removed per split if DatasetDict
-    samples_by_split = {}
-    total_samples_before = 0
-    total_samples_after = 0
-    
-    if hasattr(train_data, 'keys'):  # DatasetDict
-        for split_name, split_data in train_data.items():
-            samples_by_split[split_name] = len(split_data)
-            total_samples_after += len(split_data)
-    else:  # Single Dataset
-        total_samples_after = len(train_data)
-    
-    # Add processing log entry
-    processing_entry = {
-        "operation": "decontamination",
-        "script": "decontamination.py",
-        "timestamp": datetime.now().isoformat(),
-        "input_path": str(input_path),
-        "output_path": str(output_path),
-        "tokenizer_name": tokenizer_name,
-        "ngram_length": ngram_length,
-        "diff_threshold": diff_threshold,
-        "benchmarks_processed": len(processed_benchmarks),
-        "benchmark_names": processed_benchmarks,
-        "contaminated_samples_removed": len(contaminated_ids),
-        "samples_after_filtering": total_samples_after,
-        "decontamination_success": True
-    }
-    
-    # Add split information if DatasetDict
-    if samples_by_split:
-        processing_entry["samples_by_split"] = samples_by_split
-    
-    if "processing_log" not in metadata:
-        metadata["processing_log"] = []
-    metadata["processing_log"].append(processing_entry)
-    
-    # Save updated metadata
-    metadata_file = output_path / "dataset_metadata.json"
-    with open(metadata_file, 'w') as f:
-        json.dump(metadata, f, indent=2)
-    print(f"Metadata saved to {metadata_file}")
-
-
-def get_ngrams(tokens, n):
-    """Generate n-grams from tokens."""
-    return set(zip(*[tokens[i:-(n-i)] for i in range(n)]))
-
-def process_tokens(x, ngram_length):
-    return {
-        "ngram": get_ngrams(x, ngram_length),
-        "tokens": x
-    }
-
-shared_eval_ngram_to_eval_idx = None
-shared_eval_ngram_to_eval_idx_key_set = None
-def init_get_eval_match_indices(ngram_to_eval_idx, ):
-    global shared_eval_ngram_to_eval_idx, shared_eval_ngram_to_eval_idx_key_set
-    shared_eval_ngram_to_eval_idx = ngram_to_eval_idx
-    shared_eval_ngram_to_eval_idx_key_set = set(ngram_to_eval_idx.keys())
-
-def get_eval_match_indices(train_sample):
-    global shared_eval_ngram_to_eval_idx, shared_eval_ngram_to_eval_idx_key_arr
-    shared_ngrams = train_sample["ngram"] & shared_eval_ngram_to_eval_idx_key_set
-    if len(shared_ngrams) == 0:
-        return tuple([])
-    matches = []
-    for ngram in shared_ngrams:
-        matches.extend(shared_eval_ngram_to_eval_idx.get(ngram))
-    return tuple(set(matches))
-
-
-shared_train_ngrams = None
-shared_eval_ngrams = None
-def init_check_matching(train_ngrams, eval_ngrams):
-    global shared_train_ngrams, shared_eval_ngrams
-    shared_train_ngrams = train_ngrams
-    shared_eval_ngrams = eval_ngrams
-
-def check_matching(train_idx, eval_indices):
-    global shared_train_ngrams, shared_eval_ngrams
-    # train_idx, eval_indices = inputs
-    eval_idx_match = None
-    for eval_idx in eval_indices:
-        matcher = difflib.SequenceMatcher(
-            None,
-            shared_train_ngrams[train_idx]["tokens"],
-            shared_eval_ngrams[eval_idx],
-            autojunk=False
-        )
-        matching_blocks = matcher.get_matching_blocks()
-        match_length = sum([x.size if x.size >= 5 else 0 for x in matching_blocks])
-        del matcher, matching_blocks
-        if match_length / len(shared_eval_ngrams[eval_idx]["tokens"]) >= args.diff_threshold:
-            eval_idx_match = eval_idx
-            break
-    return train_idx, eval_idx_match
-
-shared_eval_ngrams_dict = None
-def init_contamination_worker(eval_ngrams_dict):
-    """Initialize worker process with shared eval_ngrams dictionary."""
-    global shared_eval_ngrams_dict
-    shared_eval_ngrams_dict = eval_ngrams_dict
-
-def verify_contamination_worker_optimized(args_tuple):
-    """
-    Optimized worker function for parallel contamination verification using shared memory.
-    
-    Args:
-        args_tuple: (train_idx, eval_indices, train_tokens, threshold, train_conversation_id)
-    
-    Returns:
-        tuple: (train_conversation_id, eval_idx, match_ratio, train_tokens_full, eval_tokens_full) if contaminated, None otherwise
-    """
-    global shared_eval_ngrams_dict
-    train_idx, eval_indices, train_tokens, threshold, train_conversation_id = args_tuple
-    
-    for eval_idx in eval_indices:
-        eval_tokens = shared_eval_ngrams_dict[eval_idx]["tokens"]
-        matcher = difflib.SequenceMatcher(None, train_tokens, eval_tokens, autojunk=False)
-        matching_blocks = matcher.get_matching_blocks()
-        match_length = sum([x.size if x.size >= 5 else 0 for x in matching_blocks])
-        del matcher, matching_blocks
-        
-        match_ratio = match_length / len(eval_tokens)
-        if match_ratio >= threshold:
-            return (train_conversation_id, eval_idx, match_ratio, train_tokens, eval_tokens)
-    
-    return None
-
-def verify_contamination_worker(args_tuple):
-    """
-    Worker function for parallel contamination verification.
-    
-    Args:
-        args_tuple: (train_idx, eval_indices, train_tokens, eval_ngrams_dict, threshold, train_conversation_id)
-    
-    Returns:
-        tuple: (train_conversation_id, eval_idx, match_ratio, train_tokens_full, eval_tokens_full) if contaminated, None otherwise
-    """
-    train_idx, eval_indices, train_tokens, eval_ngrams_dict, threshold, train_conversation_id = args_tuple
-    
-    for eval_idx in eval_indices:
-        eval_tokens = eval_ngrams_dict[eval_idx]["tokens"]
-        matcher = difflib.SequenceMatcher(None, train_tokens, eval_tokens, autojunk=False)
-        matching_blocks = matcher.get_matching_blocks()
-        match_length = sum([x.size if x.size >= 5 else 0 for x in matching_blocks])
-        del matcher, matching_blocks
-        
-        match_ratio = match_length / len(eval_tokens)
-        if match_ratio >= threshold:
-            return (train_conversation_id, eval_idx, match_ratio, train_tokens, eval_tokens)
-    
-    return None
-
-def get_benchmark_cache_key(benchmark_name, tokenizer_name, ngram_length):
-    """Generate cache key for benchmark n-grams."""
-    key_string = f"{benchmark_name}_{tokenizer_name}_{ngram_length}"
-    return hashlib.md5(key_string.encode()).hexdigest()
-
-def get_benchmark_cache_path(cache_dir, cache_key):
-    """Get cache file path for benchmark n-grams."""
-    os.makedirs(cache_dir, exist_ok=True)
-    return os.path.join(cache_dir, f"benchmark_ngrams_{cache_key}.pkl")
-
-def load_cached_benchmark_ngrams(cache_path):
-    """Load cached benchmark n-grams if they exist."""
-    if os.path.exists(cache_path):
-        try:
-            with open(cache_path, 'rb') as f:
-                return pickle.load(f)
-        except (pickle.PickleError, EOFError, IOError) as e:
-            print(f"Warning: Failed to load cache from {cache_path}: {e}. Recomputing.")
-    return None
-
-def save_benchmark_ngrams_to_cache(ngrams, lookup_table, cache_path):
-    """Save benchmark n-grams to cache."""
-    try:
-        cache_data = {
-            'ngrams': ngrams,
-            'lookup_table': lookup_table
-        }
-        cache_dir = os.path.dirname(cache_path) or "."
-        with tempfile.NamedTemporaryFile(mode='wb', dir=cache_dir, delete=False) as f:
-            pickle.dump(cache_data, f)
-            temp_path = f.name
-        os.replace(temp_path, cache_path)
-        print(f"  Cached n-grams to {cache_path}")
-    except (pickle.PickleError, IOError) as e:
-        print(f"Warning: Failed to save cache to {cache_path}: {e}")
-        if 'temp_path' in locals() and os.path.exists(temp_path):
-            os.remove(temp_path)
-
-def compute_benchmark_ngrams(eval_dataset, tokenizer, ngram_length, num_proc):
-    """Compute n-grams for a benchmark dataset."""
-    print(f"  Tokenizing {len(eval_dataset)} evaluation prompts...")
-    eval_data_tokens = tokenizer(eval_dataset["prompt"][:])["input_ids"]
-    print(f"  Generating n-grams...")
-    with Pool(num_proc) as p:
-        eval_ngrams = p.map(partial(process_tokens, ngram_length=ngram_length), eval_data_tokens)
-    del eval_data_tokens
-    
-    print(f"  Building n-gram lookup table...")
-    eval_ngram_to_eval_idx = defaultdict(list)
-    append = eval_ngram_to_eval_idx.__getitem__
-    for idx, s in enumerate(eval_ngrams):
-        for element in s["ngram"]:
-            append(element).append(idx)
-    print(f"  Created lookup table with {len(eval_ngram_to_eval_idx)} unique n-grams")
-    
-    return eval_ngrams, eval_ngram_to_eval_idx
-
-def get_benchmark_subset(all_benchmarks, start_idx=None, end_idx=None, benchmark_list=None):
-    """Get a subset of benchmarks for parallel processing."""
-    if benchmark_list:
-        # Use explicitly provided list
-        return benchmark_list
-    elif start_idx is not None and end_idx is not None:
-        # Use range-based subsetting
-        return all_benchmarks[start_idx:end_idx]
-    else:
-        # Use all benchmarks (default behavior)
-        return all_benchmarks
+def user_prompt_units(batch, tokenizer):
+    """One row per user message of the samples in batch: its conversation_id and units."""
+    conversation_ids, texts = [], []
+    for cid, initial_prompt, branches in zip(batch["conversation_id"], batch["initial_prompt"],
+                                             batch["conversation_branches"]):
+        for text in user_prompts(initial_prompt, branches):
+            conversation_ids.append(cid)
+            texts.append(text)
+    return {"conversation_id": conversation_ids, "prompt_token_ids": to_units(tokenizer, texts)}
 
 
 def main(args):
@@ -309,21 +56,11 @@ def main(args):
     
     # Determine benchmark subset to process
     if args.benchmark_name is not None:
-        # Legacy behavior: specific benchmarks
-        benchmark_list = args.benchmark_name if isinstance(args.benchmark_name, list) else [args.benchmark_name]
+        benchmark_list = [name.strip() for name in args.benchmark_name.split(",") if name.strip()]
         print(f"Using specified benchmark(s): {benchmark_list}")
-    elif args.benchmark_list is not None:
-        # New: explicit benchmark list
-        with open(args.benchmark_list, 'r') as f:
-            benchmark_list = [line.strip() for line in f if line.strip() and not line.startswith('#')]
-        print(f"Using benchmarks from file {args.benchmark_list}: {len(benchmark_list)} benchmarks")
     else:
-        # Use range-based subsetting for parallel processing
-        benchmark_list = get_benchmark_subset(
-            all_available_benchmarks, 
-            args.benchmark_start, 
-            args.benchmark_end
-        )
+        # A range of the benchmark list (one array job), or all benchmarks
+        benchmark_list = all_available_benchmarks[args.benchmark_start:args.benchmark_end]
         if args.benchmark_start is not None or args.benchmark_end is not None:
             print(f"Processing benchmark subset [{args.benchmark_start}:{args.benchmark_end}]: {len(benchmark_list)} benchmarks")
         else:
@@ -350,10 +87,7 @@ def main(args):
 
     # Load and preprocess training data
     train_data = load_from_disk(args.dataset_path)
-    # Original single split extraction (commented out for processing all splits):
-    # if args.train_dataset_split:
-    #     train_data = train_data[args.train_dataset_split]
-    
+
     # Process all splits in DatasetDict for complete decontamination
     if hasattr(train_data, 'keys'):  # DatasetDict
         # Concatenate all splits for contamination detection
@@ -366,19 +100,28 @@ def main(args):
             from datasets import concatenate_datasets
             train_data = concatenate_datasets(all_splits_data)
     # If single Dataset, use as-is
+    validate_conversation_ids(train_data["conversation_id"], args.dataset_path)
     if not os.path.exists(args.report_path):
         print(f"Creating contamination reports directory: {args.report_path}")
         os.makedirs(args.report_path, exist_ok=True)
+    # Existing reports are reused: they must have been made with the same settings
+    mismatches = settings.check_report_settings(
+        args.report_path, settings.matching_settings(args.tokenizer_name, args.ngram_length, args.diff_threshold),
+        write=True)
+    if mismatches:
+        raise SystemExit(settings.format_mismatch(args.report_path, mismatches))
     print(f"Training data loaded: {len(train_data)} samples")
-    print("Tokenizing training prompts...")
+    print("Tokenizing training prompts (every user message)...")
+    num_samples = len(train_data)
     train_data = train_data.map(
-        lambda batch: {
-            "prompt_token_ids": tokenizer([x["content"] for x in batch["initial_prompt"]])["input_ids"]
-        },
+        partial(user_prompt_units, tokenizer=tokenizer),
         batched=True,
+        remove_columns=train_data.column_names,
     )
+    # One entry per user message; a match of any of them reports the sample's conversation_id
     train_data_prompts_token_ids = train_data["prompt_token_ids"]
     train_conversation_ids = train_data["conversation_id"]
+    print(f"{len(train_conversation_ids)} user messages in {num_samples} samples")
     del train_data  # Remove the training data for memory free-up
     print(f"Generating n-grams from training data ({len(train_data_prompts_token_ids)} prompts)...")
     start_time = time.time()
@@ -403,6 +146,10 @@ def main(args):
     
     elapsed = time.time() - start_time
     print(f"Training data preprocessing complete in {int(elapsed/60)}m {elapsed%60:.1f}s")
+    # Only training prompts this short can match a benchmark prompt shorter than the n-gram length
+    short_train_samples = [(idx, sample["tokens"]) for idx, sample in enumerate(train_ngrams)
+                           if 0 < len(sample["tokens"]) <= max_short_train_units(args.ngram_length)]
+    print(f"{len(short_train_samples)} training prompts are short enough to match a short benchmark prompt")
     gc.collect()
 
     # Iterate over benchmarks for decontamination.
@@ -414,10 +161,11 @@ def main(args):
         # Load and process evaluation prompts
         output_path = os.path.join(
             args.report_path,
-            eval_dataset_name.replace("/", "_") + "__contamination_report.json"
+            report_stem(eval_dataset_name) + "__contamination_report.json"
         )  # Reports are saved inside the input dataset's directory
         if os.path.exists(output_path) and not args.overwrite:
             print("contamination_report already exists, skipping decontamination")
+            processed_benchmarks.append(eval_dataset_name)  # count existing reports as processed
             continue
         # Step 1: Load/compute benchmark n-grams
         step_start = time.time()
@@ -490,7 +238,6 @@ def main(args):
         verification_tasks = []
         for train_idx, eval_indices in train_idx_match_indices.items():
             verification_tasks.append((
-                train_idx,
                 eval_indices,
                 train_ngrams[train_idx]["tokens"],
                 args.diff_threshold,
@@ -509,38 +256,47 @@ def main(args):
             # Process results
             for result in results:
                 if result is not None:
-                    train_conversation_id, eval_idx, match_ratio, train_tokens_full, eval_tokens_full = result
+                    train_conversation_id, eval_idx, match_ratio = result
                     contamination_mapping[train_conversation_id] = eval_idx
-                    
-                    # Show contaminated samples if requested
+
+                    # Show contaminated samples if requested (units: numbers are not tokens, so they are left out)
                     if args.show_contaminated and contaminated_samples_shown < 10:
+                        decode = lambda units: tokenizer.decode([u for u in units if u >= 0])
                         print(f"\n  [CONTAMINATED] Sample {train_conversation_id}")
-                        print(f"    Training prompt: {tokenizer.decode(train_tokens_full)}")
-                        print(f"    Benchmark prompt: {tokenizer.decode(eval_tokens_full)}")
+                        print(f"    Training prompt: {decode(next(t[1] for t in verification_tasks if t[3] == train_conversation_id))}")
+                        print(f"    Benchmark prompt: {decode(eval_ngrams[eval_idx]['tokens'])}")
                         print(f"    Match ratio: {match_ratio:.2f}")
                         contaminated_samples_shown += 1
         step3_time = time.time() - step_start
         print(f"  Found {len(contamination_mapping)} contaminated samples")
         print(f"  Step 3 (Verify contamination): {step3_time:.1f}s")
 
-        del eval_ngrams, train_idx_match_indices
+        # Step 3b: benchmark prompts shorter than the n-gram length have no n-gram (see matching_units.py)
+        short_index, counts = short_prompt_index([x["tokens"] for x in eval_ngrams], args.ngram_length)
+        lengths = sorted({len(k) for k in short_index})
+        short_found = 0
+        for train_idx, train_tokens in short_train_samples:
+            train_conversation_id = train_conversation_ids[train_idx]
+            if train_conversation_id not in contamination_mapping:
+                eval_idx = short_prompt_match(train_tokens, short_index, lengths)
+                if eval_idx is not None:
+                    contamination_mapping[train_conversation_id] = eval_idx
+                    short_found += 1
+        print(f"  Short benchmark prompts {counts}: {short_found} more contaminated samples")
+
+        del eval_ngrams, train_idx_match_indices, short_index
         gc.collect()
 
-        # Step 4: Save report
-        step_start = time.time()
-        json.dump(contamination_mapping, open(output_path, "w"), separators=(",", ":"))
-        step4_time = time.time() - step_start
-        print(f"  Step 4 (Save report): {step4_time:.1f}s")
-        
-        # Total time summary
+        # Step 4: Save report. The counts first: the merge sums them into short_benchmark_prompts of the
+        # processing log. The report last and atomically, since an existing report is never recomputed.
+        with open(output_path.replace("__contamination_report.json", "__short_prompts.json"), "w") as f:
+            json.dump(counts, f)
+        with open(output_path + ".tmp", "w") as f:
+            json.dump(contamination_mapping, f, separators=(",", ":"))
+        os.replace(output_path + ".tmp", output_path)
         running_time = time.time() - start_time
         print(f"  Total benchmark time: {int(running_time/60)}m {running_time%60:.1f}s")
-        print(f"    - Load/compute n-grams: {step1_time:.1f}s ({step1_time/running_time*100:.1f}%)")
-        print(f"    - Find n-gram matches: {step2_time:.1f}s ({step2_time/running_time*100:.1f}%)")
-        print(f"      * Pre-filtering: {prefilter_time:.1f}s")
-        print(f"    - Verify contamination: {step3_time:.1f}s ({step3_time/running_time*100:.1f}%)")
-        print(f"    - Save report: {step4_time:.1f}s ({step4_time/running_time*100:.1f}%)")
-        
+
         processed_benchmarks.append(eval_dataset_name)
         del contamination_mapping
         gc.collect()
@@ -553,7 +309,7 @@ def main(args):
         for eval_dataset_name in processed_benchmarks:
             report_path = os.path.join(
                 args.report_path,
-                eval_dataset_name.replace("/", "_") + "__contamination_report.json"
+                report_stem(eval_dataset_name) + "__contamination_report.json"
             )
             if os.path.exists(report_path):
                 with open(report_path, "r") as f:
@@ -563,7 +319,7 @@ def main(args):
                 print(f"  - {eval_dataset_name}: report missing")
     
     print(f"\nContamination reports saved to: {args.report_path}")
-    print(f"Use merge_decontamination_reports.py to combine all parallel job results and filter the dataset.")
+    print("Use merge-decontamination-reports.py to combine all reports and filter the dataset.")
     
     del eval_data
     gc.collect()
@@ -575,19 +331,13 @@ if __name__ == "__main__":
     parser.add_argument(
         "dataset_path",
         type=str,
-        help="Path or name of the training dataset to process. Must include a column with 'messages' that "
-             "contains the standard HuggingFace chat format of List[Dict[str, str]]",
-    )
-    parser.add_argument(
-        "--output", "-o",
-        type=str,
-        required=False,
-        help="Output directory for filtered dataset (unused in parallel mode - use merge script)",
+        help="Path of the training dataset (chat format of 02-standardisation, a Dataset or DatasetDict). "
+             "Every user message is checked: initial_prompt and the user turns of conversation_branches.",
     )
     parser.add_argument(
         "--decontamination_prompts",
         type=str,
-        default=None,
+        default=settings.DECONTAMINATION_PROMPTS,
         help="Name of the dataset with benchmark samples to use for decontamination. "
              "It expects a DatasetDict with multiple benchmark samples init, each with columns:"
              " config_name, split_name, prompts",
@@ -595,14 +345,14 @@ if __name__ == "__main__":
     parser.add_argument(
         "--tokenizer_name",
         type=str,
-        default="alehc/swissai-tokenizer",
+        default=settings.TOKENIZER_NAME,
         help="Name of the tokenizer to use for decontamination. "
     )
     parser.add_argument(
         "--benchmark_name",
         type=str,
         default=None,
-        help="Name of the benchmark samples to use for decontamination. Use either a single benchmark's name or a list with comma separation."
+        help="Benchmarks to check (comma-separated names of the prompt set), e.g. for debugging. Default: all."
     )
     parser.add_argument(
         "--benchmark-start",
@@ -615,12 +365,6 @@ if __name__ == "__main__":
         type=int,
         default=None,
         help="End index for benchmark subset (for parallel processing)"
-    )
-    parser.add_argument(
-        "--benchmark-list",
-        type=str,
-        default=None,
-        help="File containing list of benchmarks to process (one per line, # for comments)"
     )
     parser.add_argument(
         "--report_path",
@@ -636,13 +380,13 @@ if __name__ == "__main__":
     parser.add_argument(
         "--ngram_length",
         type=int,
-        default=8,
+        default=settings.NGRAM_LENGTH,
         help="Length of the n-grams to consider.",
     )
     parser.add_argument(
         "--diff_threshold",
         type=float,
-        default=0.5,
+        default=settings.DIFF_THRESHOLD,
         help="Threshold for filtering based on difference ratio.",
     )
     parser.add_argument(
@@ -654,8 +398,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--cache_dir",
         type=str,
-        default="./benchmark_cache",
-        help="Directory to store cached benchmark n-grams (default: ./benchmark_cache).",
+        default=settings.DECONTAMINATION_CACHE_DIR,
+        help="Directory to store cached benchmark n-grams.",
     )
     parser.add_argument(
         "--show_contaminated",

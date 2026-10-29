@@ -23,6 +23,7 @@ from pathlib import Path
 from datetime import datetime, UTC
 from typing import Dict, Any, Optional
 from datasets import Dataset, DatasetDict, load_from_disk
+from conversation_ids import add_conversation_ids_for_output
 
 # Hardcoded input path as specified
 INPUT_PATH = "/capstor/store/cscs/swissai/infra01/posttrain_data/01_raw_hf_data/SFT_Romansh"
@@ -197,6 +198,7 @@ def save_dataset_and_metadata(dataset_dict: DatasetDict, output_path: Path,
     output_path.mkdir(parents=True, exist_ok=True)
     
     # Save dataset
+    dataset_dict = add_conversation_ids_for_output(dataset_dict, output_path)
     dataset_dict.save_to_disk(str(output_path))
     
     # Load existing metadata or create new

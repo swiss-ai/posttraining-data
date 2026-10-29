@@ -564,16 +564,16 @@ def parse_arguments():
         epilog="""
 Examples:
   # Extract schemas and save to files
-  venv/bin/python 05-annotations/schema_extract.py data/path/dataset --save-schemas schemas/
+  .venv/bin/python 05-annotations/schema_extract.py data/path/dataset --save-schemas schemas/
   
   # Check more samples for thorough analysis
-  venv/bin/python 05-annotations/schema_extract.py data/path/dataset --max-samples 5000 --save-schemas schemas/
+  .venv/bin/python 05-annotations/schema_extract.py data/path/dataset --max-samples 5000 --save-schemas schemas/
   
   # Just generate report without saving
-  venv/bin/python 05-annotations/schema_extract.py data/path/dataset --verbose
+  .venv/bin/python 05-annotations/schema_extract.py data/path/dataset --verbose
   
   # Save both report and schemas
-  venv/bin/python 05-annotations/schema_extract.py data/path/dataset --save-schemas schemas/ --output report.txt
+  .venv/bin/python 05-annotations/schema_extract.py data/path/dataset --save-schemas schemas/ --output report.txt
         """
     )
     

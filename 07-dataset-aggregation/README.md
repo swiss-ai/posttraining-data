@@ -48,3 +48,23 @@ new-data-mix-name:
 ```
 
 Then you can generate the new mix as
+## Concatenating datasets (`concatenate-datasets.py`)
+
+Concatenates standardised datasets into one mix. Passing the same input path more than once upsamples it.
+
+```bash
+python 07-dataset-aggregation/concatenate-datasets.py \
+  /path/to/04_decontaminated/dataset-a /path/to/04_decontaminated/dataset-b /path/to/04_decontaminated/dataset-a \
+  -o /path/to/mix --num-proc 16
+```
+
+Before concatenating, two checks stop the script with a list of the offending inputs:
+
+- **Decontamination:** every input's `dataset_metadata.json` must contain a successful decontamination
+  entry (`04-decontamination`) covering every benchmark of the prompt set
+  (`--decontamination-prompts`, default: the standard set on capstor).
+- **conversation_ids:** no empty IDs, no duplicates within an input, and no IDs shared between different
+  inputs (repeating the same path for upsampling is allowed).
+
+`--skip-decontamination-check` and `--skip-id-check` disable these checks for legacy datasets (e.g. the
+v1.0 / v1.5 outputs, which predate them).

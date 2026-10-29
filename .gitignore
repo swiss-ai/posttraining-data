@@ -1,5 +1,6 @@
 old_codebase_read_only/
 venv/
+.venv/
 data/
 claude/
 CLAUDE.md
@@ -13,3 +14,5 @@ tests/
 judge-analysis/*.jsonl
 judge-analysis/*.json
 08-judge-evaluation/judge-analysis/
+trash/
+04-decontamination/validation/report_decontamination.md

@@ -9,7 +9,7 @@ export SWISSAI_API_KEY="your_swiss_ai_api_key"
 
 Always use the project virtual environment:
 ```bash
-venv/bin/python 04-annotations/classify_refusal.py --help
+.venv/bin/python 04-annotations/classify_refusal.py --help
 ```
 
 ## Available Classifications
@@ -18,7 +18,7 @@ venv/bin/python 04-annotations/classify_refusal.py --help
 Identifies assistant messages that decline requests due to safety/ethical constraints.
 
 ```bash
-venv/bin/python 04-annotations/classify_refusal.py \
+.venv/bin/python 04-annotations/classify_refusal.py \
   data/02-standardised/dataset-name \
   --output data/04-annotations/dataset-name-refusal
 ```
@@ -27,7 +27,7 @@ venv/bin/python 04-annotations/classify_refusal.py \
 Scores ideological sensitivity of initial prompts (0-3 scale).
 
 ```bash
-venv/bin/python 04-annotations/classify_ideology.py \
+.venv/bin/python 04-annotations/classify_ideology.py \
   data/02-standardised/dataset-name \
   --output data/04-annotations/dataset-name-ideology
 ```
@@ -36,7 +36,7 @@ venv/bin/python 04-annotations/classify_ideology.py \
 Identifies content involving AI assistants or language models.
 
 ```bash
-venv/bin/python 04-annotations/classify_assistant.py \
+.venv/bin/python 04-annotations/classify_assistant.py \
   data/02-standardised/dataset-name \
   --output data/04-annotations/dataset-name-assistant
 ```
@@ -45,7 +45,7 @@ venv/bin/python 04-annotations/classify_assistant.py \
 Evaluates question quality across 4 dimensions (1-3 scoring each).
 
 ```bash
-venv/bin/python 04-annotations/classify_quality.py \
+.venv/bin/python 04-annotations/classify_quality.py \
   data/02-standardised/dataset-name \
   --output data/04-annotations/dataset-name-quality
 ```
@@ -54,7 +54,7 @@ venv/bin/python 04-annotations/classify_quality.py \
 FastText-based language detection (176 languages, offline processing).
 
 ```bash
-venv/bin/python 05-annotations/language_annotate.py \
+.venv/bin/python 05-annotations/language_annotate.py \
   data/02-standardised/dataset-name \
   data/05-annotations/dataset-name-lang
 ```
@@ -64,12 +64,12 @@ Extracts \\boxed{answer} patterns from assistant messages, commonly found in mat
 
 ```bash
 # Auto-generate output name with -boxedRemoved suffix
-venv/bin/python 05-annotations/extract_boxed_answers.py \
+.venv/bin/python 05-annotations/extract_boxed_answers.py \
   data/04-decontaminated/math-dataset \
   --output data/05-annotations/
 
 # Custom output name
-venv/bin/python 05-annotations/extract_boxed_answers.py \
+.venv/bin/python 05-annotations/extract_boxed_answers.py \
   data/04-decontaminated/math-dataset \
   --output data/05-annotations/math-dataset-extracted \
   --batch-size 50000 \
@@ -81,12 +81,12 @@ Moves system prompts from `original_metadata.chat_template_kwargs.custom_instruc
 
 ```bash
 # Auto-generate output name with -systemPromptFix suffix
-venv/bin/python 05-annotations/fix_system_prompts.py \
+.venv/bin/python 05-annotations/fix_system_prompts.py \
   data/04-decontaminated/smoltalk2-dataset \
   --output data/05-annotations/
 
 # Custom output name
-venv/bin/python 05-annotations/fix_system_prompts.py \
+.venv/bin/python 05-annotations/fix_system_prompts.py \
   data/04-decontaminated/smoltalk2-dataset \
   --output data/05-annotations/dataset-fixed \
   --batch-size 50000 \
@@ -98,12 +98,12 @@ Converts smoltalk2 think datasets to the new augmented format with parts structu
 
 ```bash
 # Auto-generate output name with -thinkPromoted suffix
-venv/bin/python 05-annotations/convert_smoltalk2_think.py \
+.venv/bin/python 05-annotations/convert_smoltalk2_think.py \
   data/04-decontaminated/smoltalk2-think-dataset \
   --output data/05-annotations/
 
 # Custom output name
-venv/bin/python 05-annotations/convert_smoltalk2_think.py \
+.venv/bin/python 05-annotations/convert_smoltalk2_think.py \
   data/04-decontaminated/smoltalk2-think-dataset \
   --output data/05-annotations/dataset-think-converted \
   --batch-size 10000 \
@@ -115,12 +115,12 @@ For datasets with parts structure, use the `_newformat` versions:
 
 ```bash
 # Assistant classification for new format (with parts)
-venv/bin/python 05-annotations/classify_assistant_newformat.py \
+.venv/bin/python 05-annotations/classify_assistant_newformat.py \
   data/04-decontaminated-newformat/dataset \
   --output data/05-annotations/dataset-assistant
 
 # Language annotation for new format
-venv/bin/python 05-annotations/language_annotate.py \
+.venv/bin/python 05-annotations/language_annotate.py \
   data/04-decontaminated-newformat/dataset \
   data/05-annotations/dataset-lang
 ```
@@ -131,11 +131,11 @@ venv/bin/python 05-annotations/language_annotate.py \
 Classifications can be chained by using output as input:
 
 ```bash
-venv/bin/python 04-annotations/classify_refusal.py \
+.venv/bin/python 04-annotations/classify_refusal.py \
   data/02-standardised/dataset-name \
   --output data/04-annotations/dataset-name-refusal
 
-venv/bin/python 04-annotations/classify_quality.py \
+.venv/bin/python 04-annotations/classify_quality.py \
   data/04-annotations/dataset-name-refusal \
   --output data/04-annotations/dataset-name-refusal-quality
 ```

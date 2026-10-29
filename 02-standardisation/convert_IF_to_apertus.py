@@ -26,6 +26,7 @@ from pathlib import Path
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timezone
 from datasets import Dataset, DatasetDict, load_from_disk, load_dataset
+from conversation_ids import add_conversation_ids_for_output
 from tqdm import tqdm
 
 _THINK_RE = re.compile(r"<think>.*?</think>", re.DOTALL)
@@ -651,7 +652,7 @@ def main():
     )
     parser.add_argument(
         "--output-dir",
-        default="/iopsstor/scratch/cscs/hyukhymenko/sft-1.1-mixes/if-mix-17-03",
+        required=True,
         help="Output directory for HuggingFace dataset"
     )
     parser.add_argument(
@@ -730,6 +731,7 @@ def main():
     # Save to disk
     output_path = Path(args.output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
+    dataset_dict = add_conversation_ids_for_output(dataset_dict, output_path)
     dataset_dict.save_to_disk(str(output_path))
 
     # Print summary

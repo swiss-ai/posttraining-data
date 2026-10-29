@@ -30,6 +30,7 @@ from pathlib import Path
 from datetime import datetime
 from typing import Dict, Any, List, Optional
 from datasets import load_from_disk, DatasetDict, Dataset
+from conversation_ids import add_conversation_ids_for_output
 
 
 def generate_conversation_id(dataset_source: str, content: str) -> str:
@@ -379,6 +380,7 @@ def save_dataset_and_metadata(dataset_dict: DatasetDict, output_path: Path,
     output_path.mkdir(parents=True, exist_ok=True)
     
     # Save dataset
+    dataset_dict = add_conversation_ids_for_output(dataset_dict, output_path)
     dataset_dict.save_to_disk(str(output_path))
     
     # Create processing metadata
@@ -420,12 +422,12 @@ def parse_arguments():
         epilog="""
 Examples:
   # Convert XLAM dataset to chat format
-  venv/bin/python 02-standardisation/convert_xlam_function_calling.py \\
+  .venv/bin/python 02-standardisation/convert_xlam_function_calling.py \\
     /users/schlag/store/posttrain_data/01_raw_hf_data/xlam-function-calling-60k \\
     --output data/02-standardised/xlam-function-calling-60k
   
   # With custom chunk size
-  venv/bin/python 02-standardisation/convert_xlam_function_calling.py \\
+  .venv/bin/python 02-standardisation/convert_xlam_function_calling.py \\
     /path/to/xlam/dataset \\
     --output /path/to/output \\
     --batch-size 5000

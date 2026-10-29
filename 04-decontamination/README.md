@@ -1,278 +1,236 @@
 # Decontamination
 
-Cross-checks prompts in the given dataset with the prompts in the evaluation benchmarks.
-If significant overlap is detected, the prompt is removed from the training data
+Cross-checks the prompts of a training dataset against the prompts of the evaluation benchmarks.
+If significant overlap is detected, the sample is removed from the training data.
 
-## Available Scripts
+## How it works
 
-### Python Scripts
-- **`decontamination.py`** - Main decontamination script with n-gram overlap detection
-- **`decontamination-parallel.py`** - High-performance parallel decontamination for large datasets
-- **`gather-decontamination-prompts.py`** - Gather evaluation benchmark prompts for reference
-- **`list-benchmarks.py`** - List available benchmarks for parallel processing
-- **`merge-decontamination-reports.py`** - Merge contamination reports from parallel jobs
+1. Every user message of a training sample (`initial_prompt` and the user turns of all
+   `conversation_branches`) and every benchmark prompt are normalised (Unicode NFKC, runs of a repeated non-letter character such as `━━━━━` collapsed to one,
+   whitespace collapsed to one space), tokenized (`swiss-ai/Apertus-8B-Instruct-2509`, without `<s>`)
+   and split into units. A unit is a token, except that a number (`1,023`, `16.482`, `2'832`) counts
+   as one unit; the tokenizer would split it into single digits (`matching_units.py`).
+2. Each user message is compared on its own with each benchmark prompt. The rule depends on the length of the
+   benchmark prompt:
 
-### Shell Scripts
-- **`submit-decontamination.sh`** - SLURM submission wrapper for single-threaded decontamination
-- **`submit-parallel-decontamination.sh`** - SLURM submission wrapper for parallel decontamination
+   | Benchmark prompt (after normalisation) | Rule | A training sample is removed if, for one of its user messages (the training prompt), … |
+   |---|---|---|
+   | **0 units** (empty or only whitespace) | skipped, counted as empty | never |
+   | **1–3 units** (e.g. "5!=", "Paris", "Yes.") | exact equality only | the training prompt is **identical** to the benchmark prompt |
+   | **4–7 units** (e.g. "Compute $\cos 225^\circ$.") | complete containment + coverage guard | the **whole** benchmark prompt appears as one continuous run in the training prompt **and** makes up **at least 50%** of the training prompt's units |
+   | **8+ units** | 8-gram candidates + share of matching runs | the training prompt shares **at least one run of 8 consecutive units** with the benchmark prompt (candidate), **and** the runs of **at least 5 consecutive units** that both have in common (`difflib.SequenceMatcher`) cover **at least 50%** of the benchmark prompt's units |
+
+   Prompts shorter than 8 units have no 8-gram, so they need their own rules. The number of
+   benchmark prompts in the classes 0, 1–3 and 4–7 is recorded in the processing log
+   (`short_benchmark_prompts`).
+3. For each benchmark a report `<benchmark>__contamination_report.json` is written, mapping each
+   contaminated `conversation_id` to the matched benchmark prompt. A sample is contaminated if any of its
+   user messages matches.
+4. The final filter removes every `conversation_id` that appears in any report.
+
+Only near-verbatim overlap in user messages is detected; system prompts and assistant responses are not
+checked.
+
+## Test sets (`validation/`)
+
+Labelled, synthetically generated sets for measuring false positives (clean samples removed) and false
+negatives (contaminated samples kept):
+
+| File | Samples | Contaminated | Clean |
+|---|---|---|---|
+| `contamination_dataset.jsonl` | 720 | 360 from MMLU, MATH, ARC-Challenge, TruthfulQA, HellaSwag, GSM8K (exact copies, surface changes, light rewordings, shuffled options) | 360 near misses in the style of those benchmarks |
+| `contamination_dataset_v3.jsonl` | 19,722 | 9,361 from 72 benchmarks (also partial items) | 10,361, mostly wrapped in chat templates, JSON records, few-shot prompts or quizzes |
+
+Each sample has `is_contaminated`; contaminated ones point to their source item (`benchmark_hf_dir`,
+`benchmark_config`, `benchmark_split`, `benchmark_row`) and say how it was altered (`contamination_type`).
+Convert a set to the unified schema before decontaminating it:
+`02-standardisation/convert-contamination-test.py -i <file> -o <output>`.
+
+## Files
+
+### Pipeline (in run order)
+- **`gather-decontamination-prompts.py`** - Gathers the evaluation benchmark prompts listed in `benchmarks.yaml`
+- **`decontamination-parallel.py`** - Writes reports for a subset of benchmarks (one array job), or for all
+- **`merge-decontamination-reports.py`** - Combines the reports and filters the dataset
+- **`submit-parallel-decontamination.sh`** - SLURM job array + merge job, or one job running both (`single`)
+
+### Shared modules
+- **`matching_units.py`** - Normalisation and units compared by the check
+- **`decontamination_common.py`** - N-gram matching, verification and benchmark n-gram cache
+- **`benchmark_filters.py`** - Benchmark exclusion patterns and the expected benchmark list
+- **`conversation_id_checks.py`** - Validation of `conversation_id`s
+- **`removal_log.py`** - Writes the removal log (removed samples with their matched benchmark prompts)
+
+### Configuration
+- **`benchmarks.yaml`** - The benchmarks to decontaminate against (HF dataset, configs, splits, prompt column)
+- **`decontamination_settings.py`** - Tokenizer, prompt and cache paths, matching settings (see [Settings](#settings))
+- **`slurm_config.sh`** - Slurm settings of the submit script: account, partition, time limits, logs, Python env
+
+## Requirements and guarantees
+
+- **Unique string IDs.** Every sample needs a unique, non-empty string `conversation_id`. They are
+  assigned in `02-standardisation` (`conversation_ids.py`); all decontamination scripts refuse to run
+  on empty, duplicated or non-string IDs.
+- **Every benchmark checked.** The merge refuses to filter unless every benchmark of the prompt set
+  (minus `DECONTAM_EXCLUDE_BENCHMARK_PATTERNS`) has a readable report. Reports for benchmarks that are
+  not in the prompt set are ignored.
+- **Re-runs reuse reports.** Existing reports are not recomputed and are always applied in the final
+  filter, so a failed or interrupted run can simply be relaunched.
+- **No silent no-op filter.** Filtering fails without saving if the number of removed rows differs from
+  the number of flagged IDs (reports from a different version of the data).
+- **Recorded in metadata.** The output's `dataset_metadata.json` gets a processing-log entry with
+  `benchmarks_processed`, `benchmark_names`, `contaminated_ids_flagged` and
+  `contaminated_samples_removed`. `07-dataset-aggregation/concatenate-datasets.py` only accepts inputs
+  whose latest decontamination entry covers every benchmark.
+- **Removal log.** The removed samples are saved unchanged to `<output>/decontamination_removed/` (same
+  splits as the input), with a `decontamination_matches` column holding one entry per flagging benchmark:
+  `benchmark`, `eval_idx`, `benchmark_prompt`, `benchmark_prompt_tokens`, `match_ratio`, `longest_block`
+  `matched_text` (the matched runs, joined with ` [...] `) and `user_turn` (the user message with the
+  highest `match_ratio`, 0 = `initial_prompt`). `match_ratio` is recomputed at filter
+  time with the merge's tokenizer, which must be the one the reports were made with (the merge checks
+  `decontamination_settings.json`); the processing-log entry records `logged_matches_below_threshold`. Reports keep only the
+  first benchmark prompt above the threshold, so `benchmark_prompt` is a match, not necessarily the
+  closest one. The entry also gets `removed_by_benchmark` and `removal_log_path`.
+
+## Settings
+
+All decontamination settings are in `decontamination_settings.py`; every script takes its defaults from
+there, and the submit script reads the paths from it. The paths can be overridden from the environment; the
+tokenizer and the matching settings are changed in the file only, so that all scripts use the same values.
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `DECONTAMINATION_PROMPTS` (env) | `/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/decontamination_prompts` | prompt set |
+| `DECONTAMINATION_CACHE_DIR` (env) | `/iopsstor/scratch/cscs/$USER/posttraining-data/decontamination_cache` | benchmark n-gram cache |
+| `TOKENIZER_NAME` | `swiss-ai/Apertus-8B-Instruct-2509` | tokenizer the units are built from (fixed, see below) |
+| `NGRAM_LENGTH` | 8 | n-gram length of the candidate search |
+| `DIFF_THRESHOLD` | 0.5 | share of the benchmark prompt that matched runs must cover |
+| `MIN_BLOCK` | 5 | minimum length of a matched run that counts towards that share |
+| `EXACT_MAX_UNITS` | 3 | benchmark prompts up to this length must match the training prompt exactly |
+| `SHORT_MIN_COVERAGE` | 0.5 | longer short prompts must make up this share of the training prompt |
+
+**Reports record their settings.** The first job writes the matching settings (with `UNITS_VERSION` and
+`MATCHING_VERSION`) to `<reports>/decontamination_settings.json`. A relaunch or merge with other settings
+on the same reports stops with an error instead of reusing reports made with the old ones; use a new output
+path. Reports from before this file existed are assumed to match (with a warning). The merge also records
+the settings in the processing log (`matching_settings`).
+
+The Slurm settings are in `slurm_config.sh`; every value can be overridden from the environment:
+
+| Variable | Default |
+|---|---|
+| `SLURM_ACCOUNT` | `infra01` |
+| `SLURM_PARTITION` | `normal` |
+| `SLURM_QOS` | `normal` (also valid on `debug`; set to `""` for the partition default) |
+| `SLURM_RESERVATION` | unset |
+| `SLURM_LOG_DIR` | `/iopsstor/scratch/cscs/$USER/posttraining-data/slurm_logs` |
+| `DECONTAM_TIME_LIMIT` / `PARALLEL_TIME_LIMIT` / `MERGE_TIME_LIMIT` | `12:00:00` / `8:00:00` / `2:00:00` |
+| `PYTHON_ENV_ACTIVATE` | `<repo>/.venv/bin/activate` (created by `uv sync`) |
+
+**Tokenizer: keep it fixed.** The tokenizer only cuts benchmark prompts and training prompts into
+comparable units (see `matching_units.py`); the trained model never sees them. It is therefore independent
+of the model being trained and stays `swiss-ai/Apertus-8B-Instruct-2509` (the Apertus 1.5 tokenizer) also
+for models with another tokenizer. The thresholds were validated with it, and results stay comparable
+across runs; another tokenizer changes how much text a unit covers. The benchmark n-gram cache is keyed by
+tokenizer and `UNITS_VERSION`, so a different tokenizer builds its own cache entries (v1.0 used
+`alehc/swissai-tokenizer`).
+
+`HF_HOME` is not set by the scripts; jobs inherit it from your shell. The `debug` partition allows at most
+2 submitted jobs per user, so use the single-job mode there (`chunk_size` `single`).
+`DECONTAM_TIME_LIMIT` is the time limit of that job.
 
 ## Usage
 
-### Python interactive session
-Decontamination contains two steps:
+### 1. Gather the benchmark prompts (only when benchmarks change)
 
-1. Gathering the prompts from the benchmarks. This is already done and unless you included new benchmarks, you can omit this step.
-```bash
-    python gather-decontamination-prompts.py --output "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/decontamination_prompts"
-```
-2. Execute the decontamination
-```bash
-export PROJECT_ROOT_AT="${HOME}/projects/post-training-scripts/04-decontamination"
-data_root_folder="/capstor/store/cscs/swissai/infra01/posttrain_data"
-decontamination_prompts_path="${data_root_folder}/04_decontaminated/decontamination_prompts"
-
-dataset_name="tulu-3-sft-mixture"
-input_path="${data_root_folder}/03_license_filtered/${dataset_name}"
-python $PROJECT_ROOT_AT/decontamination.py \
-  "${input_path}" \
-  --output "${data_root_folder}/04_decontaminated/${dataset_name}" \
-  --decontamination_prompts "${decontamination_prompts_path}" \
-  --tokenizer_name "alehc/swissai-tokenizer" \
-  --report_path "${input_path}/contamination_reports" \
-  --ngram_length 8 \
-  --diff_threshold 0.5 \
-  --num_proc 10 \
-  --cache_dir "benchmark_cache"
-```
-This script loads the dataset from the shared `03_license_filtered` directory, saves the decontamination reports under this dataset's directory,
-and writes the decontaminated dataset to the `04_decontaminated` directory.
-
-### Using the SLURM submission script
-
-For easier job submission, use the `submit-decontamination.sh` wrapper script:
+Edit `benchmarks.yaml`, then gather the prompts. The n-gram cache is keyed by the benchmark name, not by
+its prompts, so give an entry whose prompts change a new `name` (or use a new `--cache_dir`).
 
 ```bash
-./04-decontamination/submit-decontamination.sh <input_dataset_path> <output_dataset_path>
+python 04-decontamination/gather-decontamination-prompts.py \
+  --output "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/decontamination_prompts"
 ```
 
-Example:
+### 2. Decontaminate a dataset
+
 ```bash
-./04-decontamination/submit-decontamination.sh \
-  "/capstor/store/cscs/swissai/infra01/posttrain_data/03_license_filtered/EuroBlocks-SFT-Synthetic-1124" \
-  "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/EuroBlocks-SFT-Synthetic-1124"
+./04-decontamination/submit-parallel-decontamination.sh <input_dataset> <output_dataset> [chunk_size|single] [max_parallel_jobs]
 ```
 
-This script:
-- Validates the input dataset exists
-- Creates a timestamped SLURM job script
-- Submits the job with appropriate resources (288 CPUs, 16 parallel processes)
-- Uses the shared benchmark cache at `/capstor/store/cscs/swissai/infra01/posttrain_data/decontamination_cache`
-- Saves contamination reports in the output directory
-- Updates the dataset metadata with a processing log entry
-- Prints the `tail -f` command to monitor job progress
+Both modes write the reports to `<output_dataset>_parallel_reports/` and reuse existing reports there, so a
+relaunch (in either mode) recomputes only the missing ones.
 
-The decontamination process:
-1. Tokenizes training prompts and computes n-grams (default: 8-grams)
-2. Compares against 400+ evaluation benchmark prompts
-3. Identifies contaminated samples using sequence matching (default threshold: 0.5)
-4. Filters out contaminated conversations from all dataset splits
-5. Saves the cleaned dataset with updated metadata
-
-## Examples
+**Parallel (job array + merge job)** — the default, for full runs:
 
 ```bash
-# AceReason-1.1-SFT
-./04-decontamination/submit-decontamination.sh \
-  "/capstor/store/cscs/swissai/infra01/posttrain_data/03_license_filtered/AceReason-1.1-SFT" \
-  "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/AceReason-1.1-SFT"
-
-# EuroBlocks-SFT-Synthetic-1124
-./04-decontamination/submit-decontamination.sh \
-  "/capstor/store/cscs/swissai/infra01/posttrain_data/03_license_filtered/EuroBlocks-SFT-Synthetic-1124" \
-  "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/EuroBlocks-SFT-Synthetic-1124"
-
-# Llama-Nemotron-Post-Training-Dataset-science-chat-safety
-./04-decontamination/submit-decontamination.sh \
-  "/capstor/store/cscs/swissai/infra01/posttrain_data/03_license_filtered/Llama-Nemotron-Post-Training-Dataset-science-chat-safety" \
-  "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/Llama-Nemotron-Post-Training-Dataset-science-chat-safety"
-
-# smoltalk
-./04-decontamination/submit-decontamination.sh \
-  "/capstor/store/cscs/swissai/infra01/posttrain_data/03_license_filtered/smoltalk" \
-  "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/smoltalk"
-
-# smoltalk2 (individual splits after dataset splitting)
-./04-decontamination/submit-decontamination.sh \
-  "/capstor/store/cscs/swissai/infra01/posttrain_data/03_license_filtered/smoltalk2-aya_dataset_Qwen3_32B_think" \
-  "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/smoltalk2-aya_dataset_Qwen3_32B_think"
-
-./04-decontamination/submit-decontamination.sh \
-  "/capstor/store/cscs/swissai/infra01/posttrain_data/03_license_filtered/smoltalk2-multi_turn_reasoning_if_think" \
-  "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/smoltalk2-multi_turn_reasoning_if_think"
-
-./04-decontamination/submit-decontamination.sh \
-  "/capstor/store/cscs/swissai/infra01/posttrain_data/03_license_filtered/smoltalk2-OpenThoughts3_1.2M_no_think_no_think" \
-  "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/smoltalk2-OpenThoughts3_1.2M_no_think_no_think"
-
-./04-decontamination/submit-decontamination.sh \
-  "/capstor/store/cscs/swissai/infra01/posttrain_data/03_license_filtered/smoltalk2-OpenThoughts3_1.2M_think" \
-  "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/smoltalk2-OpenThoughts3_1.2M_think"
-
-./04-decontamination/submit-decontamination.sh \
-  "/capstor/store/cscs/swissai/infra01/posttrain_data/03_license_filtered/smoltalk2-s1k_1.1_think" \
-  "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/smoltalk2-s1k_1.1_think"
-
-./04-decontamination/submit-decontamination.sh \
-  "/capstor/store/cscs/swissai/infra01/posttrain_data/03_license_filtered/smoltalk2-smoltalk_everyday_convs_reasoning_Qwen3_32B_think" \
-  "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/smoltalk2-smoltalk_everyday_convs_reasoning_Qwen3_32B_think"
-
-./04-decontamination/submit-decontamination.sh \
-  "/capstor/store/cscs/swissai/infra01/posttrain_data/03_license_filtered/smoltalk2-smoltalk_multilingual_8languages_lang_5_no_think" \
-  "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/smoltalk2-smoltalk_multilingual_8languages_lang_5_no_think"
-
-./04-decontamination/submit-decontamination.sh \
-  "/capstor/store/cscs/swissai/infra01/posttrain_data/03_license_filtered/smoltalk2-smoltalk_multilingual8_Qwen3_32B_think" \
-  "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/smoltalk2-smoltalk_multilingual8_Qwen3_32B_think"
-
-./04-decontamination/submit-decontamination.sh \
-  "/capstor/store/cscs/swissai/infra01/posttrain_data/03_license_filtered/smoltalk2-smoltalk_smollm3_everyday_conversations_no_think" \
-  "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/smoltalk2-smoltalk_smollm3_everyday_conversations_no_think"
-
-./04-decontamination/submit-decontamination.sh \
-  "/capstor/store/cscs/swissai/infra01/posttrain_data/03_license_filtered/smoltalk2-smoltalk_smollm3_smol_magpie_ultra_no_think" \
-  "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/smoltalk2-smoltalk_smollm3_smol_magpie_ultra_no_think"
-
-./04-decontamination/submit-decontamination.sh \
-  "/capstor/store/cscs/swissai/infra01/posttrain_data/03_license_filtered/smoltalk2-smoltalk_smollm3_smol_rewrite_no_think" \
-  "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/smoltalk2-smoltalk_smollm3_smol_rewrite_no_think"
-
-./04-decontamination/submit-decontamination.sh \
-  "/capstor/store/cscs/swissai/infra01/posttrain_data/03_license_filtered/smoltalk2-smoltalk_smollm3_smol_summarize_no_think" \
-  "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/smoltalk2-smoltalk_smollm3_smol_summarize_no_think"
-
-./04-decontamination/submit-decontamination.sh \
-  "/capstor/store/cscs/swissai/infra01/posttrain_data/03_license_filtered/smoltalk2-smoltalk_smollm3_systemchats_30k_no_think" \
-  "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/smoltalk2-smoltalk_smollm3_systemchats_30k_no_think"
-
-./04-decontamination/submit-decontamination.sh \
-  "/capstor/store/cscs/swissai/infra01/posttrain_data/03_license_filtered/smoltalk2-smoltalk_systemchats_Qwen3_32B_think" \
-  "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/smoltalk2-smoltalk_systemchats_Qwen3_32B_think"
-
-./04-decontamination/submit-decontamination.sh \
-  "/capstor/store/cscs/swissai/infra01/posttrain_data/03_license_filtered/smoltalk2-table_gpt_no_think" \
-  "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/smoltalk2-table_gpt_no_think"
-
-./04-decontamination/submit-decontamination.sh \
-  "/capstor/store/cscs/swissai/infra01/posttrain_data/03_license_filtered/smoltalk2-table_gpt_Qwen3_32B_think" \
-  "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/smoltalk2-table_gpt_Qwen3_32B_think"
-
-./04-decontamination/submit-decontamination.sh \
-  "/capstor/store/cscs/swissai/infra01/posttrain_data/03_license_filtered/smoltalk2-tulu_3_sft_personas_instruction_following_no_think" \
-  "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/smoltalk2-tulu_3_sft_personas_instruction_following_no_think"
-
-# The-Tome
-./04-decontamination/submit-decontamination.sh \
-  "/capstor/store/cscs/swissai/infra01/posttrain_data/03_license_filtered/The-Tome" \
-  "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/The-Tome"
-
-# tulu-3-sft-mixture
-./04-decontamination/submit-decontamination.sh \
-  "/capstor/store/cscs/swissai/infra01/posttrain_data/03_license_filtered/tulu-3-sft-mixture" \
-  "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/tulu-3-sft-mixture"
-
-# Commercial-Flan-Collection-Chain-Of-Thought
-./04-decontamination/submit-decontamination.sh \
-  "/capstor/store/cscs/swissai/infra01/posttrain_data/02_standardised/Commercial-Flan-Collection-Chain-Of-Thought" \
-  "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/Commercial-Flan-Collection-Chain-Of-Thought"
-
-# Commercial-Flan-Collection-Flan-2021
-./04-decontamination/submit-decontamination.sh \
-  "/capstor/store/cscs/swissai/infra01/posttrain_data/02_standardised/Commercial-Flan-Collection-Flan-2021" \
-  "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/Commercial-Flan-Collection-Flan-2021"
-
-# Commercial-Flan-Collection-SNI
-./04-decontamination/submit-decontamination.sh \
-  "/capstor/store/cscs/swissai/infra01/posttrain_data/02_standardised/Commercial-Flan-Collection-SNI" \
-  "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/Commercial-Flan-Collection-SNI"
-
-# muri-it
-./04-decontamination/submit-decontamination.sh ~/store/posttrain_data/02_standardised/muri-it ~/store/posttrain_data/04_decontaminated/muri-it
-```
-
-## Parallel Processing (Recommended for Large Datasets)
-
-For faster processing of the 400+ evaluation benchmarks, use the parallel decontamination system:
-
-### Usage
-
-```bash
-./04-decontamination/submit-parallel-decontamination.sh <input_dataset> <output_dataset> [chunk_size] [max_parallel_jobs]
-```
-
-**Parameters:**
-- `input_dataset`: Path to input dataset directory 
-- `output_dataset`: Path for final output dataset directory
-- `chunk_size`: Benchmarks per parallel job (default: 20)
-- `max_parallel_jobs`: Maximum parallel jobs (default: 20)
-
-### Examples
-
-```bash
-# Default: 20 benchmarks per job, max 20 parallel jobs (~20x speedup)
 ./04-decontamination/submit-parallel-decontamination.sh \
-  "/capstor/store/cscs/swissai/infra01/posttrain_data/03_license_filtered/tulu-3-sft-mixture" \
-  "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/tulu-3-sft-mixture"
-
-# Custom: 25 benchmarks per job, max 16 parallel jobs  
-./04-decontamination/submit-parallel-decontamination.sh \
-  "/capstor/store/cscs/swissai/infra01/posttrain_data/03_license_filtered/The-Tome" \
-  "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/The-Tome" \
-  25 16
+  /path/to/02_standardised/my-dataset /path/to/04_decontaminated/my-dataset [chunk_size] [max_parallel_jobs]
 ```
 
-### How It Works
+- `chunk_size`: benchmarks per array job (default: 20)
+- `max_parallel_jobs`: maximum array jobs running at once (default: 64)
 
-1. **Job Array Submission**: Automatically splits 400+ benchmarks across parallel SLURM jobs
-2. **Independent Processing**: Each job processes assigned benchmark subset using existing decontamination logic
-3. **Shared Caching**: All jobs use shared benchmark n-gram cache for efficiency
-4. **Automatic Merging**: Final job combines all contamination reports and creates filtered dataset
-5. **Fault Tolerance**: Individual job failures don't affect other jobs
+The script submits a job array and a merge job that runs after it (`afterany`). The merge checks that
+every benchmark has a readable report (reports are written atomically); if an array job failed, it stops
+without saving.
 
-### Performance Benefits
+**Single job** — one job that writes the reports of all benchmarks and then runs the merge, e.g. on the
+debug partition (at most 2 submitted jobs per user):
 
-- **~20x faster**: Parallel processing vs sequential (with default settings)
-- **Resource efficiency**: Better CPU utilization across cluster
-- **Scalability**: Easy to adjust parallelization level
-- **Memory efficient**: Each job loads training data only once
+```bash
+SLURM_PARTITION=debug ./04-decontamination/submit-parallel-decontamination.sh \
+  /path/to/small-dataset /path/to/output single
+```
+
+Its time limit is `DECONTAM_TIME_LIMIT`; `max_parallel_jobs` is ignored.
+
+Manual merge (e.g. after fixing a failed array job):
+
+```bash
+python 04-decontamination/merge-decontamination-reports.py \
+  <input_dataset> <output_dataset> <output_dataset>_parallel_reports \
+  --decontamination_prompts "$DECONTAMINATION_PROMPTS"
+```
+
+### 3. Without SLURM (e.g. interactively)
+
+```bash
+python 04-decontamination/decontamination-parallel.py <input_dataset> \
+  --report_path <output_dataset>_parallel_reports --num_proc 16
+python 04-decontamination/merge-decontamination-reports.py \
+  <input_dataset> <output_dataset> <output_dataset>_parallel_reports
+```
+
+The tokenizer, prompt set, cache and matching settings come from `decontamination_settings.py` (or the
+environment variables above). Without `--benchmark-start`/`--benchmark-end` the first command checks all
+benchmarks. The merge requires a report for every benchmark.
+
+Useful flags of `decontamination-parallel.py`: `--overwrite` recomputes existing reports,
+`--show_contaminated` prints examples of contaminated pairs, `--benchmark_name` restricts the run to
+specific benchmarks (comma-separated).
 
 ### Monitoring
 
 ```bash
-# Monitor parallel jobs
-squeue -j <parallel_job_id>
-
-# Watch progress  
-watch -n 5 'ls /path/to/reports/*.completed 2>/dev/null | wc -l; echo "/ <num_jobs> completed"'
-
-# View job logs
-tail -f slurm_logs/pdecontam_<dataset>_<timestamp>_*.out
-
-# View merge log  
-tail -f slurm_logs/merge_<dataset>_<timestamp>.out
+squeue -u $USER
+tail -f "$SLURM_LOG_DIR"/pdecontam_<dataset>_<timestamp>_*.out   # array jobs
+tail -f "$SLURM_LOG_DIR"/merge_<dataset>_<timestamp>.out          # merge job
+tail -f "$SLURM_LOG_DIR"/decontam_<dataset>_<timestamp>.out       # single-job mode
 ```
 
 ### Utilities
 
 ```bash
-# List available benchmarks
-python 04-decontamination/list-benchmarks.py --prompts-path /path/to/decontamination_prompts
+# List the benchmarks of a prompt set (after exclusions)
+python -c 'import sys; sys.path.insert(0, "04-decontamination"); from benchmark_filters import expected_benchmark_names; print("\n".join(expected_benchmark_names(sys.argv[1])))' /path/to/decontamination_prompts
 
-# Count benchmarks and show job estimation
-python 04-decontamination/list-benchmarks.py --prompts-path /path/to/decontamination_prompts --chunk-size 20
-
-# Manual merge (if needed)
-python 04-decontamination/merge-decontamination-reports.py \
-  /path/to/input/dataset \
-  /path/to/output/dataset \
-  /path/to/parallel_reports
+# Exclude benchmarks (comma-separated name patterns, case/punctuation-insensitive)
+export DECONTAM_EXCLUDE_BENCHMARK_PATTERNS="wmdp,hallulens"
 ```
+
+## History
+
+The per-dataset commands used for the v1.0 SFT mixture (inputs from `03_license_filtered`, tokenizer
+`alehc/swissai-tokenizer`, ~400 benchmarks) are in the git history of this README. Outputs from those runs
+and from the v1.5 runs (`04_decontaminated/sft-1.1/`) predate the checks above and are rejected by
+`concatenate-datasets.py` unless `--skip-decontamination-check` is passed.

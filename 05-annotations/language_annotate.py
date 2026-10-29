@@ -520,13 +520,13 @@ def parse_arguments():
         epilog="""
 Examples:
   # Annotate new format dataset
-  venv/bin/python 05-annotations/language_annotate.py data/02-standardised-newformat/dataset data/05-annotations/dataset-lang
+  .venv/bin/python 05-annotations/language_annotate.py data/02-standardised-newformat/dataset data/05-annotations/dataset-lang
   
   # With custom chunk size for large datasets
-  venv/bin/python 05-annotations/language_annotate.py data/04-decontaminated-newformat/dataset data/05-annotations/dataset-lang --chunk-size 5000
+  .venv/bin/python 05-annotations/language_annotate.py data/04-decontaminated-newformat/dataset data/05-annotations/dataset-lang --chunk-size 5000
   
   # Test with OLMO prompts-only dataset
-  venv/bin/python 05-annotations/language_annotate.py /capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/olmo-2-0325-32b-preference-mix-promptsOnly data/05-annotations/
+  .venv/bin/python 05-annotations/language_annotate.py /capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated/olmo-2-0325-32b-preference-mix-promptsOnly data/05-annotations/
         """
     )
     

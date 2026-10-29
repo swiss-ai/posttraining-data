@@ -7,20 +7,20 @@ This framework provides tools for evaluating LLM judge models on synthetic prefe
 ### Basic Usage
 ```bash
 # Test with 3 samples (development)
-venv/bin/python 08-judge-evaluation/judge_llm_ranking.py --samples 3
+.venv/bin/python 08-judge-evaluation/judge_llm_ranking.py --samples 3
 
 # Full evaluation on all samples
-venv/bin/python 08-judge-evaluation/judge_llm_ranking.py --samples -1
+.venv/bin/python 08-judge-evaluation/judge_llm_ranking.py --samples -1
 
 # Use custom judge instructions
-venv/bin/python 08-judge-evaluation/judge_llm_ranking.py --samples 10 \
+.venv/bin/python 08-judge-evaluation/judge_llm_ranking.py --samples 10 \
     --instructions prompts/charter.txt
 ```
 
 ### Advanced Options
 ```bash
 # Alphabetic labels instead of numeric
-venv/bin/python 08-judge-evaluation/judge_llm_ranking.py --samples 100 \
+.venv/bin/python 08-judge-evaluation/judge_llm_ranking.py --samples 100 \
     --label-type alphabetic --concurrent 20 --max-retries 3
 ```
 
@@ -325,14 +325,14 @@ All evaluation instructions and prompt templates are in the `prompts/` directory
 
 ```bash
 # Start with 1 sample for basic functionality
-venv/bin/python 08-judge-evaluation/judge_yourmethod.py --samples 1
+.venv/bin/python 08-judge-evaluation/judge_yourmethod.py --samples 1
 
 # Test error handling with various configurations
-venv/bin/python 08-judge-evaluation/judge_yourmethod.py --samples 3 --max-retries 0
+.venv/bin/python 08-judge-evaluation/judge_yourmethod.py --samples 3 --max-retries 0
 
 # Scale up gradually
-venv/bin/python 08-judge-evaluation/judge_yourmethod.py --samples 10
-venv/bin/python 08-judge-evaluation/judge_yourmethod.py --samples 100
+.venv/bin/python 08-judge-evaluation/judge_yourmethod.py --samples 10
+.venv/bin/python 08-judge-evaluation/judge_yourmethod.py --samples 100
 ```
 
 ## Output Files

@@ -180,10 +180,10 @@ def main():
         epilog=f"""
 Examples:
   # Default keywords (AI model references)
-  venv/bin/python 05-annotations/keyword_filter_parallel.py input_dataset output_dataset
+  .venv/bin/python 05-annotations/keyword_filter_parallel.py input_dataset output_dataset
   
   # Custom keywords
-  venv/bin/python 05-annotations/keyword_filter_parallel.py input_dataset output_dataset --keywords word1 word2 word3
+  .venv/bin/python 05-annotations/keyword_filter_parallel.py input_dataset output_dataset --keywords word1 word2 word3
 
 Default keywords: {', '.join(FILTER_KEYWORDS)}
         """
@@ -317,9 +317,17 @@ Default keywords: {', '.join(FILTER_KEYWORDS)}
         "format": "new_chat_format_with_parts_and_sample_level_flag"
     }
     
+    # Keep the input's processing history (e.g. the decontamination entry step 07 checks)
+    input_metadata_path = Path(args.input_path) / "dataset_metadata.json"
+    full_metadata = {}
+    if input_metadata_path.exists():
+        with open(input_metadata_path) as f:
+            full_metadata = json.load(f)
+    full_metadata.setdefault("processing_log", []).append(metadata)
+
     metadata_path = Path(args.output_path) / "dataset_metadata.json"
     with open(metadata_path, 'w') as f:
-        json.dump(metadata, f, indent=2)
+        json.dump(full_metadata, f, indent=2)
     
     print(f"\nTransformation complete! Dataset saved to {args.output_path}")
     print(f"Total samples: {len(all_transformed_samples):,}")
