@@ -65,17 +65,17 @@ completion items (`item_type` `math`, `mcq`, `qa`, `completion`).
 - **`matching_units.py`** - Normalisation and units compared by the check (shared by all scripts)
 - **`decontamination_common.py`** - N-gram matching, verification and benchmark n-gram cache
 - **`gather-decontamination-prompts.py`** - Gathers the evaluation benchmark prompts listed in `benchmarks.yaml`
-- **`decontamination_settings.py`** - All decontamination settings: tokenizer, prompt and cache paths, matching
 - **`benchmark_filters.py`** - Benchmark exclusion patterns and the expected benchmark list
 - **`conversation_id_checks.py`** - Validation of `conversation_id`s
 - **`removal_log.py`** - Writes the removal log (removed samples with their matched benchmark prompts)
 
 ### Configuration
 - **`benchmarks.yaml`** - The benchmarks to decontaminate against (HF dataset, configs, splits, prompt column)
+- **`decontamination_settings.py`** - Tokenizer, prompt and cache paths, matching settings (see [Settings](#settings))
+- **`slurm_config.sh`** - Slurm settings of the submit script: account, partition, time limits, logs, Python env
 
 ### Shell Scripts
 - **`submit-parallel-decontamination.sh`** - SLURM job array + merge job, or one job running both (`single`)
-- **`slurm_config.sh`** - Slurm settings of the submit script
 
 ## Requirements and guarantees
 
