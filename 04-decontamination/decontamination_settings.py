@@ -17,7 +17,8 @@ import shlex
 from pathlib import Path
 
 # ── Tokenizer and paths (overridable from the environment) ──────────────────
-# The tokenizer of the model being trained: the n-grams are built from its tokens (see matching_units.py).
+# Only cuts the text into comparable units (see matching_units.py), so it is independent of the model being
+# trained: keep it fixed (the Apertus 1.5 tokenizer) to keep results comparable across runs.
 TOKENIZER_NAME = os.environ.get("TOKENIZER_NAME", "swiss-ai/Apertus-8B-Instruct-2509")
 DECONTAMINATION_PROMPTS = os.environ.get(
     "DECONTAMINATION_PROMPTS",

@@ -128,11 +128,12 @@ The Slurm settings are in `slurm_config.sh`; every value can be overridden from 
 | `DECONTAM_TIME_LIMIT` / `PARALLEL_TIME_LIMIT` / `MERGE_TIME_LIMIT` | `12:00:00` / `8:00:00` / `2:00:00` |
 | `PYTHON_ENV_ACTIVATE` | `<repo>/.venv/bin/activate` (created by `uv sync`) |
 
-**Tokenizer: adjust it for new model versions.** The n-grams are built from token IDs, so
-`TOKENIZER_NAME` should be the tokenizer of the model being trained (currently Apertus 1.5:
-`swiss-ai/Apertus-8B-Instruct-2509`). For a new model version with a different tokenizer, update the
-default in `decontamination_settings.py`. The benchmark n-gram cache is keyed by tokenizer and `UNITS_VERSION` (`matching_units.py`), so
-a new tokenizer or a change of the units builds its own cache entries; results from runs with different tokenizers are not directly comparable (v1.0 used
+**Tokenizer: keep it fixed.** The tokenizer only cuts benchmark prompts and training prompts into
+comparable units (see `matching_units.py`); the trained model never sees them. It is therefore independent
+of the model being trained and stays `swiss-ai/Apertus-8B-Instruct-2509` (the Apertus 1.5 tokenizer) also
+for models with another tokenizer. The thresholds were validated with it, and results stay comparable
+across runs; another tokenizer changes how much text a unit covers. The benchmark n-gram cache is keyed by
+tokenizer and `UNITS_VERSION`, so a different tokenizer builds its own cache entries (v1.0 used
 `alehc/swissai-tokenizer`).
 
 `HF_HOME` is not set by the scripts; jobs inherit it from your shell. The `debug` partition allows at most
