@@ -2,32 +2,49 @@
 
 Apertus 2 SFT datasets: who prepared them, how, and where they live. `/capstor/store` is
 durable; scratch (`/iopsstor/scratch/...`) is purged after 14 idle days. Statistics come
-from `tokens/summary.json` or `apertus-data inspect`. State as of 2026-10-26.
+from `tokens/summary.json` or `apertus-data inspect`. State as of 2026-10-28.
 
 ## Overview
 
-| Dataset | Prepared by | Train docs | Tokens | Status |
-|---|---|---|---|---|
-| [Safety r15 + PersonaFactory v12](#safety-r15--personafactory-v12) | Hanna Yukhymenko | 342,174 | 0.53B | re-tokenize |
-| [Instruction following v1](#instruction-following-v1) | Hanna Yukhymenko | 144,162 | 0.16B | re-tokenize |
-| [Meditron medical SFT v1](#meditron-medical-sft-v1) | Xavier Theimer-Lienhard | 385,959 | 0.30B | re-tokenize |
-| [Nemotron-SFT-Math-v4](#nemotron-sft-math-v4) | Raphael Kreft | 545,408 | 7.17B | re-tokenize; on scratch |
-| [Tool use v2](#tool-use-v2) | Ramon Kaspar | 1,340,741 | 5.69B | re-tokenize |
-| [Terminal-Bench trajectories v1](#terminal-bench-trajectories-v1) | Ramon Kaspar | 16,117 | 0.23B | re-tokenize |
-| [Factuality SFT v0.1](#factuality-sft-v01) | Oscar Wohlfahrt | 10,818 | 0.005B | re-tokenize |
-| [Math + STEM v2](#math--stem-v2) (?) | Antonio Lopardo | 5,087,134 | 55.2B | inclusion open |
-| [Code SFT v1](#code-sft-v1) | Roman Machacek | 48,208,784 | — | tokenize |
+Datasets for the SFT mix:
 
-Token counts are for the longest build (64k caps for tool use and terminal).
+| Dataset | Domain | Prepared by | Train docs | Tokens | Tokens ≤16k | Status |
+|---|---|---|---|---|---|---|
+| [Safety r15 + PersonaFactory v12](#safety-r15--personafactory-v12) | Safety, persona | Hanna Yukhymenko | 342,174 | 0.53B | 0.53B | v0.1 tokenized |
+| [Instruction following v1](#instruction-following-v1) | Instruction following | Hanna Yukhymenko | 144,162 | 0.16B | 0.16B | v0.1 tokenized |
+| [Meditron medical SFT v1](#meditron-medical-sft-v1) | Medical | Xavier Theimer-Lienhard | 385,959 | 0.30B | 0.30B | v0.1 tokenized |
+| [Tool use v2](#tool-use-v2) | Tool use | Ramon Kaspar | 1,340,741 | 5.69B | 4.41B | v0.1 tokenized |
+| [Terminal-Bench trajectories v1](#terminal-bench-trajectories-v1) | Terminal agents | Ramon Kaspar | 16,117 | 0.23B | 0.10B | v0.1 tokenized |
+| [Factuality SFT v0.1](#factuality-sft-v01) | Factuality | Oscar Wohlfahrt | 10,818 | 0.005B | 0.005B | v0.1 tokenized |
+| [STEM SFT v3](#stem-sft-v3) | Math, science | Davit Melikidze | 501,902 | 1.68B | 1.68B | v0.1 tokenized |
+| **Total without code** | | | **2,741,873** | **8.59B** | **7.18B** | |
+| [Code SFT v1](#code-sft-v1) | Code, SWE agents | Roman Machacek | 48,208,784 | ~398B | ~158B | sample, then tokenize |
+
+Tokens are for the v0.1 builds, the train split of every dataset except code tokenized
+2026-10-28 with the pinned tokenizer (job 3785881) into
+`/iopsstor/scratch/cscs/rkreft/v0_1_chonk_sft_tokenized/<name>/{full,16k}`; tool use and
+terminal from their 64k native builds. ≤16k is what `cap --max-tokens 16384` keeps. Code
+counts are estimates from about 1,000 rows per set tokenized with the current tokenizer
+(`/iopsstor/scratch/cscs/rkreft/apertus2-processing/code-lengths-16k.json`): `code_sft`
+~295B (~151B ≤16k), `code_agentic` ~103B (~7B ≤16k).
+
+Development datasets, not in the mix:
+
+| Dataset | Domain | Prepared by | Train docs | Tokens | Tokens ≤16k | Status |
+|---|---|---|---|---|---|---|
+| [Nemotron-SFT-Math-v4](#nemotron-sft-math-v4) | Math | Raphael Kreft | 545,408 | 7.17B | 2.12B | re-tokenized 2026-10-28; on scratch |
 
 ## Requirements
 
-- Tokenizer: apertus-common `345e6d2` with `Apertus_2_instruct` from apertus-omni-tokenizer
-  `3752b12` (NFC normalizer). Every build above used `8bcc096` / `cc727cc` and must be
-  re-tokenized.
+- Tokenizer: apertus-common `494c2be` with `Apertus_2_instruct` from apertus-omni-tokenizer
+  `b801ff1` on `main` (NFC normalizer; same files as `3752b12`). The providers' own builds
+  used `8bcc096` / `cc727cc`; use the v0.1 builds and Nemotron's re-tokenized build instead.
 - Thinking effort: `medium` in every sample.
 - Empty thinks: every assistant output starts with a think, empty where the sample or
   turn has no reasoning.
+- Loss weights: no native row of any dataset here carries a `loss_weight` annotation (scan
+  of all rows, 2026-10-28), so the trainer defaults apply and every dataset is tokenized
+  without `--loss-weights`. The old tool use and terminal weights equal those defaults.
 
 ## Dataset Details
 
@@ -41,7 +58,8 @@ Token counts are for the longest build (64k caps for tool use and terminal).
 
 | Stage | Path |
 |---|---|
-| Tokens | `/capstor/store/cscs/swissai/infra01/users/hyukhymenko/shared/apertus2-safety-personafactory-v2/tokens/tokens` |
+| Tokens v0.1 | `/iopsstor/scratch/cscs/rkreft/v0_1_chonk_sft_tokenized/safety-personafactory-v2/{full,16k}/tokens` |
+| Tokens, old tokenizer | `/capstor/store/cscs/swissai/infra01/users/hyukhymenko/shared/apertus2-safety-personafactory-v2/tokens/tokens` |
 | Native, check | `.../apertus2-safety-personafactory-v2/{native,check}` |
 | Raw | `/iopsstor/scratch/cscs/hyukhymenko/safety_sft/data/sft_r15so_trl.jsonl`; `/capstor/store/cscs/swissai/infra01/reasoning/users/hyukhymenko/personafactory-release-20260922/data` (ask Hanna) |
 
@@ -61,7 +79,8 @@ Token counts are for the longest build (64k caps for tool use and terminal).
 
 | Stage | Path |
 |---|---|
-| Tokens | `/capstor/store/cscs/swissai/infra01/users/hyukhymenko/shared/apertus2-apertus15-if-v1/tokens/tokens` |
+| Tokens v0.1 | `/iopsstor/scratch/cscs/rkreft/v0_1_chonk_sft_tokenized/if-v1/{full,16k}/tokens` |
+| Tokens, old tokenizer | `/capstor/store/cscs/swissai/infra01/users/hyukhymenko/shared/apertus2-apertus15-if-v1/tokens/tokens` |
 | Native, check | `.../apertus2-apertus15-if-v1/{native,check}` |
 | Raw | `swiss-ai/Apertus-v1.5-SFT-mix` (infra01 mirror in `datasets-hf-private/`) |
 
@@ -80,28 +99,10 @@ Token counts are for the longest build (64k caps for tool use and terminal).
 
 | Stage | Path |
 |---|---|
-| Tokens | `/capstor/store/cscs/swissai/infra01/datasets/meditron-medical-sft-v1-native/megatron/tokens` |
+| Tokens v0.1 | `/iopsstor/scratch/cscs/rkreft/v0_1_chonk_sft_tokenized/meditron-medical-v1/{full,16k}/tokens` |
+| Tokens, old tokenizer | `/capstor/store/cscs/swissai/infra01/datasets/meditron-medical-sft-v1-native/megatron/tokens` |
 | Native, check | `.../meditron-medical-sft-v1-native/{native,check}` |
 | Raw | `/capstor/store/cscs/swissai/infra01/datasets/meditron-medical-sft-v1` |
-
-### Nemotron-SFT-Math-v4
-
-- Provider: Raphael Kreft, 2026-10-19; mapper `mappers/nemotron_math.py`
-- Content: AoPS and Math StackExchange problems solved by DeepSeek-V4-Pro; `cot` (285,516)
-  and `tir` with Python tool rounds (259,892); the `\boxed{}` answer is a claim
-- Format: `medium` (source generated in high mode); source reasoning as thinks, empty
-  thinks only between some `tir` tool rounds; no loss weights; check 0 failing rows
-- Licence: per row, CC BY 4.0 (AoPS) or CC BY-SA 4.0 (Math StackExchange). Antonio's sheet
-  keeps only the CC BY rows of this release; the SA rows probably need filtering
-- Length: p50 5,456, p99 90,589, max 205,116; 23.7% over 16k, so cap before mixing
-- Open: all stages are on scratch (last read 2026-10-22, purge from about 2026-11-05) and
-  need moving to the store; AoPS overlap with STEM `nemotron_math_v2` not checked
-
-| Stage | Path |
-|---|---|
-| Tokens | `/iopsstor/scratch/cscs/rkreft/apertus2-processing/nemotron-math-tokens/tokens` |
-| Native, check | `/iopsstor/scratch/cscs/rkreft/apertus2-processing/nemotron-math-{native,check}` |
-| Raw | `nvidia/Nemotron-SFT-Math-v4` on Hugging Face |
 
 ### Tool use v2
 
@@ -110,8 +111,9 @@ Token counts are for the longest build (64k caps for tool use and terminal).
 - Content: tool-calling and agentic conversations from 15 releases (xLAM, Nemotron agentic
   v2, Toucan, EnvScaler, ToolACE, Glaive, OpenSeeker, LiteResearcher, Jupyter agent,
   When2Call); one sample per conversation, every turn trained
-- Format: `medium`; 30% of the thinks empty; loss weights written (user and tool results
-  untrained); check 0 failing rows; decontaminated against `decon_refs/v2`
+- Format: `medium`; 30% of the thinks empty; no `loss_weight` annotations (the old build's
+  weights equal the trainer defaults); check 0 failing rows; decontaminated against
+  `decon_refs/v2`
 - Licence: per row, CC BY 4.0, Apache 2.0 or MIT
 - Builds: 64k (1,340,741 docs, 5.69B tokens) and 8k (1,203,776 docs, 3.42B tokens); longer
   samples dropped. The 8k build loses almost all of EnvScaler, Nemotron search and OpenSeeker
@@ -119,7 +121,8 @@ Token counts are for the longest build (64k caps for tool use and terminal).
 
 | Stage | Path |
 |---|---|
-| Tokens | `/capstor/store/cscs/swissai/infra01/datasets_tokenized/tool_use_apertus_v2/sft/tool_use/v2/{8k,64k}/{train,validation}/tokens` |
+| Tokens v0.1 | `/iopsstor/scratch/cscs/rkreft/v0_1_chonk_sft_tokenized/tool-use-v2/{full,16k}/tokens` |
+| Tokens, old tokenizer | `/capstor/store/cscs/swissai/infra01/datasets_tokenized/tool_use_apertus_v2/sft/tool_use/v2/{8k,64k}/{train,validation}/tokens` |
 | Native, check | `/capstor/store/cscs/swissai/infra01/datasets/tool_use_apertus_v2/sft/apertus2/tool_use/v2/{8k,64k}/{native,check}/{train,validation}` |
 | Raw | `/capstor/store/cscs/swissai/infra01/datasets/tool_use_apertus_v2/sft/mixes/tool_use/v2` |
 
@@ -129,15 +132,17 @@ Token counts are for the longest build (64k caps for tool use and terminal).
 - Content: Terminal-Bench-style trajectories in the Terminus-2 format (command JSON in the
   reply, terminal output as user messages) from `recursive_task_synthesis`, `termgrade`
   and `recursive_task_synthesis_glm`; at most 3 runs per task
-- Format: `medium`; 61% of the thinks empty; loss weights written (terminal output
-  untrained); check 0 failing rows; decontaminated against `decon_refs/v2`
+- Format: `medium`; 61% of the thinks empty; no `loss_weight` annotations (terminal output
+  is user input, untrained by default); check 0 failing rows; decontaminated against
+  `decon_refs/v2`
 - Licence: per row, CC BY 4.0 or Apache 2.0
 - Builds: 64k (16,117 docs, 234M tokens) and 8k (5,270 docs, 30M tokens; keeps 32%)
 - Open: Terminus-2 versus native tool calls
 
 | Stage | Path |
 |---|---|
-| Tokens | `/capstor/store/cscs/swissai/infra01/datasets_tokenized/tool_use_apertus_v2/sft/terminal/v1/{8k,64k}/{train,validation}/tokens` |
+| Tokens v0.1 | `/iopsstor/scratch/cscs/rkreft/v0_1_chonk_sft_tokenized/terminal-v1/{full,16k}/tokens` |
+| Tokens, old tokenizer | `/capstor/store/cscs/swissai/infra01/datasets_tokenized/tool_use_apertus_v2/sft/terminal/v1/{8k,64k}/{train,validation}/tokens` |
 | Native, check | `/capstor/store/cscs/swissai/infra01/datasets/tool_use_apertus_v2/sft/apertus2/terminal/v1/{8k,64k}/{native,check}/{train,validation}` |
 | Raw | `/capstor/store/cscs/swissai/infra01/datasets/tool_use_apertus_v2/sft/mixes/terminal/v1` |
 
@@ -155,42 +160,46 @@ Token counts are for the longest build (64k caps for tool use and terminal).
 
 | Stage | Path |
 |---|---|
-| Tokens | `/capstor/store/cscs/swissai/infra01/datasets/factuality-sft-v0.1-apertus2/tokens/tokens` |
+| Tokens v0.1 | `/iopsstor/scratch/cscs/rkreft/v0_1_chonk_sft_tokenized/factuality-v0.1/{full,16k}/tokens` |
+| Tokens, old tokenizer | `/capstor/store/cscs/swissai/infra01/datasets/factuality-sft-v0.1-apertus2/tokens/tokens` |
 | Native, check | `.../factuality-sft-v0.1-apertus2/{native,check}` |
 
-### Math + STEM v2
+### STEM SFT v3
 
-- Inclusion: open (?). The thinking effort is mixed per row, against the `medium`
-  requirement; decontamination against the Apertus eval suite is still running; Davit
-  says Antonio will provide a new initial STEM set
-- Provider: Antonio Lopardo, 2026-10-20, announced on
-  [apertus-program #1197](https://github.com/swiss-ai/apertus-program/issues/1197#issuecomment-6314466921);
-  sources in the [STEM Expert data sheet](https://docs.google.com/spreadsheets/d/1mRXLV7aqNoLp4yDp0s9v39aD66f_VCQhJmw_upbwd8Y/edit);
-  code github.com/AntonioLopardo/stem-sft (private)
-- Format: `low`/`medium`/`high` per row (`proofs_v3` and most of `ot3_math` are `high`);
-  loss weights written; check 0 failing rows; samples contradicting the reference dropped;
-  exact dedup; capped at 64k (longer dropped)
-- Decontamination: verbatim matches of 80+ characters only
-- Overlaps: `synthetic2` is also in Code SFT v1; `nemotron_math_v2` shares AoPS problems with
-  Nemotron-SFT-Math-v4; `llmjp_stem` and `osr2` lack a subject filter
+- Provider: Davit Melikidze with Antonio Lopardo's stem-sft pipeline; v3 2026-10-28
+  (announced on Slack), after v1 (2026-10-27, Slack DM). Replaces Math + STEM v2
+  (`stem_apertus_v2/sft/apertus2/latest`). v2 (11:19) has the same rows; v4 (18:58, not
+  announced) drops `deepmath` and 3,885 excluded ids (423,254 rows, 1.39B tokens)
+- Content: seven sets, 182,134 science and 319,768 math rows. A claim holds the boxed
+  answer or the answer letter; 1,662 rows have none
+- Format: `medium` in every row; the source effort is kept in `source_thinking` (none
+  233,853, low 121,858, medium 138,370, high 7,821). The four v1 sets have source reasoning;
+  `openmathreasoning`, `deepmath` and `openr1_math_default` have none. 30,313
+  `nemotron_math_v2` rows call Python. No loss weights; the provider's check reports 0
+  failing rows; v3 checked here with 0 failing rows of 501,902 (2026-10-29)
+- Decontamination: stage 04 against 595 benchmarks (8-grams, threshold 0.5); the v1 sets
+  lost 5,146 rows, the new sets were decontaminated separately with the same settings
+- Tokenized 2026-10-28 (v0.1): 1,675,513,933 tokens, p50 3,080, p90 6,208, max 8,192 (the
+  provider caps at 8,192, so the 16k build is identical)
+- Open: no validation split (use `apertus-data split`); `synthetic2` is also in Code SFT v1
 
-| Set | Version | Source | Teacher | Licence | Train docs | Tokens |
-|---|---|---|---|---|---|---|
-| `nemotron_math_v2` | v0.4 | Nemotron-Math-v2, AoPS CC BY rows | gpt-oss-120b | CC BY 4.0 | 1,969,777 | 18.60B |
-| `ot3_math` | v0.4 | Dolci-Think-SFT-32B, OpenThoughts3 math | QwQ-32B | ODC-BY per sheet, Apache 2.0 per README | 720,882 | 15.34B |
-| `osr2` | v0.5 | OpenScienceReasoning-2 | DeepSeek-R1-0528 | CC BY 4.0 | 1,598,971 | 10.00B |
-| `proofs_v3` | v0.1 | Nemotron-Math-Proofs-v3-SFT | DeepSeek-V4-Pro | CC BY 4.0 | 237,081 | 9.57B |
-| `synthetic2` | v0.4 | SYNTHETIC-2-SFT-verified | DeepSeek-R1-0528 | Apache 2.0 | 53,606 | 0.55B |
-| `science_v1_mcq` | v0.5 | Nemotron-Science-v1 | gpt-oss-120b | CC BY 4.0 | 173,908 | 0.52B |
-| `llmjp_stem` | v0.4 | llm-jp-4.1-thinking-sft-data | gpt-oss-120b | CC BY 4.0 | 280,825 | 0.30B |
-| `science_v1_rqa` | v0.4 | Nemotron-Science-v1 | gpt-oss-120b | CC BY 4.0 | 52,084 | 0.30B |
+| Set | Source | Teacher | Licence | Train docs | Tokens |
+|---|---|---|---|---|---|
+| `nemotron_math_v2` | Nemotron-Math-v2 (`math.medium`) | gpt-oss-120b | CC BY 4.0 | 70,631 | 0.32B |
+| `science_v1_mcq` | Nemotron-Science-v1 MCQ | gpt-oss-120b | CC BY 4.0 | 139,263 | 0.25B |
+| `science_v1_rqa` | Nemotron-Science-v1 RQA | gpt-oss-120b | CC BY 4.0 | 42,871 | 0.16B |
+| `synthetic2` | SYNTHETIC-2-SFT-verified | DeepSeek-R1-0528 | Apache 2.0 | 15,284 | 0.07B |
+| `openmathreasoning` | OpenMathReasoning | | not checked | 117,839 | 0.46B |
+| `deepmath` | DeepMath | | not checked | 74,763 | 0.27B |
+| `openr1_math_default` | OpenR1-Math (`default`) | | not checked | 41,251 | 0.15B |
 
-Validation: 5,195 docs in total.
+Token counts per set come from the provider's `stats.json`.
 
 | Stage | Path |
 |---|---|
-| Tokens | `/capstor/store/cscs/swissai/infra01/datasets/stem_apertus_v2/sft/apertus2/latest/<set>/tokens/{train,validation}/tokens` |
-| Native, check | `.../latest/<set>/{native,check}/{train,validation}` |
+| Tokens v0.1 | `/iopsstor/scratch/cscs/rkreft/v0_1_chonk_sft_tokenized/stem-v3/{full,16k}/tokens` |
+| Native | `/capstor/store/cscs/swissai/infra01/datasets/experts/STEM/apertus2_stem_sft_v3/train` (`stats.json` one level up) |
+| Check | `/iopsstor/scratch/cscs/rkreft/apertus2-processing/stem-sft-v3-check` |
 
 ### Code SFT v1
 
@@ -205,10 +214,14 @@ Validation: 5,195 docs in total.
 - Decontamination: against 15 code benchmarks (HumanEval, MBPP, LiveCodeBench, APPS,
   CodeContests, BigCodeBench, MultiPL-E, McEval, SWE-bench variants); exact containment of
   80+ characters or 5-token Jaccard ≥ 0.80; 834,430 rows removed (1.7%); no dedup
-- Licence: per set in `code_posttrain/openai_sft/dataset_inventory.csv`. About 1.5M rows
-  are questionable: CC BY-NC (KodCode, 893k), CC BY-NC-SA (CodeExercise), CC BY-SA
-  (McEval-Instruct), OpenRAIL-M (Code-Evol-Instruct), unknown (Sera, Mocha, alquistcoder,
-  Mixture-of-Thoughts, SYNTHETIC-2 SFT and others; 569k)
+- Licence: per set in `code_posttrain/openai_sft/dataset_inventory.csv`; matches the
+  Hugging Face licence field of all 76 sets (checked 2026-10-28). About 1.27M rows are
+  questionable: CC BY-NC (KodCode, 893k), CC BY-NC-SA (CodeExercise, 27k), CC BY-SA
+  (McEval-Instruct, 36k), OpenRAIL-M (Code-Evol-Instruct, 4k), none declared (Mocha,
+  Mixture-of-Thoughts, SYNTHETIC-2 SFT, Terminal-Lego, LiteCoder World Model; 306k). The
+  inventory's "unknown" Sera (ODC-By, "intended for research and educational use") and
+  alquistcoder (MIT for synthetic content, public subsets under their own licences) state a
+  licence in their README text; 264k rows to check
 - Access: final path confirmed by Roman; move and permissions done 2026-10-26, all 78,125
   shards present and group-readable (466 GB `code_sft`, 109 GB `code_agentic`)
 - Open: not tokenized; 48M rows need per-set sampling
@@ -218,3 +231,27 @@ Validation: 5,195 docs in total.
 | Native | `/capstor/store/cscs/swissai/infra01/datasets/code_posttrain/sft/decontaminated/datasets/{code_sft,code_agentic}/<org>/<set>/shard-*/native.parquet` |
 | Check | `.../code_posttrain/sft/decontaminated/check` |
 | Raw | `.../code_posttrain/sft/{code_sft,code_agentic}`; OpenAI-format export in `.../code_posttrain/openai_sft` |
+
+## Development Datasets
+
+### Nemotron-SFT-Math-v4
+
+- Provider: Raphael Kreft, 2026-10-19; mapper `mappers/nemotron_math.py`. Own development
+  set for this pipeline, not part of the SFT mix
+- Content: AoPS and Math StackExchange problems solved by DeepSeek-V4-Pro; `cot` (285,516)
+  and `tir` with Python tool rounds (259,892); the `\boxed{}` answer is a claim
+- Format: `medium` (source generated in high mode); source reasoning as thinks, empty
+  thinks only between some `tir` tool rounds; no loss weights; check 0 failing rows
+- Licence: per row, CC BY 4.0 (AoPS) or CC BY-SA 4.0 (Math StackExchange). Antonio's sheet
+  keeps only the CC BY rows of this release; the SA rows probably need filtering
+- Tokenized 2026-10-28 with apertus-common `494c2be` and tokenizer `b801ff1`: 7,166,294,899
+  tokens. Length: p50 5,456, p90 35,745, p99 90,589, max 205,116; 23.7% over 16k. The 16k cap
+  keeps 415,906 documents and 2,124,700,666 tokens (p50 3,772, p99 15,798)
+- Open: all stages are on scratch (last read 2026-10-28, purge from about 2026-11-11)
+
+| Stage | Path |
+|---|---|
+| Tokens, ≤16k | `/iopsstor/scratch/cscs/rkreft/apertus2-processing/nemotron-math-tokens-16k/tokens` |
+| Tokens | `/iopsstor/scratch/cscs/rkreft/apertus2-processing/nemotron-math-tokens/tokens` |
+| Native, check | `/iopsstor/scratch/cscs/rkreft/apertus2-processing/nemotron-math-{native,check}` |
+| Raw | `nvidia/Nemotron-SFT-Math-v4` on Hugging Face |
