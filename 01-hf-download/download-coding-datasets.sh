@@ -22,7 +22,7 @@
 # Datasets that load_dataset cannot build are in download-coding-raw-datasets.sh.
 # bigcode/commitpackft (277 language configs) has its own script, hf-download-commitpackft.py.
 #
-# Datasets with several configs (e.g. SWE-bench_Pro, rStar-Coder,
+# Datasets with several configs (e.g. rStar-Coder,
 # Mixture-of-Thoughts) may fail without --subset; add an entry to SUBSETS below.
 
 set -euo pipefail
@@ -61,7 +61,6 @@ declare -A SUBSETS=(
     ["open-r1/Mixture-of-Thoughts"]="code"
     ["OpenCoder-LLM/opc-sft-stage1"]="filtered_infinity_instruct largescale_diverse_instruct realuser_instruct"
     ["OpenCoder-LLM/opc-sft-stage2"]="educational_instruct evol_instruct mceval_instruct package_instruct"
-    ["Multilingual-Multimodal-NLP/McEval"]="generation"
     ["GAIR/daVinci-Dev"]="filtered_repos llm_enhanced_prs"
     ["openbmb/UltraData-SFT-2605"]="Code"
     ["GAIR/OpenSWE"]="openswe_oss"
@@ -91,8 +90,6 @@ declare -A ENV_FOR=(
 
 # Datasets whose loading script has to be run (needs the default datasets 3.x env).
 declare -A TRUST_REMOTE_CODE=(
-    ["codeparrot/apps"]=1
-    ["livecodebench/code_generation_lite"]=1
 )
 
 # Datasets that are known to fail with hf-download.py and are not submitted.
@@ -134,31 +131,13 @@ DATASETS=(
     OpenCoder-LLM/opc-sft-stage2
     PrimeIntellect/SYNTHETIC-1
     PrimeIntellect/SYNTHETIC-1-SFT-Data
-    PrimeIntellect/SYNTHETIC-2-Base-Code
-    PrimeIntellect/SYNTHETIC-2-Base-R1-SFT
     PrimeIntellect/SYNTHETIC-2-SFT-unverified
     PrimeIntellect/SYNTHETIC-2-SFT-verified
     sahil2801/CodeAlpaca-20k
     tudor-iustin22/maple
 
-    # --- Code benchmarks ---
-    bigcode/bigcodebench
-    codeparrot/apps
-    deepmind/code_contests
-    evalplus/humanevalplus
-    evalplus/mbppplus
-    google-research-datasets/mbpp
-    livecodebench/code_generation_lite
-    Multilingual-Multimodal-NLP/McEval
-    openai/openai_humaneval
-
     # --- SWE / agentic coding ---
     nvidia/Nemotron-Cascade-SFT-SWE
-    ScaleAI/SWE-bench_Pro
-    SWE-bench/SWE-bench
-    SWE-bench/SWE-bench_Lite
-    SWE-bench/SWE-bench_Multilingual
-    SWE-bench/SWE-bench_Verified
     open-thoughts/OpenThoughts-Agent-SFT-ColdStartForRL-10K
     open-thoughts/OpenThoughts-Agent-v1-SFT
     ukisai/Qwen3.8-27B-multi-turn-agent-sft
@@ -198,7 +177,6 @@ DATASETS=(
     ai-and/termgrade-trajectories
     open-athena/recursive-task-synthesis-glm-5.3-rollouts
     Zhongzhi1228/Recursive-Task-Synthesis-Trajectories
-    AweAI-Team/CalibForge
     shunzou05/TerminalHorizon-3K
     m-a-p/TerminalTraj
 )
