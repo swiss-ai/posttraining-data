@@ -23,3 +23,12 @@ SWE-bench_Lite
 SWE-bench_Multilingual
 SWE-bench_Pro
 SWE-bench_Verified
+
+# No training text: a list of GitHub repositories (deleted from disk)
+daVinci-Dev-filtered_repos
+
+# Not SFT conversations in the form we have; kept on disk, not processed
+# OpenSWE: environments with a gold patch, no agent trajectories
+OpenSWE-openswe_oss
+# daVinci-Dev: structured pull-request records meant to be rendered into mid-training text
+daVinci-Dev-llm_enhanced_prs

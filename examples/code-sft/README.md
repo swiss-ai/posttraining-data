@@ -82,6 +82,30 @@ This is native Apertus 2, separate from the legacy conversation-branches schema.
 Use the appropriate downstream native reader. Source/split selection is explicit;
 this standardiser does not guess domain or perform license/quality/mixture filtering.
 
+## Trajectories packed in tar shards (Terminus-2 / ATIF)
+
+Some releases keep the agent trajectories in tar shards, one directory per trial, with
+only a catalog table next to them (`Recursive-Task-Synthesis-Trajectories`, the GLM-5.3
+rollouts). `load_dataset` never reads those tars. Download the whole repository as raw
+files (`01-hf-download/download-coding-raw-datasets.sh`), then rehydrate the
+trajectories into JSONL rows with a `messages` array and standardise those:
+
+```bash
+uv run python pipeline.py atif --input /path/to/download --output /path/to/atif-jsonl
+uv run python pipeline.py standardise --input /path/to/atif-jsonl --output /path/to/native \
+  --repo owner/name --revision COMMIT --category code_agentic
+```
+
+Both ATIF-v1.7 layouts are read: `trajectories/<id>/trajectory.json` (the agent message is
+the raw Terminus-2 JSON reply) and `<execution>/agent/trajectory.json` (the commands are
+structured `bash_command` / `mark_task_complete` tool calls and the reasoning is a
+separate field). Agent messages are kept as they are; structured tool calls are appended
+as `<tool_call>` blocks in call order, which `standardise` maps into one ordered command
+batch with keystrokes and durations unchanged; each observation becomes the next user
+turn. Trials without an agent trajectory (the gold-solution runs of the rollouts) are
+counted and skipped. The verifier reward is kept as `reward` in the row and is not used
+to filter. `--limit N` stops after N trajectories, which is what the smoke test uses.
+
 ## Optional native tokenization
 
 ```bash

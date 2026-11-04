@@ -10,6 +10,7 @@ ROOT = Path(__file__).resolve().parents[2]
 STANDARD = ROOT / "02-standardisation/code-sft"
 DECONTAMINATION = ROOT / "04-decontamination/code-sft"
 STAGES = {
+    "atif": STANDARD / "atif_trajectories.py",
     "standardise": STANDARD / "standardise_native.py",
     "unify": STANDARD / "standardise_native.py",
     "benchmarks": DECONTAMINATION / "benchmarks.py",

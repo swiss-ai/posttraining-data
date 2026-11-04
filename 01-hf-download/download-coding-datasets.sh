@@ -61,12 +61,11 @@ declare -A SUBSETS=(
     ["open-r1/Mixture-of-Thoughts"]="code"
     ["OpenCoder-LLM/opc-sft-stage1"]="filtered_infinity_instruct largescale_diverse_instruct realuser_instruct"
     ["OpenCoder-LLM/opc-sft-stage2"]="educational_instruct evol_instruct mceval_instruct package_instruct"
-    ["GAIR/daVinci-Dev"]="filtered_repos llm_enhanced_prs"
+    ["GAIR/daVinci-Dev"]="llm_enhanced_prs"
     ["openbmb/UltraData-SFT-2605"]="Code"
     ["GAIR/OpenSWE"]="openswe_oss"
     ["nvidia/Nemotron-Terminal-Corpus"]="skill_based_easy skill_based_medium skill_based_mixed"
-    ["open-athena/recursive-task-synthesis-glm-5.3-rollouts"]="executions"
-    ["ai-and/termgrade-trajectories"]="trajectories_messages trajectories_terminus trials unit_test_results verifier_output"
+    ["ai-and/termgrade-trajectories"]="trajectories_messages"
 )
 
 # Datasets whose subsets are saved side by side as <name>/<subset> (one folder,
@@ -175,8 +174,6 @@ DATASETS=(
     open-thoughts/OpenThoughts-Agent-SFT-31.6K
     open-thoughts/OpenThoughts-Agent-SFT-316
     ai-and/termgrade-trajectories
-    open-athena/recursive-task-synthesis-glm-5.3-rollouts
-    Zhongzhi1228/Recursive-Task-Synthesis-Trajectories
     shunzou05/TerminalHorizon-3K
     m-a-p/TerminalTraj
 )

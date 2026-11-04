@@ -34,7 +34,10 @@ import traceback
 from collections import Counter
 from pathlib import Path
 
-RAW_SUFFIXES = (".jsonl", ".parquet", ".json")
+RAW_SUFFIXES = (".jsonl", ".parquet", ".json", ".tar")
+
+# The trajectory converter lives next to the standardiser
+sys.path.insert(0, str(Path(__file__).resolve().parent / "02-standardisation" / "code-sft"))
 
 
 def log(msg):
@@ -86,6 +89,9 @@ def sample_raw(unit_dir, meta, sample_root, rows, max_files):
     import pyarrow.parquet as pq
 
     files = [f["path"] for f in meta["files"] if Path(f["path"]).suffix in RAW_SUFFIXES]
+    if any(f.endswith(".tar") for f in files):
+        # Trajectory packages: the tars hold the data, the other files are catalogs
+        files = [f for f in files if f.endswith(".tar")]
     out = []
     for rel in files[:max_files]:
         src = unit_dir / rel
@@ -95,7 +101,13 @@ def sample_raw(unit_dir, meta, sample_root, rows, max_files):
             shutil.rmtree(target)
         target.mkdir(parents=True)
         suffix = src.suffix
-        if suffix == ".jsonl":
+        if suffix == ".tar":
+            # ATIF trajectories -> chat rows (02-standardisation/code-sft/atif_trajectories.py)
+            from atif_trajectories import convert
+
+            counts = convert([src], target, limit=rows)
+            dest, n = target / "part-00000.jsonl", counts["written"]
+        elif suffix == ".jsonl":
             dest, n = target / "sample.jsonl", 0
             with open(src, "rb") as fin, open(dest, "wb") as fout:
                 for _ in range(rows):

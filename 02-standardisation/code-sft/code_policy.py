@@ -7,8 +7,10 @@ TERMINAL_SOURCES = {
     "Lego-X/Terminal-Lego-Traj-Deepseek-V3-2-15k",
     "Lite-Coder/LiteCoder-Terminal-SFT",
     "Lite-Coder/LiteCoder-Terminal-World-Model-SFT",
+    "open-athena/recursive-task-synthesis-glm-5.3-rollouts",
     "open-thoughts/OpenThoughts-Agent-v1-SFT",
     "ukisai/Qwen3.8-27B-multi-turn-agent-sft",
+    "Zhongzhi1228/Recursive-Task-Synthesis-Trajectories",
 }
 
 VERSION = "code-only-1"

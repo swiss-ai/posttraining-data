@@ -66,6 +66,11 @@ ENTRIES=(
     # Irregular nested columns: pyarrow cannot convert them in one chunk
     "nvidia/Nemotron-Terminal-Corpus|dataset_adapters|dataset_adapters/*"
 
+    # The trajectories are in tar shards that load_dataset does not read; the catalogs
+    # come along. Convert with: pipeline.py atif --input <folder> --output <jsonl folder>
+    "Zhongzhi1228/Recursive-Task-Synthesis-Trajectories||*"
+    "open-athena/recursive-task-synthesis-glm-5.3-rollouts||*"
+
     # Tool-call argument schemas differ between rows, so load_dataset cannot cast them
     "openbmb/UltraData-SFT-Agent-2609|Code-Agent|data/Code_Agent/*.jsonl"
     "openbmb/UltraData-SFT-Agent-2609|General-Agent|data/General_Agent/*.jsonl"
