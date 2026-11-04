@@ -17,6 +17,8 @@
 #   --dry-run         show what would be submitted, submit nothing
 #   --report          print a table of the results so far and exit
 #   --force           also resubmit datasets that already have an "ok" summary
+#   --include-excluded  also take the datasets in smoke-all-swe-terminal-exclude.txt
+#                     (benchmarks and prompt-only sets that are not processing targets)
 #   --rows N          rows per sample (default 5)
 #   --max-subsets N   sub-datasets sampled per dataset folder, e.g. commitpackft has 277
 #                     languages (default 5)
@@ -58,7 +60,8 @@ BENCHMARKS="${BENCHMARKS:-$REPO_DIR/_code_sft/evaluation}"
 CATEGORY_REF="${CATEGORY_REF:-/capstor/store/cscs/swissai/infra01/datasets/code_posttrain/sft}"
 PY="$CONDA_ROOT/envs/$CONDA_ENV/bin/python"
 
-DRY_RUN=0; LIST=0; REPORT=0; FORCE=0
+EXCLUDE_FILE="${EXCLUDE_FILE:-$REPO_DIR/smoke-all-swe-terminal-exclude.txt}"
+DRY_RUN=0; LIST=0; REPORT=0; FORCE=0; INCLUDE_EXCLUDED=0
 PATTERNS=()
 
 while (( $# )); do
@@ -67,6 +70,7 @@ while (( $# )); do
         --list) LIST=1 ;;
         --report) REPORT=1 ;;
         --force) FORCE=1 ;;
+        --include-excluded) INCLUDE_EXCLUDED=1 ;;
         --rows) ROWS="$2"; shift ;;
         --max-subsets) MAX_SUBSETS="$2"; shift ;;
         --max-files) MAX_FILES="$2"; shift ;;
@@ -88,7 +92,9 @@ while (( $# )); do
 done
 
 if (( REPORT )); then
-    exec "$PY" "$RUNNER" --report --out "$OUT" --src "$SRC"
+    report_args=(--report --out "$OUT" --src "$SRC")
+    (( INCLUDE_EXCLUDED )) || report_args+=(--exclude-file "$EXCLUDE_FILE")
+    exec "$PY" "$RUNNER" "${report_args[@]}"
 fi
 
 # Datasets that can be submitted: folders with a dataset_metadata.json here or one level down.
@@ -99,8 +105,23 @@ mapfile -t ALL < <(for d in "$SRC"/*/; do
     fi
 done | sort)
 
+# Datasets that are not processing targets (see the exclude file)
+EXCLUDED=()
+if [[ -f "$EXCLUDE_FILE" ]]; then
+    while IFS= read -r line; do
+        line="${line%%#*}"; line="${line//[[:space:]]/}"
+        [[ -n "$line" ]] && EXCLUDED+=("$line")
+    done < "$EXCLUDE_FILE"
+fi
+is_excluded() { [[ " ${EXCLUDED[*]:-} " == *" $1 "* ]]; }
+
+TARGETS=()
+for n in "${ALL[@]}"; do
+    if (( INCLUDE_EXCLUDED )) || ! is_excluded "$n"; then TARGETS+=("$n"); fi
+done
+
 if (( LIST )); then
-    for n in "${ALL[@]}"; do
+    for n in "${TARGETS[@]}"; do
         if [[ -f "$SRC/$n/dataset_metadata.json" ]]; then
             kind="dataset"
             grep -q '"snapshot_download' "$SRC/$n/dataset_metadata.json" && kind="raw files"
@@ -109,14 +130,17 @@ if (( LIST )); then
             echo "$n  ($(ls -d "$SRC/$n"/*/ | wc -l) sub-datasets)"
         fi
     done
-    echo "${#ALL[@]} datasets in $SRC"
+    echo "${#TARGETS[@]} datasets in $SRC"
+    if (( ${#TARGETS[@]} < ${#ALL[@]} )); then
+        echo "$(( ${#ALL[@]} - ${#TARGETS[@]} )) more are excluded (see $EXCLUDE_FILE, --include-excluded)"
+    fi
     exit 0
 fi
 
 # Choose the datasets
 SELECTED=()
 if (( ${#PATTERNS[@]} == 0 )); then
-    SELECTED=("${ALL[@]}")
+    SELECTED=("${TARGETS[@]}")
 else
     for pat in "${PATTERNS[@]}"; do
         matched=0
@@ -124,6 +148,10 @@ else
             # shellcheck disable=SC2053
             if [[ "$n" == $pat ]]; then
                 matched=1
+                if (( ! INCLUDE_EXCLUDED )) && is_excluded "$n"; then
+                    echo "Not submitting $n: it is in the exclude file (--include-excluded to submit it)"
+                    continue
+                fi
                 [[ " ${SELECTED[*]:-} " == *" $n "* ]] || SELECTED+=("$n")
             fi
         done

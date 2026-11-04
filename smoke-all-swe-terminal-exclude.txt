@@ -1,0 +1,25 @@
+# Datasets that smoke-all-swe-terminal.sh does not submit and --report does not count.
+# One dataset folder name per line; everything after # is a comment.
+# They are not targets of the processing: they have no assistant response to train on.
+# Use --include-excluded to submit them anyway.
+
+# Prompt-only: "Training sample must end with an assistant target"
+SYNTHETIC-2-Base-Code
+SYNTHETIC-2-Base-R1-SFT
+
+# Benchmarks and prompt-only sets: no assistant response, or no messages field
+CalibForge
+apps
+bigcodebench
+code_contests
+code_generation_lite
+humanevalplus
+mbpp
+mbppplus
+openai_humaneval
+McEval-generation
+SWE-bench
+SWE-bench_Lite
+SWE-bench_Multilingual
+SWE-bench_Pro
+SWE-bench_Verified

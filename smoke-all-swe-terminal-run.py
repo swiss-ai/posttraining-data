@@ -300,7 +300,14 @@ def run_dataset(args):
 
 def report(args):
     out = Path(args.out)
-    summaries = {p.parent.name: json.load(open(p)) for p in sorted(out.glob("*/summary.json"))}
+    excluded = set()
+    if args.exclude_file and Path(args.exclude_file).exists():
+        for line in open(args.exclude_file):
+            name = line.split("#", 1)[0].strip()
+            if name:
+                excluded.add(name)
+    summaries = {p.parent.name: json.load(open(p)) for p in sorted(out.glob("*/summary.json"))
+                 if p.parent.name not in excluded}
     names = sorted(summaries)
     rows = []
     for n in names:
@@ -318,10 +325,12 @@ def report(args):
     for n, overall, ok, nr, fl, issue in rows:
         print(f"{n:{width}}  {overall:7}  {ok:2}  {nr:7}  {fl:6}  {issue}")
     total_ok = sum(1 for r in rows if r[1] == "ok")
-    print(f"\n{total_ok} of {len(rows)} datasets with a summary are fully ok")
+    print(f"\n{total_ok} of {len(rows)} datasets with a summary are fully ok"
+          + (f" ({len(excluded)} excluded datasets are not counted)" if excluded else ""))
     if args.src:
         missing = sorted(p.name for p in Path(args.src).iterdir()
-                         if p.is_dir() and p.name not in summaries and not p.name.startswith("."))
+                         if p.is_dir() and p.name not in summaries and p.name not in excluded
+                         and not p.name.startswith("."))
         print(f"{len(missing)} dataset folders in {args.src} have no summary yet" +
               (f": {', '.join(missing[:12])}{' ...' if len(missing) > 12 else ''}" if missing else ""))
     return 0
@@ -344,6 +353,7 @@ def main():
     p.add_argument("--memory-limit", default="16GB")
     p.add_argument("--timeout", type=int, default=3600, help="seconds per step")
     p.add_argument("--report", action="store_true", help="print a table over all summaries")
+    p.add_argument("--exclude-file", help="with --report: datasets listed here are left out of the table")
     args = p.parse_args()
     if args.report:
         sys.exit(report(args))
