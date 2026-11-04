@@ -10,6 +10,13 @@ date). The metadata file is written last, so a language that has one is complete
 This is a script-based dataset, so it needs `datasets` < 4 (4.0 removed dataset
 scripts) and it runs the dataset's loading script from the Hub.
 
+Exception: the languages with a "#" in the name (c#, f#) cannot go through that
+script. It pre-escapes them ("c#" -> "c%23") and `datasets` escapes the "%" again,
+so the request is for ".../c%2523/data.jsonl" and the Hub answers 404. For those the
+script fetches data/<language>/data.jsonl directly and loads it with the json
+loader, using the same 10 string columns the loading script declares. The metadata
+says so in "loaded_from".
+
 Languages that are already complete are skipped, so the script can be rerun to
 resume. A summary is written to commitpackft/_all_configs.json. The exit code is 1
 if any language failed.
@@ -28,13 +35,20 @@ from pathlib import Path
 
 try:
     import datasets
-    from datasets import get_dataset_config_names, load_dataset
-    from huggingface_hub import HfApi
+    from datasets import Features, Value, get_dataset_config_names, load_dataset
+    from huggingface_hub import HfApi, hf_hub_download
 except ImportError:
     print("Error: datasets library not found. Please install with: pip install datasets==3.3.2")
     sys.exit(1)
 
 DATASET = "bigcode/commitpackft"
+
+# The schema commitpackft.py declares for every language.
+FEATURES = Features({
+    name: Value("string")
+    for name in ["commit", "old_file", "new_file", "old_contents", "new_contents",
+                 "subject", "message", "lang", "license", "repos"]
+})
 
 
 def download_config(config, root, revision):
@@ -42,10 +56,22 @@ def download_config(config, root, revision):
     folder = root / config
     folder.mkdir(parents=True, exist_ok=True)
 
-    dataset = load_dataset(
-        DATASET, config, revision=revision,
-        cache_dir=str(folder / ".cache"), trust_remote_code=True,
-    )
+    cache_dir = str(folder / ".cache")
+    loaded_from = None
+    if "#" in config:
+        # The loading script double-escapes "#" (see the module docstring)
+        loaded_from = f"data/{config}/data.jsonl (json loader, bypassing the dataset script)"
+        path = hf_hub_download(
+            DATASET, f"data/{config}/data.jsonl", repo_type="dataset",
+            revision=revision, cache_dir=cache_dir,
+        )
+        dataset = load_dataset(
+            "json", data_files={"train": path}, features=FEATURES, cache_dir=cache_dir
+        )
+    else:
+        dataset = load_dataset(
+            DATASET, config, revision=revision, cache_dir=cache_dir, trust_remote_code=True,
+        )
 
     metadata = {
         "dataset_name": DATASET,
@@ -55,6 +81,8 @@ def download_config(config, root, revision):
         "download_date": datetime.now().isoformat(),
         "datasets_library_version": datasets.__version__,
     }
+    if loaded_from:
+        metadata["loaded_from"] = loaded_from
 
     # DatasetDict: take the info of the first split
     info = None

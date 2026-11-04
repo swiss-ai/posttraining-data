@@ -13,6 +13,8 @@ tests/
 judge-analysis/*.jsonl
 judge-analysis/*.json
 08-judge-evaluation/judge-analysis/
+_code_sft/
+smoke_all_swe_terminal/
 
 # Code-SFT recipe environments, artifacts and tracked fixtures.
 .venv/
