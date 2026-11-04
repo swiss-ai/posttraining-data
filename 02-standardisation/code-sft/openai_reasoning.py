@@ -10,15 +10,50 @@ PROTOCOL = re.compile(
     re.S,
 )
 INLINE = re.compile(r"(`+)([^\n]*?)\1")
-IMPLICIT_OPEN_REPOS = {"microsoft/rStar-Coder", "Modotte/CodeX-7M-Non-Thinking"}
+# Responses carry the reasoning without the opening tag (it was part of the generation prompt);
+# a lone closing tag then ends the reasoning. Responses with an explicit <think> are unaffected.
+IMPLICIT_OPEN_REPOS = {
+    "microsoft/rStar-Coder",
+    "Modotte/CodeX-7M-Non-Thinking",
+    "IIGroup/X-Coder-SFT-376k",
+}
 
 
 def visible_tokens(text):
+    """Think tags outside Markdown code literals.
+
+    A reasoning that stops inside a code block leaves a fence open. That fence hides the
+    closing think tag, either by running to the end of the text or by pairing with a fence
+    in the answer. In that case the text is read without fence masking, but only when it
+    is then exactly a leading opening tag followed by a single closing tag that is followed
+    by whitespace, the end of the text or the start of a JSON reply; any other layout keeps the code mask.
+    """
+    result = _visible_tokens(text, mask_fences=True)
+    if (
+        isinstance(text, str)
+        and not (len(result) == 2 and not result[0][2] and result[1][2])
+    ):
+        alternative = _visible_tokens(text, mask_fences=False)
+        if (
+            alternative != result
+            and len(alternative) == 2
+            and not alternative[0][2]
+            and alternative[1][2]
+            and not text[: alternative[0][0]].strip()
+            # a real closing tag ends its line or is followed by a JSON reply; an
+            # example inside code has other code after it
+            and (text[alternative[1][1] : alternative[1][1] + 1] or " ").strip() in ("", "{", "[")
+        ):
+            return alternative
+    return result
+
+
+def _visible_tokens(text, mask_fences):
     if not isinstance(text, str) or not TOKEN.search(text):
         return []
     spans = []
     opened = None
-    for match in FENCE.finditer(text):
+    for match in FENCE.finditer(text) if mask_fences else ():
         fence = match[1]
         if opened is None:
             opened = (match.start(), fence)

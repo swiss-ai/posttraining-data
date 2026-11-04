@@ -424,6 +424,31 @@ def convert(snapshot):
                         "execution": "none_detected_by_source_harness",
                     }
                 )
+    if shell_source:
+        # A shell-agent turn with several bash blocks that the harness itself rejected
+        # ("found N actions", N = the number of blocks): nothing was executed, so there
+        # is no order to establish. The turn stays assistant text, the notice user text.
+        for index in range(len(messages) - 1):
+            action, feedback = messages[index : index + 2]
+            if action.get("role") != "assistant" or decode(action.get("tool_calls")):
+                continue
+            count = len(
+                re.findall(r"```bash\s*\n(.*?)\n```", str(action.get("content") or ""), re.S)
+            )
+            notice = re.match(
+                r"\s*Please always provide EXACTLY ONE action in triple backticks, found (\d+) actions?\b",
+                str(feedback.get("content") or ""),
+            )
+            if count > 1 and notice and int(notice[1]) == count:
+                rejected_xml_actions.add(index)
+                source_repairs.append(
+                    {
+                        "kind": "explicit_harness_nonexecution",
+                        "assistant_source_index": message_origins[index][0],
+                        "feedback_source_index": message_origins[index + 1][0],
+                        "execution": "none_detected_by_source_harness",
+                    }
+                )
     output, pending, used = [], [], set()
     observed = {}
     protocol_changed = bool(source_repairs)
@@ -494,11 +519,9 @@ def convert(snapshot):
             if role == "assistant":
                 if pending:
                     raise ValueError("New assistant turn before all tool results")
-                closing_only = repo in {
-                    "microsoft/rStar-Coder",
-                    "Modotte/CodeX-7M-Non-Thinking",
-                }
-                content, extracted = reasoning_parts(content, closing_only)
+                from openai_reasoning import IMPLICIT_OPEN_REPOS
+
+                content, extracted = reasoning_parts(content, repo in IMPLICIT_OPEN_REPOS)
                 # Sera thought often duplicates the ENTIRE assistant content,
                 # not just its reasoning. Compare after the same tag parser.
                 for key in (
@@ -555,7 +578,7 @@ def convert(snapshot):
                         changes.append(
                             "Mapped shell-agent command and execution output"
                         )
-                    elif len(blocks) > 1:
+                    elif len(blocks) > 1 and i not in rejected_xml_actions:
                         raise ValueError(
                             "Multiple bash blocks: execution order not explicit"
                         )
@@ -574,7 +597,7 @@ def convert(snapshot):
                         ).strip()
                         protocol_changed = True
                         changes.append("Mapped CodeAct execute/observation protocol")
-                    elif len(blocks) > 1:
+                    elif len(blocks) > 1 and i not in rejected_xml_actions:
                         raise ValueError(
                             "Multiple execute blocks require explicit observation mapping"
                         )
@@ -998,7 +1021,7 @@ def convert(snapshot):
             output.insert(0, {"role": "system", "content": override})
             for r in reasons:
                 r["message_index"] += 1
-    tools, tool_provenance = [], []
+    tools, tool_provenance, schema_repairs = [], [], []
     original_tools = decode(snapshot.get("decoded_tools")) or []
     if not isinstance(original_tools, list):
         issues.append("Tools are not a list")
@@ -1031,6 +1054,10 @@ def convert(snapshot):
         if not isinstance(f.get("parameters"), dict):
             issues.append(f"Tool {f.get('name')}: missing source parameter schema")
             continue
+        from openai_schema_repairs import repair_tool_schema
+
+        f["parameters"], repairs = repair_tool_schema(repo, f.get("name"), f["parameters"])
+        schema_repairs.extend(repairs)
         tools.append({"type": "function", "function": f})
         tool_provenance.append({"name": f.get("name"), "origin": "source"})
     defined = {t["function"].get("name") for t in tools}
@@ -1380,6 +1407,7 @@ def convert(snapshot):
         "source_message_extras": extras,
         "tool_provenance": tool_provenance,
         "source_repairs": source_repairs,
+        "schema_repairs": schema_repairs,
         "execution_provenance": execution_provenance,
         "trailing_observations": trailing_observations,
         "trailing_context": trailing_context,

@@ -120,6 +120,35 @@ class ReasoningIntegrityTests(unittest.TestCase):
             changed["stored_sample"]["source_record_json"] = json.dumps(changed_raw)
             self.assertEqual(convert(changed)["status"], "source_incomplete_reasoning")
 
+class UnclosedFenceTests(unittest.TestCase):
+    """Reasoning that stops inside a code block leaves a fence open that hides </think>."""
+
+    def test_fence_left_open_in_the_reasoning(self):
+        text = "<think>Check:\n```python\nx = 1\n</think>\nDone."
+        self.assertEqual(tag_errors(text), [])
+        answer, values = extract_leading(text)
+        self.assertEqual(answer, "Done.")
+        self.assertEqual(values, ["Check:\n```python\nx = 1"])
+
+    def test_fence_pairing_with_a_fence_in_the_answer(self):
+        text = "<think>Look:\n```\ncode\n</think>\nFix:\n```\nfixed\n```\n"
+        self.assertEqual(tag_errors(text), [])
+
+    def test_json_reply_directly_after_the_closing_tag(self):
+        text = '<think>Look:\n```\ncode\n</think>{"analysis": "a"}'
+        self.assertEqual(tag_errors(text), [])
+
+    def test_closer_inside_a_closed_code_block_is_still_a_literal(self):
+        # Reasoning never ends; the closing tag only appears as an example in code.
+        text = "<think>Reasoning\n```\nprint('</think>')\n```\nmore"
+        self.assertTrue(tag_errors(text))
+
+    def test_other_layouts_keep_the_code_mask(self):
+        # Two opening tags: not a lone leading pair
+        self.assertTrue(tag_errors("<think>a\n```\n</think><think>b"))
+        # Text before the opening tag
+        self.assertTrue(tag_errors("Intro <think>a\n```\nx</think>"))
+
 
 if __name__ == "__main__":
     unittest.main()
