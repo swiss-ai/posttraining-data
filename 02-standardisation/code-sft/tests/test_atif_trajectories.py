@@ -6,7 +6,7 @@ import tarfile
 
 import pytest
 
-from atif_trajectories import convert, iter_tar_rows, steps_to_messages
+from atif_trajectories import NotRebuilt, convert, iter_tar_rows, steps_to_messages
 
 PROMPT = 'Format your response as JSON ... "keystrokes" ...'
 
@@ -91,26 +91,69 @@ def test_json_reply_is_kept_verbatim_and_observation_becomes_user_turn():
     assert "reasoning_content" not in messages[1]
 
 
-def test_tool_calls_become_ordered_blocks_and_reasoning_stays_a_field():
+def test_tool_calls_are_rebuilt_as_the_json_reply_and_reasoning_stays_a_field():
     messages = steps_to_messages(TOOL_TRAJECTORY["steps"])
     assistant = messages[1]
     assert assistant["reasoning_content"] == "thinking"
-    assert assistant["content"].startswith("Analysis: a\nPlan: b\n<tool_call>")
-    blocks = [
-        json.loads(b.split("</tool_call>")[0].strip())
-        for b in assistant["content"].split("<tool_call>")[1:]
-    ]
-    assert [(b["name"], b["arguments"]["keystrokes"]) for b in blocks] == [
-        ("bash_command", "pwd\n"),
-        ("bash_command", "ls\n"),
-    ]
-    assert blocks[0]["arguments"]["duration"] == 0.1
-    final = messages[-1]
-    assert final["role"] == "assistant"
-    assert json.loads(final["content"].split("<tool_call>")[1].split("</tool_call>")[0]) == {
-        "name": "mark_task_complete",
-        "arguments": {},
+    assert assistant["content"] == json.dumps(
+        {
+            "analysis": "a",
+            "plan": "b",
+            "commands": [
+                {"keystrokes": "pwd\n", "duration": 0.1},
+                {"keystrokes": "ls\n", "duration": 0.5},
+            ],
+        },
+        indent=2,
+    )
+    assert assistant["atif_message"] == "Analysis: a\nPlan: b"
+    assert assistant["atif_tool_calls"] == TOOL_TRAJECTORY["steps"][1]["tool_calls"]
+    assert "<tool_call>" not in json.dumps(messages)
+    assert json.loads(messages[-1]["content"]) == {
+        "analysis": "done",
+        "plan": "none",
+        "commands": [],
+        "task_complete": True,
     }
+
+
+def test_reply_without_tool_calls_is_kept_as_the_harness_rejected_it():
+    broken = '{\n  "analysis": "bad "quote""\n}'
+    steps = [{"step_id": 1, "source": "agent", "message": broken}]
+    assert steps_to_messages(steps)[0]["content"] == broken
+
+
+@pytest.mark.parametrize(
+    "message, calls",
+    [
+        ("Some prose", [{"function_name": "bash_command", "arguments": {"keystrokes": "ls\n"}}]),
+        ("Analysis: a\nPlan: b\nPlan: c", [{"function_name": "bash_command", "arguments": {"keystrokes": "ls\n"}}]),
+        ("Analysis: a\nPlan: b", [{"function_name": "other", "arguments": {}}]),
+        (
+            "Analysis: a\nPlan: b",
+            [
+                {"function_name": "mark_task_complete", "arguments": {}},
+                {"function_name": "bash_command", "arguments": {"keystrokes": "ls\n"}},
+            ],
+        ),
+    ],
+)
+def test_steps_that_cannot_be_rebuilt_exactly_are_refused(message, calls):
+    with pytest.raises(NotRebuilt):
+        steps_to_messages([{"step_id": 1, "source": "agent", "message": message, "tool_calls": calls}])
+
+
+def test_trials_that_cannot_be_rebuilt_are_counted_and_skipped(tmp_path):
+    bad = dict(TOOL_TRAJECTORY, steps=[TOOL_TRAJECTORY["steps"][0], dict(TOOL_TRAJECTORY["steps"][1], message="prose")])
+    path = tmp_path / "bad.tar"
+    with tarfile.open(path, "w") as a:
+        add(a, "run_bad/agent/trajectory.json", json.dumps(bad))
+        add(a, "run_good/agent/trajectory.json", json.dumps(TOOL_TRAJECTORY))
+    counts = {}
+    with open(path, "rb") as f:
+        rows = list(iter_tar_rows(f, "bad.tar", counts))
+    assert [r["trajectory_id"] for r in rows] == ["run_good"]
+    assert counts["not_rebuilt"] == 1
 
 
 def test_unknown_step_source_is_an_error():
@@ -125,14 +168,14 @@ def test_both_layouts_are_read_and_trials_without_a_trajectory_are_counted(tmp_p
         rows = list(iter_tar_rows(f, "trajectories-0.tar", counts))
     assert len(rows) == 1 and rows[0]["trajectory_id"] == "t1"
     assert rows[0]["reward"] == 1.0 and rows[0]["model_name"] == "m"
-    assert counts == {"trials": 1, "no_trajectory": 0, "rows": 1}
+    assert counts == {"trials": 1, "no_trajectory": 0, "not_rebuilt": 0, "rows": 1}
 
     counts = {}
     with open(tool_tar, "rb") as f:
         rows = list(iter_tar_rows(f, "trials-0.tar", counts))
     assert [r["trajectory_id"] for r in rows] == ["run_glm_1", "run_glm_2"]
     assert rows[0]["reward"] == 0.0 and rows[1]["reward"] is None
-    assert counts == {"trials": 3, "no_trajectory": 1, "rows": 2}
+    assert counts == {"trials": 3, "no_trajectory": 1, "not_rebuilt": 0, "rows": 2}
 
 
 def test_limit_stops_early_and_convert_writes_jsonl_shards(tmp_path):

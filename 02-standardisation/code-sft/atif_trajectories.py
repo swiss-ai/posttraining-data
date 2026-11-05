@@ -13,16 +13,25 @@ Two layouts are read (both are Terminus-2, ATIF-v1.7):
   <execution>/agent/trajectory.json         agent message = "Analysis:/Plan:" text, the
                                             commands are structured tool_calls
                                             (bash_command, mark_task_complete) and the
-                                            reasoning is in reasoning_content
+                                            reasoning is in reasoning_content. This is
+                                            what the harness parsed from the model's JSON
+                                            reply; the reply itself is not in the release.
 
 Conversion rules, per ATIF step:
   source user/system   one message with the step text
-  source agent         one assistant message. The text is kept as it is. Structured tool
-                       calls are appended as <tool_call>{"name", "arguments"}</tool_call>
-                       blocks in call order (the form the standardiser maps into one
-                       ordered command batch); reasoning_content stays a message field.
+  source agent         one assistant message; reasoning_content stays a message field.
+                       Without tool calls the text is kept as it is (the raw JSON reply, or
+                       an unparseable reply the harness rejected). With tool calls the reply
+                       is rebuilt as the JSON object the prompt asks for and the harness
+                       parsed: {"analysis", "plan", "commands": the bash_command arguments in
+                       order, "task_complete": true if mark_task_complete was called}, with
+                       2-space indents. The ATIF message and tool calls stay on the message as
+                       atif_message / atif_tool_calls.
   observation          one user message with the result contents (the terminal output)
-Nothing is dropped or reworded. Trials without an agent trajectory (the gold-solution
+A trial with a step that cannot be rebuilt exactly (other text than "Analysis: ...\nPlan:
+...", another tool, mark_task_complete before a command) is counted as `not_rebuilt` and
+skipped. Harness feedback turns stay: their warnings are about the commands, which the
+rebuilt reply keeps. Nothing else is dropped or reworded. Trials without an agent trajectory (the gold-solution
 runs of the rollouts) are counted and skipped. The verifier reward is kept as `reward`
 and is not used for filtering here.
 
@@ -32,6 +41,7 @@ Usage:
 
 import argparse
 import json
+import re
 import sys
 import tarfile
 from pathlib import Path
@@ -47,11 +57,33 @@ def trial_prefix(name):
     return parts[0], "/".join(parts[1:])
 
 
-def tool_call_block(call):
-    return "<tool_call>\n" + json.dumps(
-        {"name": call.get("function_name"), "arguments": call.get("arguments") or {}},
-        ensure_ascii=False,
-    ) + "\n</tool_call>"
+ANALYSIS_PLAN = re.compile(r"Analysis: ?(.*?)\nPlan: ?(.*)", re.S)
+
+
+class NotRebuilt(ValueError):
+    """An ATIF agent step whose JSON reply cannot be rebuilt exactly."""
+
+
+def rebuilt_reply(text, calls):
+    """The Terminus-2 JSON reply behind an ATIF agent step with structured tool calls."""
+    match = ANALYSIS_PLAN.fullmatch(text or "")
+    if not match or text.count("\nPlan:") != 1:
+        raise NotRebuilt(f"agent message is not 'Analysis: ...\\nPlan: ...': {str(text)[:80]!r}")
+    commands, complete = [], False
+    for call in calls:
+        name, arguments = call.get("function_name"), call.get("arguments") or {}
+        if complete:
+            raise NotRebuilt("mark_task_complete is not the last call")
+        if name == "mark_task_complete" and arguments == {}:
+            complete = True
+        elif name == "bash_command" and isinstance(arguments.get("keystrokes"), str):
+            commands.append(arguments)
+        else:
+            raise NotRebuilt(f"unsupported tool call {name!r}")
+    reply = {"analysis": match[1], "plan": match[2], "commands": commands}
+    if complete:
+        reply["task_complete"] = True
+    return json.dumps(reply, ensure_ascii=False, indent=2)
 
 
 def steps_to_messages(steps):
@@ -62,9 +94,16 @@ def steps_to_messages(steps):
         if source in ("user", "system"):
             messages.append({"role": source, "content": text if isinstance(text, str) else ""})
         elif source == "agent":
-            parts = [text] if isinstance(text, str) and text else []
-            parts += [tool_call_block(c) for c in step.get("tool_calls") or []]
-            message = {"role": "assistant", "content": "\n".join(parts)}
+            calls = step.get("tool_calls") or []
+            if calls:
+                message = {
+                    "role": "assistant",
+                    "content": rebuilt_reply(text, calls),
+                    "atif_message": text,
+                    "atif_tool_calls": calls,
+                }
+            else:
+                message = {"role": "assistant", "content": text if isinstance(text, str) else ""}
             reasoning = step.get("reasoning_content")
             if isinstance(reasoning, str) and reasoning.strip():
                 message["reasoning_content"] = reasoning
@@ -95,7 +134,7 @@ def trial_row(prefix, parts, source):
     if raw is None:
         return None
     trajectory = json.loads(raw)
-    messages = steps_to_messages(trajectory.get("steps") or [])
+    messages = steps_to_messages(trajectory.get("steps") or [])  # may raise NotRebuilt
     if not any(m["role"] == "assistant" for m in messages):
         return None
     agent = trajectory.get("agent") or {}
@@ -121,7 +160,7 @@ def iter_tar_rows(fileobj, source, counts=None, limit=None):
     one starts. `counts` collects trials seen, trials without a trajectory and rows.
     """
     counts = counts if counts is not None else {}
-    for key in ("trials", "no_trajectory", "rows"):
+    for key in ("trials", "no_trajectory", "not_rebuilt", "rows"):
         counts.setdefault(key, 0)
     current, parts = None, {}
     emitted = 0
@@ -131,7 +170,11 @@ def iter_tar_rows(fileobj, source, counts=None, limit=None):
         if current is None:
             return None
         counts["trials"] += 1
-        row = trial_row(current, parts, source)
+        try:
+            row = trial_row(current, parts, source)
+        except NotRebuilt:
+            counts["not_rebuilt"] += 1
+            return None
         if row is None:
             counts["no_trajectory"] += 1
             return None

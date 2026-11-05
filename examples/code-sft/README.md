@@ -99,10 +99,14 @@ uv run python pipeline.py standardise --input /path/to/atif-jsonl --output /path
 Both ATIF-v1.7 layouts are read: `trajectories/<id>/trajectory.json` (the agent message is
 the raw Terminus-2 JSON reply) and `<execution>/agent/trajectory.json` (the commands are
 structured `bash_command` / `mark_task_complete` tool calls and the reasoning is a
-separate field). Agent messages are kept as they are; structured tool calls are appended
-as `<tool_call>` blocks in call order, which `standardise` maps into one ordered command
-batch with keystrokes and durations unchanged; each observation becomes the next user
-turn. Trials without an agent trajectory (the gold-solution runs of the rollouts) are
+separate field). The second layout stores what the harness parsed, not the model's reply,
+so a step with tool calls is rebuilt as the JSON reply the prompt asks for: `analysis` and
+`plan` from the `Analysis: ... / Plan: ...` message, the `bash_command` arguments as
+`commands` in call order, and `task_complete: true` for `mark_task_complete`. The ATIF
+message and calls stay on the message as `atif_message` / `atif_tool_calls`, and a trial
+with a step that does not fit that shape is counted as `not_rebuilt` and skipped. Other
+agent messages are kept as they are, and each observation becomes the next user turn.
+Trials without an agent trajectory (the gold-solution runs of the rollouts) are
 counted and skipped. The verifier reward is kept as `reward` in the row and is not used
 to filter. `--limit N` stops after N trajectories, which is what the smoke test uses.
 
