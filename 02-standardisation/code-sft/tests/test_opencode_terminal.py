@@ -364,11 +364,6 @@ def test_checked_row_produces_a_valid_native_opencode_session():
     assert json.loads(row["source_record_json"]) == terminal_row()
 
 
-def test_source_mode_keeps_the_terminal_wrapper():
-    row = checked_row(terminal_row(), ENTRY, SPEC, 0, {}, "think-first", None, "source")
-    assert "terminal_step" in row["conversation_json"]
-
-
 def test_apply_to_result_records_tools_as_harness_defined():
     result = {"chat": {"messages": chat(step(0, keys("ls\n"), f"New Terminal Output:\n{P}ls\na\n{P}")), "tools": []}}
     apply_to_result(result)

@@ -18,7 +18,8 @@ from chat_review import unresolved
 from native_format import native_conversation
 from openai_chat import convert, decode
 from openai_training_payload import render_reasoning
-from opencode_terminal import apply_to_result, uses_terminal_protocol
+import opencode_terminal
+import terminus_terminal
 from openai_validation import check_result
 from standardize import atomic_json, dumps
 from unified import SCHEMA as SOURCE_SCHEMA, normalize_v2
@@ -157,8 +158,11 @@ def checked_row(
             )
         )
     render_reasoning(result, "sidecar")
-    if terminal_harness == "opencode" and uses_terminal_protocol(result["chat"]):
-        apply_to_result(result)
+    if opencode_terminal.uses_terminal_protocol(result["chat"]):
+        if terminal_harness == "opencode":
+            opencode_terminal.apply_to_result(result)
+        else:
+            terminus_terminal.apply_to_result(result, messages)
     errors = unresolved(result) + check_result(result)
     if errors:
         raise ValueError(json.dumps(errors))
@@ -213,7 +217,7 @@ def standardise(
         raise ValueError("rows_per_shard must be positive")
     if convention not in {"think-first", "source"}:
         raise ValueError("Unknown thinking convention")
-    if terminal_harness not in {"opencode", "source"}:
+    if terminal_harness not in {"opencode", "terminus"}:
         raise ValueError("Unknown terminal harness")
     if not isinstance(mapping, dict) or any(
         not isinstance(k, str) or not isinstance(v, str) for k, v in mapping.items()
@@ -417,10 +421,10 @@ def main():
     )
     parser.add_argument(
         "--terminal-harness",
-        choices=["opencode", "source"],
+        choices=["opencode", "terminus"],
         default="opencode",
         help="opencode rewrites Terminus-2 trajectories as OpenCode sessions (opencode_terminal.py); "
-        "source keeps the terminal_step wrapper with keystrokes and terminal screens",
+        "terminus keeps the harness description, JSON replies and terminal screens (terminus_terminal.py)",
     )
     parser.add_argument(
         "--tokenizer", type=Path, help="Local verified Apertus 2 tokenizer artifact"

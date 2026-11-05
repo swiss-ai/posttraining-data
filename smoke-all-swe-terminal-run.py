@@ -213,7 +213,8 @@ def process_sample(sample, base, meta, args, unit_label):
             shutil.rmtree(d)
 
     cmd = [args.python, "pipeline.py", "standardise", "--input", sample["input"],
-           "--output", str(native), "--category", category]
+           "--output", str(native), "--category", category,
+           "--terminal-harness", args.terminal_harness]
     if sample["kind"] == "raw":
         cmd += ["--repo", meta["dataset_name"]]
         if meta.get("commit_hash"):
@@ -360,6 +361,8 @@ def main():
     p.add_argument("--code-sft-dir", default=str(Path(__file__).resolve().parent / "examples" / "code-sft"))
     p.add_argument("--benchmarks", help="benchmark references (pipeline.py benchmarks output)")
     p.add_argument("--category", default="auto", choices=["auto", "code_sft", "code_agentic"])
+    p.add_argument("--terminal-harness", default="opencode", choices=["opencode", "terminus"],
+                   help="version of Terminus-2 trajectories (see examples/code-sft/README.md)")
     p.add_argument("--category-ref", default="/capstor/store/cscs/swissai/infra01/datasets/code_posttrain/sft")
     p.add_argument("--workers", type=int, default=4)
     p.add_argument("--memory-limit", default="16GB")

@@ -25,8 +25,11 @@
 #   --max-files N     raw files sampled per raw dataset (default 8)
 #   --category C      auto (default), code_sft or code_agentic. auto looks the dataset up
 #                     in the shared reference folder (CATEGORY_REF), else code_sft.
+#   --terminal-harness H  version of Terminus-2 trajectories: opencode (default) or terminus
+#                     (the source format ported to Apertus 2)
 #   --src DIR         downloaded datasets (default below)
-#   --out DIR         all samples, intermediate and final artifacts (default below)
+#   --out DIR         all samples, intermediate and final artifacts (default below; the
+#                     terminus version defaults to smoke_all_swe_terminal_terminus)
 #
 # Output, per dataset:  <out>/<dataset>/[<subset>/]<sample>/{_samples,native,dedup}/ and
 # result.json, plus <out>/<dataset>/summary.json and Slurm logs in <out>/_slurm_logs.
@@ -45,7 +48,8 @@ REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RUNNER="$REPO_DIR/smoke-all-swe-terminal-run.py"
 
 SRC="/capstor/store/cscs/swissai/infra01/datasets/swe_terminal_sft_apertus_v2"
-OUT="$REPO_DIR/smoke_all_swe_terminal"
+OUT=""
+TERMINAL_HARNESS="opencode"
 ROWS=5
 MAX_SUBSETS=5
 MAX_FILES=8
@@ -75,6 +79,7 @@ while (( $# )); do
         --max-subsets) MAX_SUBSETS="$2"; shift ;;
         --max-files) MAX_FILES="$2"; shift ;;
         --category) CATEGORY="$2"; shift ;;
+        --terminal-harness) TERMINAL_HARNESS="$2"; shift ;;
         --src) SRC="$2"; shift ;;
         --out) OUT="$2"; shift ;;
         --datasets-file)
@@ -90,6 +95,13 @@ while (( $# )); do
     esac
     shift
 done
+
+# The versions have separate outputs and job names, so they can be generated side by side.
+case "$TERMINAL_HARNESS" in
+    opencode) JOB_PREFIX="smoke_"; OUT="${OUT:-$REPO_DIR/smoke_all_swe_terminal}" ;;
+    terminus) JOB_PREFIX="smoke_terminus_"; OUT="${OUT:-$REPO_DIR/smoke_all_swe_terminal_terminus}" ;;
+    *) echo "Unknown --terminal-harness: $TERMINAL_HARNESS (opencode or terminus)" >&2; exit 1 ;;
+esac
 
 if (( REPORT )); then
     report_args=(--report --out "$OUT" --src "$SRC")
@@ -172,6 +184,7 @@ queued_jobs="$(squeue -u "$USER" -h -o %j 2>/dev/null || true)"
 
 echo "Source:      $SRC"
 echo "Output:      $OUT"
+echo "Terminal:    $TERMINAL_HARNESS"
 echo "Benchmarks:  $BENCHMARKS"
 echo "Per dataset: $ROWS rows per sample, up to $MAX_SUBSETS sub-datasets and $MAX_FILES raw files"
 echo
@@ -184,14 +197,14 @@ for name in "${SELECTED[@]}"; do
         echo "[$i/$total] Skipping $name (already ok; --force to rerun)"
         skipped=$((skipped + 1)); continue
     fi
-    if grep -qxF "smoke_${name}" <<<"$queued_jobs"; then
+    if grep -qxF "${JOB_PREFIX}${name}" <<<"$queued_jobs"; then
         echo "[$i/$total] Skipping $name (job already queued or running)"
         skipped=$((skipped + 1)); continue
     fi
 
     job_script=$(cat <<JOB
 #!/bin/bash
-#SBATCH --job-name=smoke_${name}
+#SBATCH --job-name=${JOB_PREFIX}${name}
 #SBATCH --output=${OUT}/_slurm_logs/${name}.out
 #SBATCH --error=${OUT}/_slurm_logs/${name}.err
 #SBATCH --time=${SLURM_TIME}
@@ -201,7 +214,7 @@ for name in "${SELECTED[@]}"; do
 set -uo pipefail
 
 # The env's interpreter is called explicitly: jobs inherit the submitting shell's environment.
-"${PY}" "${RUNNER}" --name "${name}" --src "${SRC}" --out "${OUT}" --rows ${ROWS} --max-subsets ${MAX_SUBSETS} --max-files ${MAX_FILES} --python "${PY}" --benchmarks "${BENCHMARKS}" --category ${CATEGORY} --category-ref "${CATEGORY_REF}"
+"${PY}" "${RUNNER}" --name "${name}" --src "${SRC}" --out "${OUT}" --rows ${ROWS} --max-subsets ${MAX_SUBSETS} --max-files ${MAX_FILES} --python "${PY}" --benchmarks "${BENCHMARKS}" --category ${CATEGORY} --category-ref "${CATEGORY_REF}" --terminal-harness ${TERMINAL_HARNESS}
 JOB
 )
 
@@ -221,7 +234,7 @@ done
 
 echo
 echo "Done: $submitted submitted, $skipped skipped, ${#failed[@]} failed to submit."
-echo "When the jobs are finished: $0 --report"
+echo "When the jobs are finished: $0 --report --terminal-harness $TERMINAL_HARNESS"
 if (( ${#failed[@]} > 0 )); then
     printf '  %s\n' "${failed[@]}"
     exit 1

@@ -106,11 +106,36 @@ turn. Trials without an agent trajectory (the gold-solution runs of the rollouts
 counted and skipped. The verifier reward is kept as `reward` in the row and is not used
 to filter. `--limit N` stops after N trajectories, which is what the smoke test uses.
 
-## Terminal trajectories become OpenCode sessions
+## Two versions of terminal trajectories
 
-Terminus-2 trajectories are rewritten for the OpenCode harness by default
-(`opencode_terminal.py`), since no harness we train for shows a model tmux keystrokes or
-terminal screens. A converted row has OpenCode's system prompt and tool schemas
+`--terminal-harness` picks the version of a Terminus-2 trajectory, and each version needs its
+own `--output`. Other rows are the same in both.
+
+| Value | Harness the model sees | Module |
+|---|---|---|
+| `opencode` (default) | OpenCode: `bash` / `read` / `write` calls with plain output | `opencode_terminal.py` |
+| `terminus` | Terminus-2 as recorded: its description, JSON replies and terminal screens | `terminus_terminal.py` |
+
+```bash
+uv run python pipeline.py standardise --input DATASET --output native-opencode
+uv run python pipeline.py standardise --input DATASET --output native-terminus --terminal-harness terminus
+```
+
+The smoke test takes the same option, and its results go to `smoke_all_swe_terminal_terminus`:
+`./smoke-all-swe-terminal.sh --terminal-harness terminus`.
+
+### Terminus version
+
+The conversation is the source, in Apertus 2 items: the harness description stays where the
+source has it, each JSON reply is a `reply` item, and terminal output is the next `user` item.
+There are no tool calls. `<think>` blocks and `reasoning_content` become `think` items. A reply
+whose JSON is inside a `<think>` block is the one structural repair; the module docstring has
+the details. Trailing user turns move to `trailing_context` in `provenance_json`, since a
+training row ends on an assistant turn.
+
+### OpenCode version
+
+A converted row has OpenCode's system prompt and tool schemas
 (`opencode_harness.json`), `bash` / `read` / `write` calls with plain output, and ends in a
 plain text turn. The module docstring lists every mapping. Conversion counts are in
 `provenance_json` under `harness_conversion`, and the source stays in `source_record_json`.
@@ -118,7 +143,7 @@ plain text turn. The module docstring lists every mapping. Conversion counts are
 Rows that cannot be mapped honestly are quarantined with
 `terminal_not_convertible` and a reason in `rejected.jsonl`: interactive programs, control
 keys, keystrokes never submitted, handoff prompts, rows with no task, and output that
-belongs to no command. `--terminal-harness source` keeps the earlier `terminal_step` form.
+belongs to no command.
 
 `opencode_harness.json` is a snapshot from `nvidia/Nemotron-SFT-OpenCode-v1` (January 2026),
 so converted rows match that dataset. Current OpenCode releases may name tools and arguments
