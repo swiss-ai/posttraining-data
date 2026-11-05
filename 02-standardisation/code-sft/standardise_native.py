@@ -70,7 +70,41 @@ def snapshot(path):
     ]
 
 
-def sources(paths, split):
+def worker_rows(dataset, worker, workers):
+    """(index, row) of a saved split; with several workers, every workers-th row from worker."""
+    if workers == 1:
+        return enumerate(dataset)
+    indices = range(worker, len(dataset), workers)
+    return zip(indices, dataset.select(indices))
+
+
+def worker_records(path, worker, workers):
+    """(index, row) of a JSONL or Parquet file, the index counting rows as records() does.
+    Rows of other workers are skipped without being decoded."""
+    if workers == 1:
+        yield from enumerate(records(path))
+    elif path.suffix == ".parquet":
+        offset = 0
+        for batch in pq.ParquetFile(path).iter_batches(batch_size=256):
+            first = (worker - offset) % workers
+            picked = list(range(first, batch.num_rows, workers))
+            if picked:
+                for position, row in zip(picked, batch.take(picked).to_pylist()):
+                    yield offset + position, row
+            offset += batch.num_rows
+    else:
+        index = 0
+        with path.open() as handle:
+            for line in handle:
+                if not line.strip():
+                    continue
+                if index % workers == worker:
+                    yield index, json.loads(line)
+                index += 1
+
+
+def sources(paths, split, worker=0, workers=1):
+    """(path, split name, iterator of (row index, row)). split "*" takes every split."""
     for path in paths:
         if path.is_dir():
             dataset = load_from_disk(str(path))
@@ -79,14 +113,16 @@ def sources(paths, split):
                     raise ValueError(
                         "Saved DatasetDict has multiple splits; specify --split explicitly"
                     )
-                name = split or next(iter(dataset))
-                if name not in dataset:
-                    raise ValueError(f"Missing split: {name}")
-                yield path, name, iter(dataset[name])
+                names = list(dataset) if split == "*" else [split or next(iter(dataset))]
+                for name in names:
+                    if name not in dataset:
+                        raise ValueError(f"Missing split: {name}")
+                    yield path, name, worker_rows(dataset[name], worker, workers)
             else:
-                yield path, split or str(dataset.split or "train"), iter(dataset)
+                name = str(dataset.split or "train") if split in (None, "*") else split
+                yield path, name, worker_rows(dataset, worker, workers)
         else:
-            yield path, split or "train", records(path)
+            yield path, "train" if split in (None, "*") else split, worker_records(path, worker, workers)
 
 
 def checked_row(
@@ -223,7 +259,16 @@ def standardise(
     rows_per_shard=50000,
     source_config=None,
     terminal_harness="opencode",
+    worker=0,
+    workers=1,
+    directory_name=None,
 ):
+    """Standardise `inputs` into output/category/owner/(directory_name or name).
+
+    With workers > 1 each worker process handles every workers-th row of each input and split,
+    and keeps its own run record, lock and partitions in the shared directory. The directory's
+    _SUCCESS.json is written by the worker that completes the set.
+    """
     inputs = [p.resolve() for p in inputs]
     output = output.resolve()
     mapping = mapping or {}
@@ -235,6 +280,10 @@ def standardise(
         raise ValueError("Unknown training category")
     if rows_per_shard < 1:
         raise ValueError("rows_per_shard must be positive")
+    if workers < 1 or not 0 <= worker < workers:
+        raise ValueError("worker must be in [0, workers)")
+    if directory_name is not None and (not directory_name or "/" in directory_name or directory_name in {".", ".."}):
+        raise ValueError("directory_name must be a single path component")
     if convention not in {"think-first", "source"}:
         raise ValueError("Unknown thinking convention")
     if terminal_harness not in {"opencode", "terminus"}:
@@ -264,7 +313,7 @@ def standardise(
         )
     revision = revision or metadata.get("commit_hash") or "unrecorded"
     split = split or metadata.get("split")
-    directory = output / category / repo
+    directory = output / category / repo.split("/")[0] / (directory_name or repo.split("/")[1])
     entry = dict(
         repo=repo,
         revision=revision,
@@ -288,6 +337,8 @@ def standardise(
         terminal_harness=terminal_harness,
         source_config=source_config,
         rows_per_shard=rows_per_shard,
+        worker=worker,
+        workers=workers,
         code={
             str(p.relative_to(code_root)): digest(p)
             for p in sorted(code_root.rglob("*.py"))
@@ -301,9 +352,15 @@ def standardise(
     directory.mkdir(parents=True, exist_ok=True)
     import fcntl
 
-    with (directory / ".run.lock").open("w") as lock:
+    tag = "" if workers == 1 else f".worker-{worker:03d}-of-{workers:03d}"
+    with (directory / f".run{tag}.lock").open("w") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        run = directory / "run.json"
+        run = directory / f"run{tag}.json"
+        others = {p.name for p in directory.glob("run.worker-*.json")} - {run.name}
+        if workers == 1 and others or workers > 1 and (
+            (directory / "run.json").exists() or any(not n.endswith(f"-of-{workers:03d}.json") for n in others)
+        ):
+            raise ValueError("The directory holds a run with another number of workers; choose a fresh output directory")
         if run.exists() and json.loads(run.read_text()) != config:
             raise ValueError(
                 "Inputs, code or settings changed; choose a fresh output directory"
@@ -312,16 +369,14 @@ def standardise(
         atomic_json(directory / "source.json", entry)
         (directory / "_SUCCESS.json").unlink(missing_ok=True)
         totals = Counter(read=0, written=0, quarantined=0)
-        for path, name, iterator in sources(inputs, split):
+        for path, name, iterator in sources(inputs, split, worker, workers):
             spec = dict(
                 path=str(path),
                 source_config=source_config or metadata.get("subset") or "local",
                 source_split=name,
             )
-            partition = directory / (
-                "file="
-                + hashlib.sha256((str(path) + "\0" + name).encode()).hexdigest()[:16]
-            )
+            key = str(path) + "\0" + name + ("" if workers == 1 else f"\0{worker}/{workers}")
+            partition = directory / ("file=" + hashlib.sha256(key.encode()).hexdigest()[:16])
             marker = partition / "_SUCCESS.json"
             if marker.exists():
                 saved = json.loads(marker.read_text())
@@ -352,7 +407,7 @@ def standardise(
                 shards += 1
 
             with (partition / "rejected.jsonl").open("w") as rejected:
-                for index, original in enumerate(iterator):
+                for index, original in iterator:
                     counts["read"] += 1
                     try:
                         row = checked_row(
@@ -420,8 +475,21 @@ def standardise(
             format="apertus2-native",
             validation="full reference-library checks including training rules",
         )
-        atomic_json(directory / "_SUCCESS.json", report)
-        return report
+        if workers == 1:
+            atomic_json(directory / "_SUCCESS.json", report)
+            return report
+        atomic_json(directory / f"_WORKER-{worker:03d}-OF-{workers:03d}.json", report)
+    # The directory is complete once every worker has finished
+    done = sorted(directory.glob(f"_WORKER-*-OF-{workers:03d}.json"))
+    if len(done) == workers:
+        combined = Counter()
+        for marker in done:
+            combined.update(json.loads(marker.read_text())["counts"])
+        atomic_json(
+            directory / "_SUCCESS.json",
+            dict(report, rows=combined["written"], counts=dict(combined), workers=workers),
+        )
+    return report
 
 
 def main():
@@ -430,7 +498,7 @@ def main():
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--repo")
     parser.add_argument("--revision")
-    parser.add_argument("--split")
+    parser.add_argument("--split", help='Split of a saved DatasetDict; "*" takes every split')
     parser.add_argument("--source-config", help="Original dataset configuration/subset")
     parser.add_argument("--column-map", type=Path)
     parser.add_argument(
@@ -451,6 +519,9 @@ def main():
         "--tokenizer", type=Path, help="Local verified Apertus 2 tokenizer artifact"
     )
     parser.add_argument("--rows-per-shard", type=int, default=50000)
+    parser.add_argument("--worker", type=int, default=0, help="this process's share of the rows (0-based)")
+    parser.add_argument("--workers", type=int, default=1, help="processes sharing the rows; each takes every N-th row")
+    parser.add_argument("--directory-name", help="output folder name in place of the repo name, e.g. for subsets")
     args = parser.parse_args()
     mapping = json.loads(args.column_map.read_text()) if args.column_map else {}
     result = standardise(
@@ -466,6 +537,9 @@ def main():
         args.rows_per_shard,
         args.source_config,
         args.terminal_harness,
+        args.worker,
+        args.workers,
+        args.directory_name,
     )
     print(json.dumps(result))
 

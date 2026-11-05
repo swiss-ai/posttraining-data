@@ -238,3 +238,38 @@ def test_thinking_level_comes_from_the_source_reasoning_only():
     # A Terminus-2 JSON reply's analysis is part of the reply, not reasoning
     terminus = [{"role": "assistant", "content": '{"analysis": "look", "plan": "", "commands": []}'}]
     assert thinking_level(plain[:1] + terminus) == "low"
+
+
+def plain_rows(count):
+    return [{"messages": [{"role": "user", "content": f"Q{i}"}, {"role": "assistant", "content": f"A{i}"}]} for i in range(count)]
+
+
+@pytest.mark.parametrize("kind", ["saved", "jsonl"])
+def test_workers_share_rows_and_the_last_one_completes_the_directory(tmp_path, kind):
+    if kind == "saved":
+        source = tmp_path / "saved"
+        Dataset.from_list(plain_rows(7)).save_to_disk(str(source))
+    else:
+        source = tmp_path / "rows.jsonl"
+        source.write_text("".join(json.dumps(r) + "\n" for r in plain_rows(7)))
+    output = tmp_path / "native"
+    for worker in range(3):
+        standardise([source], output, repo="test/plain", worker=worker, workers=3)
+        complete = output / "code_sft" / "test" / "plain" / "_SUCCESS.json"
+        assert complete.exists() == (worker == 2)
+    rows = read_output(output)
+    assert sorted(int(r["source_row_index"]) for r in rows) == list(range(7))
+    assert json.loads(complete.read_text())["rows"] == 7
+    with pytest.raises(ValueError, match="another number of workers"):
+        standardise([source], output, repo="test/plain", worker=0, workers=2)
+
+
+def test_every_split_and_a_folder_name(tmp_path):
+    source = tmp_path / "dict"
+    DatasetDict(
+        train=Dataset.from_list(plain_rows(2)), test=Dataset.from_list(plain_rows(1))
+    ).save_to_disk(str(source))
+    result = standardise([source], tmp_path / "all", repo="test/plain", split="*", directory_name="plain-subset")
+    assert result["counts"]["read"] == 3
+    assert (tmp_path / "all" / "code_sft" / "test" / "plain-subset" / "_SUCCESS.json").exists()
+    assert {r["source_split"] for r in read_output(tmp_path / "all")} == {"train", "test"}
