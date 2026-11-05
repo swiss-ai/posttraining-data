@@ -18,6 +18,7 @@ from chat_review import unresolved
 from native_format import native_conversation
 from openai_chat import convert, decode
 from openai_training_payload import render_reasoning
+from opencode_terminal import apply_to_result, uses_terminal_protocol
 from openai_validation import check_result
 from standardize import atomic_json, dumps
 from unified import SCHEMA as SOURCE_SCHEMA, normalize_v2
@@ -86,7 +87,9 @@ def sources(paths, split):
             yield path, split or "train", records(path)
 
 
-def checked_row(original, entry, spec, index, mapping, convention, encoding=None):
+def checked_row(
+    original, entry, spec, index, mapping, convention, encoding=None, terminal_harness="opencode"
+):
     mapped = rename(original, mapping)
     if entry["repo"] == "open-alchemy/code-alchemy":
         from code_alchemy import adapt
@@ -154,6 +157,8 @@ def checked_row(original, entry, spec, index, mapping, convention, encoding=None
             )
         )
     render_reasoning(result, "sidecar")
+    if terminal_harness == "opencode" and uses_terminal_protocol(result["chat"]):
+        apply_to_result(result)
     errors = unresolved(result) + check_result(result)
     if errors:
         raise ValueError(json.dumps(errors))
@@ -193,6 +198,7 @@ def standardise(
     tokenizer=None,
     rows_per_shard=50000,
     source_config=None,
+    terminal_harness="opencode",
 ):
     inputs = [p.resolve() for p in inputs]
     output = output.resolve()
@@ -207,6 +213,8 @@ def standardise(
         raise ValueError("rows_per_shard must be positive")
     if convention not in {"think-first", "source"}:
         raise ValueError("Unknown thinking convention")
+    if terminal_harness not in {"opencode", "source"}:
+        raise ValueError("Unknown terminal harness")
     if not isinstance(mapping, dict) or any(
         not isinstance(k, str) or not isinstance(v, str) for k, v in mapping.items()
     ):
@@ -253,6 +261,7 @@ def standardise(
         split=split,
         mapping=mapping,
         convention=convention,
+        terminal_harness=terminal_harness,
         source_config=source_config,
         rows_per_shard=rows_per_shard,
         code={
@@ -323,7 +332,14 @@ def standardise(
                     counts["read"] += 1
                     try:
                         row = checked_row(
-                            original, entry, spec, index, mapping, convention, encoding
+                            original,
+                            entry,
+                            spec,
+                            index,
+                            mapping,
+                            convention,
+                            encoding,
+                            terminal_harness,
                         )
                         # Ensure malformed Unicode and non-finite provenance never reach a completed shard.
                         pa.Table.from_pylist([row], schema=SCHEMA)
@@ -400,6 +416,13 @@ def main():
         "--convention", choices=["think-first", "source"], default="think-first"
     )
     parser.add_argument(
+        "--terminal-harness",
+        choices=["opencode", "source"],
+        default="opencode",
+        help="opencode rewrites Terminus-2 trajectories as OpenCode sessions (opencode_terminal.py); "
+        "source keeps the terminal_step wrapper with keystrokes and terminal screens",
+    )
+    parser.add_argument(
         "--tokenizer", type=Path, help="Local verified Apertus 2 tokenizer artifact"
     )
     parser.add_argument("--rows-per-shard", type=int, default=50000)
@@ -417,6 +440,7 @@ def main():
         args.tokenizer,
         args.rows_per_shard,
         args.source_config,
+        args.terminal_harness,
     )
     print(json.dumps(result))
 
