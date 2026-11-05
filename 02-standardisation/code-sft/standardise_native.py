@@ -15,7 +15,7 @@ from datasets import DatasetDict, load_from_disk
 from apertus_common import load_encoding
 
 from chat_review import unresolved
-from native_format import native_conversation
+from native_format import native_conversation, thinking_level
 from openai_chat import convert, decode
 from openai_training_payload import render_reasoning
 import opencode_terminal
@@ -177,7 +177,9 @@ def checked_row(
     errors = unresolved(result) + check_result(result)
     if errors:
         raise ValueError(json.dumps(errors))
-    conversation, text = native_conversation(result, convention)
+    # Thinking level from the source record, so both versions of a row agree
+    thinking = thinking_level(messages, row.get("reasoning"))
+    conversation, text = native_conversation(result, convention, thinking)
     payload = json.dumps(result, ensure_ascii=False, allow_nan=False)
     payload.encode("utf-8")
     row.update(

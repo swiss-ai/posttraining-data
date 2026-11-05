@@ -23,7 +23,49 @@ def training_checkers():
     return checkers_for("full", training=True)
 
 
-def native_conversation(result, convention="think-first"):
+REASONING_FIELDS = ("reasoning_content", "reasoning", "thought", "think", "analysis")
+
+
+def think_text(content, tokens):
+    """Whether a think block has text: from an opening tag to its closing tag (or the end),
+    or, with a lone closing tag, everything before it. An empty block is not reasoning."""
+    for number, (start, end, closing) in enumerate(tokens):
+        if closing:
+            if number == 0 and content[:start].strip():
+                return True
+            continue
+        stop = next((s for s, _, c in tokens[number + 1 :] if c), len(content))
+        if content[end:stop].strip():
+            return True
+    return False
+
+
+def thinking_level(source_messages, row_reasoning=None):
+    """The system prompt's thinking level, from the source record alone: medium if it has
+    reasoning (a <think> block, or a reasoning field on an assistant message or the row),
+    low if not. Reasoning a harness conversion derives (the Terminus-2 `analysis` field of a
+    JSON reply) does not count, so both versions of a row get the same level."""
+    from openai_reasoning import visible_tokens
+
+    if isinstance(row_reasoning, str) and row_reasoning.strip():
+        return "medium"
+    for message in source_messages or []:
+        if not isinstance(message, dict):
+            continue
+        role = message.get("role", message.get("from"))
+        if role not in ("assistant", "gpt", "bot"):
+            continue
+        if any(isinstance(message.get(k), str) and message[k].strip() for k in REASONING_FIELDS):
+            return "medium"
+        content = message.get("content", message.get("value"))
+        if isinstance(content, list):
+            content = "".join(p.get("text", "") for p in content if isinstance(p, dict))
+        if isinstance(content, str) and think_text(content, visible_tokens(content)):
+            return "medium"
+    return "low"
+
+
+def native_conversation(result, convention="think-first", thinking=None):
     messages = copy.deepcopy(result["chat"]["messages"])
     for record in result.get("reasoning_by_message", []):
         values = list(dict.fromkeys(v for v in record.get("values", []) if v))
@@ -55,7 +97,7 @@ def native_conversation(result, convention="think-first"):
     conversation = from_openai(
         clean,
         tools=result["chat"].get("tools") or None,
-        system_defaults={"thinking": "medium"},
+        reasoning_effort=thinking or thinking_level(messages),
         policy=policy,
     ).value
     if convention == "think-first":

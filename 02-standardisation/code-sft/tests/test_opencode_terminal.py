@@ -420,3 +420,12 @@ def test_trajectory_that_stops_after_the_first_reply_is_rejected(harness):
     source["conversations"] = source["conversations"][:2]
     with pytest.raises(ValueError, match="single_reply_trajectory"):
         checked_row(source, ENTRY, SPEC, 0, {}, "think-first", None, harness)
+
+
+def test_both_versions_of_a_row_get_the_same_thinking_level():
+    levels = {
+        harness: json.loads(checked_row(terminal_row(), ENTRY, SPEC, 0, {}, "think-first", None, harness)["conversation_json"])["system"]["thinking"]
+        for harness in ("opencode", "terminus")
+    }
+    # The analysis becomes OpenCode reasoning, but the source has no reasoning of its own
+    assert levels == {"opencode": "low", "terminus": "low"}

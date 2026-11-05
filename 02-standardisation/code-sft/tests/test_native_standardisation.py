@@ -223,3 +223,18 @@ def test_resume_refuses_changed_source_mapping_and_unsafe_outputs(tmp_path):
         standardise([source], tmp_path, repo="test/plain")
     with pytest.raises(ValueError, match="Duplicate"):
         standardise([source, source], tmp_path / "other", repo="test/plain")
+
+
+def test_thinking_level_comes_from_the_source_reasoning_only():
+    from native_format import thinking_level
+
+    plain = [{"role": "user", "content": "q"}, {"role": "assistant", "content": "a"}]
+    assert thinking_level(plain) == "low"
+    assert thinking_level(plain[:1] + [dict(plain[1], reasoning_content="think")]) == "medium"
+    assert thinking_level(plain[:1] + [dict(plain[1], content="<think>plan</think>a")]) == "medium"
+    assert thinking_level(plain[:1] + [{"from": "gpt", "value": "<think>x</think>y"}]) == "medium"
+    assert thinking_level(plain, row_reasoning="separate column") == "medium"
+    assert thinking_level(plain[:1] + [dict(plain[1], content="<think>\n</think>\na")]) == "low"
+    # A Terminus-2 JSON reply's analysis is part of the reply, not reasoning
+    terminus = [{"role": "assistant", "content": '{"analysis": "look", "plan": "", "commands": []}'}]
+    assert thinking_level(plain[:1] + terminus) == "low"
