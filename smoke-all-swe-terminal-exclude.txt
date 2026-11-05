@@ -32,3 +32,23 @@ daVinci-Dev-filtered_repos
 OpenSWE-openswe_oss
 # daVinci-Dev: structured pull-request records meant to be rendered into mid-training text
 daVinci-Dev-llm_enhanced_prs
+
+# Excluded after reviewing the smoke-test examples (low quality or wrong format)
+# Low quality
+alquistcoder2025_SFT_dataset
+# Extremely short question-answer pairs
+CodeAlpaca-20k
+# Low quality
+commitpackft
+# Odd intermediate setup: the code is almost compilable, but not quite
+CodeIO-PyEdu-Reasoning
+# Traces seem to be copies of each other, badly formatted, with no real task
+LiteCoder-Terminal-World-Model-SFT
+# Consecutive tool calls without waiting for their results (reorder them?), and the
+# harness is not stated (OpenCode-like tools, no system prompt); check that it fits our chat template
+Nemotron-SFT-CUDA-v1
+# Some quite low-quality data
+opc-sft-stage2-evol_instruct
+# The system prompt says to act as an agent, but the model emits no tool calls: pseudo
+# tool calls in its reply, results as user messages. Also distilled from Claude Sonnet.
+SWE-smith-trajectories
