@@ -27,7 +27,8 @@ What changes, per Terminus-2 feature:
                         reasoning and text
 
 Rows that cannot be mapped honestly raise ConversionError and are quarantined with the
-reason: interactive programs and control keys, keystrokes never submitted, handoff prompts,
+reason: interactive programs and control keys, keystrokes never submitted or typed onto the
+next command's line, handoff prompts,
 rows without a task, and output that belongs to no known command. Such rows stay in the
 rejected.jsonl ledger, and every converted row keeps its source in source_record_json.
 
@@ -340,6 +341,9 @@ def prepare_commands(raw):
             # Single keys answer a running program. Longer text without a newline ran only
             # if a prompt came back after it, which the callers check against the output.
             raise ConversionError("unsubmitted_keystrokes", stripped)
+        if not keys.endswith("\n") and any(later.get("keystrokes", "").strip() for later in raw[position + 1 :]):
+            # tmux types the next entry onto the same line, so the shell runs the two joined
+            raise ConversionError("concatenated_keystrokes", stripped)
         if INTERACTIVE.search(stripped.split("\n", 1)[0]):
             raise ConversionError("interactive_program", stripped)
         heredoc = HEREDOC.search(keys)

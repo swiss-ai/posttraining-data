@@ -403,3 +403,12 @@ def test_echo_without_its_prompt_is_removed_after_an_echo():
     first, second = "cat > m.cpp << 'CPP'\nint main() {}\nCPP", "./main << 'EOF'\n3\nEOF"
     body = "> int main() {}\n> CPP\n./main << 'EOF'\n3\nEOF\nanswer"
     assert drop_echo_lines(body, [first, second]) == "answer"
+
+
+def test_command_without_newline_before_another_is_refused():
+    # Without its newline the first command is typed onto the line of the second
+    with pytest.raises(ConversionError) as error:
+        prepare_commands(keys("printf 'a' | ./solve", "printf 'b' | ./solve\n"))
+    assert error.value.reason == "concatenated_keystrokes"
+    # The last command of a batch is checked against the output instead
+    assert prepare_commands(keys("ls\n", "pwd")) == ["ls", "pwd"]
