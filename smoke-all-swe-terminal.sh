@@ -37,7 +37,7 @@
 # whose job is still queued or running.
 #
 # Environment overrides:
-#   SLURM_ACCOUNT (infra01)   SLURM_PARTITION (mi300)   SLURM_TIME (03:00:00)
+#   SLURM_ACCOUNT (infra01)   SLURM_PARTITION (mi200)   SLURM_TIME (03:00:00)
 #   CONDA_ROOT (/users/kpitas/beverin/miniconda3)   CONDA_ENV (code_sft)
 #   BENCHMARKS (<repo>/_code_sft/evaluation, built with: pipeline.py benchmarks --output ...)
 #   CATEGORY_REF (/capstor/store/cscs/swissai/infra01/datasets/code_posttrain/sft)
@@ -56,7 +56,7 @@ MAX_FILES=8
 CATEGORY="auto"
 
 SLURM_ACCOUNT="${SLURM_ACCOUNT:-infra01}"
-SLURM_PARTITION="${SLURM_PARTITION:-mi300}"
+SLURM_PARTITION="${SLURM_PARTITION:-mi200}"
 SLURM_TIME="${SLURM_TIME:-03:00:00}"
 CONDA_ROOT="${CONDA_ROOT:-/users/kpitas/beverin/miniconda3}"
 CONDA_ENV="${CONDA_ENV:-code_sft}"

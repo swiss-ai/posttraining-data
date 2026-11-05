@@ -17,6 +17,7 @@ _code_sft/
 smoke_all_swe_terminal/
 smoke_all_swe_terminal_100rows/
 smoke_all_swe_terminal_100rows_fixed/
+smoke_all_swe_terminal_terminus/
 
 # Code-SFT recipe environments, artifacts and tracked fixtures.
 .venv/
