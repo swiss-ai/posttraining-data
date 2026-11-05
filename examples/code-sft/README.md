@@ -172,9 +172,12 @@ differently; replace the snapshot to target another version.
 Some releases need more than the generic mapping. Rows that cannot be fixed are quarantined
 with the reason in `rejected.jsonl`.
 
-`nvidia/OpenCodeReasoning-2` leaves every `question` as `-`. Build the lookup of the
-questions once from their source datasets (TACO, APPS, CodeContests, open-r1/codeforces;
-training files only, about 12 GB), then standardise as usual:
+`nvidia/OpenCodeReasoning-2` leaves every `question` as `-`, and
+`nvidia/Nemotron-Competitive-Programming-v1` does the same for its TACO and APPS rows. Build the
+lookup of the questions once from their source datasets (TACO, APPS, CodeContests,
+open-r1/codeforces; training files only, about 12 GB), then standardise as usual. Restored
+Nemotron rows get the instruction its other rows carry for the file's language ("Please use
+python programming language only. ..."), followed by the question:
 
 ```bash
 Q=/capstor/store/cscs/swissai/infra01/datasets/swe_terminal_sft_apertus_v2/.question_sources
@@ -183,13 +186,15 @@ python ../../01-hf-download/hf-download-raw.py codeparrot/apps --download-folder
 python ../../01-hf-download/hf-download-raw.py open-r1/codeforces --download-folder $Q --allow-patterns 'data/train-*.parquet'
 python ../../01-hf-download/hf-download-raw.py deepmind/code_contests --download-folder $Q --allow-patterns 'data/train-*.parquet'
 python ../../02-standardisation/code-sft/ocr2_questions.py --sources $Q \
-  --release /path/to/OpenCodeReasoning-2 --output $Q/ocr2_questions.parquet
+  --release /path/to/OpenCodeReasoning-2 /path/to/Nemotron-Competitive-Programming-v1/data/competitive_coding_*.jsonl \
+  --output $Q/ocr2_questions.parquet
 ```
 
 The build checks every lookup against the release's platform and difficulty labels and stops
 if a source's row order differs. The preprocessor reads `$OCR2_QUESTIONS`, or the path above
 by default. Rows whose question is from an evaluation split (APPS test, TACO test,
-CodeContests valid) are rejected as `benchmark_split_question`, about 18% of the release.
+CodeContests valid/test) are rejected as `benchmark_split_question` in both releases, about 18%
+of OpenCodeReasoning-2.
 
 Terminus-2 trajectories that stop after the model's first reply, before any terminal
 output, are rejected as `single_reply_trajectory` in both versions. They are about 14% of

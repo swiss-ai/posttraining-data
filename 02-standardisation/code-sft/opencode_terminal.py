@@ -391,7 +391,7 @@ PROTOCOL = re.compile(
     r"task_complete|keystrokes?\b|terminal_step|mark_task_complete|bash_command|"
     r"previous (?:response|reply|answer)\b[^.\n]{0,40}(?:error|warning|invalid|json|format|parse)|"
     r"extra text (?:detected )?before|required (?:json|response) format|"
-    r"new terminal output|\"duration\"|command with duration|"
+    r"new terminal output|current terminal screen|\"duration\"|command with duration|"
     r"\"(?:analysis|plan|commands)\"|"
     r"\b(?:commands? (?:array|list|field|empty)|empty commands)\b|"
     r"\bmark(?:ing|ed)?\s+(?:the\s+|this\s+)?task\s+(?:as\s+)?complete|"

@@ -150,3 +150,38 @@ class OpenCodeReasoning2Tests(unittest.TestCase):
     def test_missing_question_is_rejected(self):
         with self.assertRaisesRegex(ValueError, "question_not_restored"):
             normalize_v2(dict(self.row(), index="8"), dict(ENTRY, repo=self.REPO), FILE, 0)
+
+
+class NemotronCompetitiveProgrammingTests(OpenCodeReasoning2Tests):
+    REPO = "nvidia/Nemotron-Competitive-Programming-v1"
+    PYTHON = dict(FILE, path="data/competitive_coding_python.part_00.jsonl")
+
+    def row(self, **fields):
+        return dict(
+            messages=[{"role": "user", "content": "-"}, {"role": "assistant", "content": "print(1)"}],
+            dataset="taco", split="train", index="7", **fields,
+        )
+
+    def test_question_is_restored_as_the_prompt(self):
+        result = normalize_v2(self.row(), dict(ENTRY, repo=self.REPO), self.PYTHON, 0)
+        prompt = json.loads(result["messages_json"])[0]["content"]
+        self.assertTrue(prompt.startswith("You are a helpful and harmless assistant."))
+        self.assertIn("Please use python programming language only.", prompt)
+        self.assertTrue(prompt.endswith("```python\n# Your code here\n```\n\nSum two numbers."))
+
+    def test_released_prompts_and_unrelated_files_are_kept(self):
+        given = dict(self.row(), dataset="code_contests")
+        given["messages"] = [{"role": "user", "content": "Solve it."}] + given["messages"][1:]
+        result = normalize_v2(given, dict(ENTRY, repo=self.REPO), self.PYTHON, 0)
+        self.assertEqual(json.loads(result["messages_json"])[0]["content"], "Solve it.")
+        plain = {"messages": [{"role": "user", "content": "q"}, {"role": "assistant", "content": "a"}]}
+        normalize_v2(plain, dict(ENTRY, repo=self.REPO), dict(FILE, path="data/infinibyte.part_00.jsonl"), 0)
+
+    def test_benchmark_split_questions_are_rejected(self):
+        for dataset, split in (("apps", "test"), ("code_contests", "test"), ("code_contests", "valid")):
+            with self.assertRaisesRegex(ValueError, "benchmark_split_question"):
+                normalize_v2(dict(self.row(), dataset=dataset, split=split), dict(ENTRY, repo=self.REPO), self.PYTHON, 0)
+
+    def test_missing_question_is_rejected(self):
+        with self.assertRaisesRegex(ValueError, "question_not_restored"):
+            normalize_v2(dict(self.row(), index="8"), dict(ENTRY, repo=self.REPO), self.PYTHON, 0)

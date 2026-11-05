@@ -1,21 +1,24 @@
-"""Restore the questions of nvidia/OpenCodeReasoning-2 from the datasets they came from.
+"""Restore left-out questions of NVIDIA's competitive-programming releases from their sources.
 
-The release leaves `question` as "-" in every row and documents how to rebuild it: look up
-row `index` of split `split` in the source named by `dataset` (TACO, APPS, CodeContests or
-open-r1/codeforces) and take its problem statement, composed for open-r1/codeforces from the
-description, formats, examples and note. This module does that once and writes a small
-lookup table, one row per (dataset, split, index) the release refers to.
+nvidia/OpenCodeReasoning-2 leaves `question` as "-" in every row, and
+nvidia/Nemotron-Competitive-Programming-v1 does the same for its TACO and APPS rows. Both refer
+to the problem by `dataset`, `split` and `index`, and the OpenCodeReasoning-2 card documents how
+to rebuild it: look up row `index` of split `split` in the source named by `dataset` (TACO,
+APPS, CodeContests or open-r1/codeforces) and take its problem statement, composed for
+open-r1/codeforces from the description, formats, examples and note. This module writes that
+statement for every training problem of the four sources into one lookup table.
 
 Only training splits are looked up. Rows from evaluation splits (APPS test, TACO test,
 CodeContests valid/test) are rejected later by the preprocessor, since those questions are
 benchmark problems.
 
-Each lookup is checked against what the release says about the question (its platform and
-difficulty label), so a source whose row order differs from the one the release used is
-noticed instead of producing wrong questions. The build stops if a source disagrees.
+The rows the releases refer to are checked against what each release says about the question
+(its platform and difficulty label), so a source whose row order differs from the one the
+release used is noticed instead of producing wrong questions. The build stops if a source
+disagrees. A saved release is checked in full, a JSONL release on its first rows per file.
 
 Usage:
-  python ocr2_questions.py --sources DIR --release DIR --output FILE.parquet
+  python ocr2_questions.py --sources DIR --release DIR_OR_JSONL [...] --output FILE.parquet
 where DIR holds TACO/, apps/, code_contests/ and codeforces/ as downloaded by
 01-hf-download/hf-download-raw.py (training files only).
 """
@@ -127,37 +130,63 @@ def load_sources(directory):
     }
 
 
-def referenced(release):
-    """(dataset, split, index) -> (source, difficulty) for every row of the release."""
-    from datasets import load_from_disk
+JSONL_CHECK_ROWS = 20000
 
-    wanted = {}
-    for split in load_from_disk(str(release)).values():
-        for row in split.select_columns(["dataset", "split", "index", "source", "difficulty"]):
-            key = (row["dataset"], row["split"], int(row["index"]))
-            wanted.setdefault(key, (row["source"], row["difficulty"]))
+
+def referenced(release, wanted=None):
+    """(dataset, split, index) -> (source, difficulty) for the rows of a release: all rows of
+    a saved dataset, the first JSONL_CHECK_ROWS rows of each JSONL file of a raw download."""
+    wanted = {} if wanted is None else wanted
+    path = Path(release)
+    files = sorted(path.glob("**/*.jsonl")) if path.is_dir() else [path]
+    if path.is_dir() and (path / "dataset_dict.json").exists():
+        from datasets import load_from_disk
+
+        rows = (r for split in load_from_disk(str(path)).values()
+                for r in split.select_columns(["dataset", "split", "index", "source", "difficulty"]))
+    else:
+        def rows():
+            for file in files:
+                with open(file) as handle:
+                    for number, line in enumerate(handle):
+                        if number >= JSONL_CHECK_ROWS:
+                            break
+                        yield json.loads(line)
+        rows = rows()
+    for row in rows:
+        if row.get("dataset") is None or row.get("index") in (None, ""):
+            continue
+        key = (row["dataset"], row["split"], int(row["index"]))
+        wanted.setdefault(key, (row.get("source"), row.get("difficulty")))
     return wanted
 
 
-def build(sources, release, output):
-    wanted = referenced(release)
+def build(sources, releases, output):
+    wanted = {}
+    for release in releases:
+        referenced(release, wanted)
     loaded = load_sources(sources)
-    records, counts = [], Counter()
+    counts = Counter()
     for (dataset, split, index), (source, difficulty) in sorted(wanted.items()):
         if (dataset, split) in EVALUATION_SPLITS:
             counts["evaluation split, not looked up"] += 1
             continue
         if (dataset, split) not in TRAIN_SPLITS:
-            raise ValueError(f"Unknown OpenCodeReasoning-2 source split: {dataset} {split}")
+            raise ValueError(f"Unknown source split: {dataset} {split}")
         rows, question_of, agrees, _ = loaded[dataset]
         if index >= len(rows):
             raise ValueError(f"{dataset} {split} has no row {index} ({len(rows)} rows)")
-        question = question_of(rows[index])
-        if not question:
+        if not question_of(rows[index]):
             raise ValueError(f"{dataset} {split} row {index} has no problem statement")
         agreed = bool(agrees(rows[index], source, difficulty))
         counts[(dataset, "labels agree" if agreed else "labels differ")] += 1
-        records.append(dict(dataset=dataset, split=split, index=index, question=question, labels_agree=agreed))
+    # Every training problem of the sources, so any row of either release can be restored
+    records = []
+    for dataset, (rows, question_of, _, _) in loaded.items():
+        for index, source_row in enumerate(rows):
+            question = question_of(source_row)
+            if question:
+                records.append(dict(dataset=dataset, split="train", index=index, question=question))
     report = {}
     for dataset in loaded:
         agree, differ = counts[(dataset, "labels agree")], counts[(dataset, "labels differ")]
@@ -178,13 +207,14 @@ def build(sources, release, output):
     table = pa.Table.from_pylist(records).replace_schema_metadata(metadata)
     Path(output).parent.mkdir(parents=True, exist_ok=True)
     pq.write_table(table, output, compression="zstd")
-    return dict(report=report, revisions=revisions, skipped=counts["evaluation split, not looked up"], written=len(records))
+    return dict(report=report, revisions=revisions, evaluation_split_references=counts["evaluation split, not looked up"], written=len(records))
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--sources", required=True)
-    parser.add_argument("--release", required=True, help="the downloaded nvidia/OpenCodeReasoning-2 folder")
+    parser.add_argument("--release", nargs="+", required=True,
+                        help="downloaded release folders or JSONL files whose references are checked")
     parser.add_argument("--output", required=True)
     args = parser.parse_args()
     try:
