@@ -314,6 +314,34 @@ def test_clean_observation_and_helpers():
     assert drop_echo_lines("> not ours\nkept", ["ls"]) == "> not ours\nkept"
 
 
+HEREDOC_SCRIPT = "cat > t.py << 'EOF'\nimport sys\n\nprint(\"Edge tests passed.\")\nEOF"
+
+
+def test_blank_heredoc_line_echoed_as_bare_prompt_still_splits_the_batch():
+    screen = (
+        f"New Terminal Output:\n{P}cat > t.py << 'EOF'\n> import sys\n>\n> print(\"Edge tests passed.\")\n> EOF\n"
+        f"{P}python3 t.py\nEdge tests passed.\n{P}"
+    )
+    source = chat(step(0, keys(HEREDOC_SCRIPT + "\n", "python3 t.py\n"), screen))
+    messages, _, _, stats = convert_chat(source, [])
+    assert [c[0] for c in calls(messages)] == ["write", "bash"]
+    assert results(messages)[-1] == "Edge tests passed."
+    assert "joined_batches" not in stats
+
+
+def test_output_that_repeats_a_printed_string_is_kept_after_an_echo():
+    # The joined fallback: output right after a heredoc echo is output, even when the
+    # script prints that same text
+    body = "> import sys\n>\n> print(\"Edge tests passed.\")\n> EOF\nEdge tests passed.\nAll done"
+    assert drop_echo_lines(body, [HEREDOC_SCRIPT, "python3 t.py"]) == "Edge tests passed.\nAll done"
+
+
+def test_soft_wrapped_echo_continuation_is_still_removed():
+    command = "cat > f << EOF\nprint('a very long line that the terminal wrapped')\nEOF"
+    body = "> print('a very long line that\n the terminal wrapped')\n> EOF\nreal output"
+    assert drop_echo_lines(body, [command]) == "real output"
+
+
 def terminal_row():
     prompt = (
         "You are an AI assistant tasked with solving command-line tasks in a Linux environment.\n\n"
@@ -368,3 +396,10 @@ def test_apply_to_result_records_tools_as_harness_defined():
     result = {"chat": {"messages": chat(step(0, keys("ls\n"), f"New Terminal Output:\n{P}ls\na\n{P}")), "tools": []}}
     apply_to_result(result)
     assert {"name": "bash", "origin": "producer_harness"} in result["tool_provenance"]
+
+
+def test_echo_without_its_prompt_is_removed_after_an_echo():
+    # The prompt of the next command was lost; its lines still follow the previous echo
+    first, second = "cat > m.cpp << 'CPP'\nint main() {}\nCPP", "./main << 'EOF'\n3\nEOF"
+    body = "> int main() {}\n> CPP\n./main << 'EOF'\n3\nEOF\nanswer"
+    assert drop_echo_lines(body, [first, second]) == "answer"

@@ -102,6 +102,9 @@ def match_echo(text, position, command):
             position += 1
             if text[position:position + 2] == "> ":
                 position += 2
+            elif text[position:position + 1] == ">" and text[position + 1:position + 2] in ("\n", ""):
+                # An empty continuation line is echoed as a bare ">"
+                position += 1
             else:
                 prompt = PROMPT.match(text, position)
                 if prompt:
@@ -164,21 +167,30 @@ def split_output(text, commands):
 def drop_echo_lines(body, commands):
     """Remove echoed lines of a command whose first line scrolled off the screen.
 
-    A `> ` line goes only if it repeats a line of the batch, so quoted output stays. A
-    wrapped echo continues on a line without the `> `, recognised right after an echo."""
-    source = "\n".join(commands)
-    lines = {line.strip() for line in source.split("\n")}
-    kept, in_echo = [], False
+    A `> ` line goes only if it repeats a line of the batch, so quoted output stays. Right
+    after such an echo, a line without the `> ` also goes if it is a whole line of the batch
+    (an echo whose prompt was lost) or completes the echo line before it into one (an echo
+    soft-wrapped at the terminal width). Output that only contains text of the batch, such
+    as a string the script prints, stays."""
+    lines = {line.strip() for command in commands for line in command.split("\n")}
+    kept, in_echo, partial = [], False, None
     for line in body.split("\n"):
         text = line[2:] if line.startswith("> ") else "" if line == ">" else None
         if text is not None and (
             text.strip() in lines or any(known.startswith(text.strip()) for known in lines if text.strip())
         ):
-            in_echo = True
+            in_echo, partial = True, text if text.strip() not in lines else None
             continue
-        if in_echo and line.strip() and line.strip() in source and text is None:
-            continue
-        in_echo = False
+        if in_echo and text is None and line.strip():
+            if line.strip() in lines:
+                partial = None
+                continue
+            if partial is not None:
+                joined = (partial + line).strip()
+                if any(known == joined or known.startswith(joined) for known in lines):
+                    partial = joined if joined not in lines else None
+                    continue
+        in_echo, partial = False, None
         kept.append(line)
     return "\n".join(kept).strip("\n")
 
