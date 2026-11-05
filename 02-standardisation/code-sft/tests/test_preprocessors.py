@@ -94,3 +94,59 @@ class PreprocessorTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class OpenCodeReasoning2Tests(unittest.TestCase):
+    REPO = "nvidia/OpenCodeReasoning-2"
+
+    def setUp(self):
+        import os
+        import tempfile
+        import pyarrow as pa
+        import pyarrow.parquet as pq
+        from preprocessors.nvidia_opencodereasoning_2 import questions
+
+        self.directory = tempfile.TemporaryDirectory()
+        path = os.path.join(self.directory.name, "ocr2_questions.parquet")
+        pq.write_table(
+            pa.Table.from_pylist(
+                [dict(dataset="taco", split="train", index=7, question="Sum two numbers.", labels_agree=True)]
+            ),
+            path,
+        )
+        self.previous = os.environ.get("OCR2_QUESTIONS")
+        os.environ["OCR2_QUESTIONS"] = path
+        questions.cache_clear()
+
+    def tearDown(self):
+        import os
+        from preprocessors.nvidia_opencodereasoning_2 import questions
+
+        if self.previous is None:
+            os.environ.pop("OCR2_QUESTIONS", None)
+        else:
+            os.environ["OCR2_QUESTIONS"] = self.previous
+        questions.cache_clear()
+        self.directory.cleanup()
+
+    def row(self, **fields):
+        return dict(
+            question="-", r1_generation="<think>\nadd\n</think>\nprint(sum(map(int, input().split())))",
+            dataset="taco", split="train", index="7", **fields,
+        )
+
+    def test_question_is_restored_as_the_prompt(self):
+        result = normalize_v2(self.row(), dict(ENTRY, repo=self.REPO), FILE, 0)
+        self.assertEqual(result["prompt"], "Sum two numbers.")
+        self.assertEqual(json.loads(result["source_record_json"])["question"], "-")
+
+    def test_benchmark_split_questions_are_rejected(self):
+        for dataset, split in (("apps", "test"), ("taco", "test"), ("code_contests", "valid")):
+            with self.assertRaisesRegex(ValueError, "benchmark_split_question"):
+                normalize_v2(
+                    dict(self.row(), dataset=dataset, split=split), dict(ENTRY, repo=self.REPO), FILE, 0
+                )
+
+    def test_missing_question_is_rejected(self):
+        with self.assertRaisesRegex(ValueError, "question_not_restored"):
+            normalize_v2(dict(self.row(), index="8"), dict(ENTRY, repo=self.REPO), FILE, 0)

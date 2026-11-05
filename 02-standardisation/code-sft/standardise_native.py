@@ -19,6 +19,7 @@ from native_format import native_conversation
 from openai_chat import convert, decode
 from openai_training_payload import render_reasoning
 import opencode_terminal
+import swe_opencode
 import terminus_terminal
 from openai_validation import check_result
 from standardize import atomic_json, dumps
@@ -159,10 +160,20 @@ def checked_row(
         )
     render_reasoning(result, "sidecar")
     if opencode_terminal.uses_terminal_protocol(result["chat"]):
+        replies = sum(1 for m in messages if isinstance(m, dict) and m.get("role") == "assistant")
+        if replies < 2:
+            # A Terminus-2 run that stops after its first command batch, before any output
+            raise ValueError(
+                "single_reply_trajectory: the trajectory stops after the first command batch, "
+                "before any terminal output"
+            )
         if terminal_harness == "opencode":
             opencode_terminal.apply_to_result(result)
         else:
             terminus_terminal.apply_to_result(result, messages)
+    swe_harness = swe_opencode.source_harness(entry["repo"], result["chat"])
+    if swe_harness and terminal_harness == "opencode":
+        swe_opencode.apply_to_result(result, swe_harness)
     errors = unresolved(result) + check_result(result)
     if errors:
         raise ValueError(json.dumps(errors))
@@ -423,8 +434,9 @@ def main():
         "--terminal-harness",
         choices=["opencode", "terminus"],
         default="opencode",
-        help="opencode rewrites Terminus-2 trajectories as OpenCode sessions (opencode_terminal.py); "
-        "terminus keeps the harness description, JSON replies and terminal screens (terminus_terminal.py)",
+        help="opencode rewrites Terminus-2, SWE-agent (Sera) and SWE-Next trajectories as OpenCode "
+        "sessions (opencode_terminal.py, swe_opencode.py); terminus keeps each source harness, and "
+        "ports Terminus-2 with its description, JSON replies and screens (terminus_terminal.py)",
     )
     parser.add_argument(
         "--tokenizer", type=Path, help="Local verified Apertus 2 tokenizer artifact"

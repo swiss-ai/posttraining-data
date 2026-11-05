@@ -52,3 +52,6 @@ opc-sft-stage2-evol_instruct
 # The system prompt says to act as an agent, but the model emits no tool calls: pseudo
 # tool calls in its reply, results as user messages. Also distilled from Claude Sonnet.
 SWE-smith-trajectories
+# Read-only code question answering in its own harness: semantic_search (used in 93% of
+# rows) has no OpenCode equivalent, so it cannot be converted without inventing results
+SWE-QA-Pro-SFT-Trajectories

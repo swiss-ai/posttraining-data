@@ -112,13 +112,14 @@ to filter. `--limit N` stops after N trajectories, which is what the smoke test 
 
 ## Two versions of terminal trajectories
 
-`--terminal-harness` picks the version of a Terminus-2 trajectory, and each version needs its
-own `--output`. Other rows are the same in both.
+`--terminal-harness` picks the version of an agent trajectory, and each version needs its
+own `--output`. It applies to Terminus-2 trajectories and to the SWE-agent (`allenai/Sera-*`)
+and SWE-Next (`TIGER-Lab/SWE-Next-SFT-Trajectories`) releases; other rows are the same in both.
 
 | Value | Harness the model sees | Module |
 |---|---|---|
-| `opencode` (default) | OpenCode: `bash` / `read` / `write` calls with plain output | `opencode_terminal.py` |
-| `terminus` | Terminus-2 as recorded: its description, JSON replies and terminal screens | `terminus_terminal.py` |
+| `opencode` (default) | OpenCode: `bash` / `read` / `write` / `edit` calls with OpenCode's output | `opencode_terminal.py`, `swe_opencode.py` |
+| `terminus` | the source harness: Terminus-2 with its description, JSON replies and screens; SWE-agent and SWE-Next unchanged | `terminus_terminal.py` |
 
 ```bash
 uv run python pipeline.py standardise --input DATASET --output native-opencode
@@ -149,9 +150,51 @@ Rows that cannot be mapped honestly are quarantined with
 keys, keystrokes never submitted, handoff prompts, rows with no task, and output that
 belongs to no command.
 
+### SWE-agent and SWE-Next sessions
+
+`swe_opencode.py` maps each structured call onto the OpenCode tool that does the same thing:
+the shell to `bash` (SWE-agent's shell keeps `cd`, which becomes `workdir`), file views to
+`read` with OpenCode's numbered output, `create` to `write`, `str_replace` to `edit`, a
+directory view to the `find` command the editors run for it, and SWE-Next's `search` to the
+`grep` command with the same result. `submit` / `finish` are dropped and the session ends in
+the summary the model wrote. Steps OpenCode has no form for are dropped and their reasoning
+moves to the next call: shortened file views (an outline of a large file), failed attempts
+(a view past the end of a file, a failed `str_replace`) and SWE-Next's "NO TOOL CALL" nudges.
+Rows are rejected for `insert` / `undo_edit`, edits refused by SWE-Next's linter, and an
+edit of a file the session never read, which OpenCode refuses.
+
 `opencode_harness.json` is a snapshot from `nvidia/Nemotron-SFT-OpenCode-v1` (January 2026),
 so converted rows match that dataset. Current OpenCode releases may name tools and arguments
 differently; replace the snapshot to target another version.
+
+## Dataset fixes
+
+Some releases need more than the generic mapping. Rows that cannot be fixed are quarantined
+with the reason in `rejected.jsonl`.
+
+`nvidia/OpenCodeReasoning-2` leaves every `question` as `-`. Build the lookup of the
+questions once from their source datasets (TACO, APPS, CodeContests, open-r1/codeforces;
+training files only, about 12 GB), then standardise as usual:
+
+```bash
+Q=/capstor/store/cscs/swissai/infra01/datasets/swe_terminal_sft_apertus_v2/.question_sources
+python ../../01-hf-download/hf-download-raw.py BAAI/TACO --download-folder $Q --allow-patterns 'ALL/train-*.parquet'
+python ../../01-hf-download/hf-download-raw.py codeparrot/apps --download-folder $Q --allow-patterns train.jsonl
+python ../../01-hf-download/hf-download-raw.py open-r1/codeforces --download-folder $Q --allow-patterns 'data/train-*.parquet'
+python ../../01-hf-download/hf-download-raw.py deepmind/code_contests --download-folder $Q --allow-patterns 'data/train-*.parquet'
+python ../../02-standardisation/code-sft/ocr2_questions.py --sources $Q \
+  --release /path/to/OpenCodeReasoning-2 --output $Q/ocr2_questions.parquet
+```
+
+The build checks every lookup against the release's platform and difficulty labels and stops
+if a source's row order differs. The preprocessor reads `$OCR2_QUESTIONS`, or the path above
+by default. Rows whose question is from an evaluation split (APPS test, TACO test,
+CodeContests valid) are rejected as `benchmark_split_question`, about 18% of the release.
+
+Terminus-2 trajectories that stop after the model's first reply, before any terminal
+output, are rejected as `single_reply_trajectory` in both versions. They are about 14% of
+`ukisai/Qwen3.8-27B-multi-turn-agent-sft` (two of its four generation runs, which sort first
+in the file) and 0–3% of the other Terminus-2 releases.
 
 ## Optional native tokenization
 

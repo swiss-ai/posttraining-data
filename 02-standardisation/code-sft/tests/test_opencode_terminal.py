@@ -412,3 +412,11 @@ def test_command_without_newline_before_another_is_refused():
     assert error.value.reason == "concatenated_keystrokes"
     # The last command of a batch is checked against the output instead
     assert prepare_commands(keys("ls\n", "pwd")) == ["ls", "pwd"]
+
+
+@pytest.mark.parametrize("harness", ["opencode", "terminus"])
+def test_trajectory_that_stops_after_the_first_reply_is_rejected(harness):
+    source = terminal_row()
+    source["conversations"] = source["conversations"][:2]
+    with pytest.raises(ValueError, match="single_reply_trajectory"):
+        checked_row(source, ENTRY, SPEC, 0, {}, "think-first", None, harness)
