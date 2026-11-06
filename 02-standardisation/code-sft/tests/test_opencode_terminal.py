@@ -439,3 +439,28 @@ def test_thinking_level_follows_the_thinking_in_the_training_text():
     # inside the JSON reply and has no thinking, so it stays low.
     assert thinks == {"opencode": True, "terminus": False}
     assert levels == {"opencode": "medium", "terminus": "low"}
+
+
+def final_batch_row(final):
+    row = terminal_row()
+    row["conversations"][-1]["value"] = json.dumps(final)
+    return row
+
+
+def test_final_read_only_checks_with_task_complete_end_with_text():
+    row = checked_row(final_batch_row({
+        "analysis": "Everything is in place.", "plan": "List the files once more.",
+        "commands": keys("ls -l\n"), "task_complete": True,
+    }), ENTRY, SPEC, 0, {}, "think-first")
+    items = [i for i in json.loads(row["conversation_json"])["items"] if i["type"] != "wait"]
+    assert items[-1]["type"] == "reply" and "Everything is in place." in items[-1]["payload"]
+    assert sum(i["type"] == "call" for i in items) == 1  # only the executed ls
+
+
+def test_final_batch_that_changes_something_stays_a_call():
+    row = checked_row(final_batch_row({
+        "analysis": "Clean up.", "plan": "Remove core dumps.",
+        "commands": keys("rm -f core.*\n"), "task_complete": True,
+    }), ENTRY, SPEC, 0, {}, "think-first")
+    items = [i for i in json.loads(row["conversation_json"])["items"] if i["type"] != "wait"]
+    assert items[-1]["type"] == "call" and "rm -f core" in items[-1]["payload"]

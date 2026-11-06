@@ -16,6 +16,7 @@ from apertus_common import load_encoding
 
 from chat_review import unresolved
 from native_format import native_conversation
+import source_formats
 from openai_chat import convert, decode
 from openai_training_payload import render_reasoning
 import opencode_terminal
@@ -129,6 +130,10 @@ def checked_row(
     original, entry, spec, index, mapping, convention, encoding=None, terminal_harness="opencode"
 ):
     mapped = rename(original, mapping)
+    # Turns serialized as text by the source export: restore calls, results and reasoning
+    if entry["repo"] == "Lite-Coder/LiteCoder-Terminal-SFT":
+        mapped = source_formats.openhands_text_calls(mapped)
+    mapped = source_formats.harmony_terminus(mapped)
     if entry["repo"] == "open-alchemy/code-alchemy":
         from code_alchemy import adapt
 
@@ -213,6 +218,10 @@ def checked_row(
     errors = unresolved(result) + check_result(result)
     if errors:
         raise ValueError(json.dumps(errors))
+    residue = source_formats.text_format_residue(result["chat"])
+    if residue:
+        # Calls, results or channels still written as text: not a usable chat
+        raise source_formats.SourceFormatError(residue)
     # Thinking level from the reasoning the training text ends up with, after every
     # harness conversion: medium when an assistant turn has thinking, low when none has.
     # A Terminus-2 reply's `analysis` becomes thinking in the OpenCode version, so that

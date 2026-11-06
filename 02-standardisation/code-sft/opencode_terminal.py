@@ -321,6 +321,30 @@ def describe(command):
     return DESCRIPTIONS.get(first, f"Runs {first}" if first else "Runs a shell command")
 
 
+READ_ONLY_PROGRAMS = {
+    "ls", "cat", "pwd", "head", "tail", "wc", "echo", "printf", "grep", "egrep", "rg",
+    "find", "tree", "stat", "file", "du", "df", "which", "type", "whoami", "id", "date",
+    "env", "printenv", "uname", "hostname", "diff", "cmp", "md5sum", "sha256sum", "true",
+    "test", "[", "less", "more", "nl", "sort", "uniq", "cut", "column", "jq", "readlink",
+    "realpath", "basename", "dirname", "ps", "free", "uptime", "history", "clear",
+}
+
+
+def read_only(command):
+    """Whether a shell command only inspects state: every simple command is a known
+    read-only program, with no output redirect, in-place edit or find action."""
+    if HEREDOC.search(command):
+        return False
+    text = re.sub(r"\d?>&\d|\d?>\s*/dev/null", " ", command)
+    if re.search(r">|\btee\b|\s-i\b|-delete\b|-exec\b|\$\(|`", text):
+        return False
+    for part in re.split(r"&&|\|\||[|;\n]", text):
+        words = re.sub(r"^(?:\w+=\S+\s+)+", "", part.strip()).split()
+        if words and posixpath.basename(words[0]) not in READ_ONLY_PROGRAMS:
+            return False
+    return True
+
+
 def prepare_commands(raw):
     """Keystroke entries -> shell commands. Raises on anything that is not a shell command."""
     commands, pending, terminator = [], None, None
@@ -736,11 +760,30 @@ def harness_tools(harness, cwd):
     return json.loads(json.dumps(harness["tools"]).replace("{workdir}", cwd))
 
 
+SENTENCE_END = re.compile(r"(?<=[.!?])\s+(?=\S)")
+
+
 def clean_thoughts(values, session):
-    cleaned = []
+    """Reasoning of one turn: protocol talk removed, and sentences that an earlier part of
+    the same turn already says word for word dropped. A <think> block and the Terminus
+    `analysis` field often open with the same sentences."""
+    cleaned, seen = [], set()
     for value in values:
         text, removed = strip_protocol_talk(value)
         session.count("protocol_sentences_removed", removed)
+        if not text:
+            continue
+        kept = []
+        for paragraph in text.split("\n\n"):
+            sentences = SENTENCE_END.split(paragraph)
+            fresh = [x for x in sentences if x.strip() not in seen]
+            if len(fresh) < len(sentences):
+                session.count("repeated_reasoning_sentences_removed", len(sentences) - len(fresh))
+            if fresh:
+                kept.append(" ".join(fresh) if len(fresh) < len(sentences) else paragraph)
+        for paragraph in text.split("\n\n"):
+            seen.update(x.strip() for x in SENTENCE_END.split(paragraph))
+        text = "\n\n".join(kept)
         if text and text not in cleaned:
             cleaned.append(text)
     return cleaned
@@ -831,9 +874,19 @@ def convert_chat(messages, reasoning_by_message, harness=None):
             index += 2
             continue
         if not observed:
-            if prepare_commands(raw):
-                # The last action of a trajectory has no result: a legal training target
-                session.assistant(text, thoughts, session.bash("\n".join(prepare_commands(raw))))
+            final_commands = prepare_commands(raw)
+            if final_commands and arguments.get("task_complete") and all(map(read_only, final_commands)):
+                # "Run these checks, then I am done", with no output recorded: the checks
+                # change nothing, so the session ends here like a plain completion. The plan
+                # announces the dropped checks; the analysis says what state was reached.
+                session.count("final_read_only_checks_dropped")
+                analysis = [t for t in thoughts if t not in (plan_text, moved)]
+                final_text, final_thoughts = "", analysis
+            elif final_commands:
+                # The last action of a trajectory has no result: a legal training target.
+                # A final batch that changes something stays, even with task_complete: its
+                # effect is part of the work, and no closing text could claim it happened.
+                session.assistant(text, thoughts, session.bash("\n".join(final_commands)))
                 ended_with_call = True
             else:
                 final_text, final_thoughts = plan_text, [t for t in thoughts if t != plan_text]

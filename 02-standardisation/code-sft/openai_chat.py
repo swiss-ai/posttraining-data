@@ -82,6 +82,11 @@ def canonical_call(name, arguments, cid):
     }
 
 
+# swe_opencode reads SWE-Next's labels (with the exit code before them) and removes them itself
+LABELS_PARSED_LATER = {"TIGER-Lab/SWE-Next-SFT-Trajectories"}
+TEXT_MODE_LABEL = re.compile(r"(?:Execution output|EXECUTION RESULT) of \[([^\]]+)\]:[ \t]*\n?")
+
+
 def iter_function_payloads(messages):
     """Include nested batch actions in schema checks; batching cannot hide them."""
     for i, message in enumerate(messages):
@@ -967,11 +972,25 @@ def convert(snapshot):
                             raise ValueError("Ambiguous tool result association")
                     if cid not in [c["id"] for c in pending]:
                         raise ValueError("Unmatched tool result ID")
+                    answered = next(c for c in pending if c["id"] == cid)
                     pending = [c for c in pending if c["id"] != cid]
+                    content = content if content is not None else ""
+                    # Text-mode harnesses label each observation with its tool; as a tool
+                    # result linked to that call the label is not part of the output.
+                    label = TEXT_MODE_LABEL.match(content)
+                    if (
+                        label
+                        and label[1] == answered["function"]["name"]
+                        and repo not in LABELS_PARSED_LATER
+                    ):
+                        content = content[label.end() :]
+                        changes.append(
+                            "Removed text-mode result labels (EXECUTION RESULT of [tool]: / Execution output of [tool]:) from tool results"
+                        )
                     msg = {
                         "role": "tool",
                         "tool_call_id": cid,
-                        "content": content if content is not None else "",
+                        "content": content,
                     }
                 elif pending:
                     raise ValueError(
