@@ -18,6 +18,7 @@ mbpp
 mbppplus
 openai_humaneval
 McEval-generation
+MultiPL-E
 SWE-bench
 SWE-bench_Lite
 SWE-bench_Multilingual
@@ -55,3 +56,28 @@ SWE-smith-trajectories
 # Read-only code question answering in its own harness: semantic_search (used in 93% of
 # rows) has no OpenCode equivalent, so it cannot be converted without inventing results
 SWE-QA-Pro-SFT-Trajectories
+
+# Removed from the download scripts for licence or data reasons (raw downloads kept on disk)
+# Non-commercial licence
+CodeExercise-Python-27k
+KodCode-V1-SFT-4o
+KodCode-V1-SFT-R1
+# ShareAlike licence
+McEval-Instruct
+# Licence conflict
+codeforces-cots
+# No licence found
+Mixture-of-Thoughts-code
+# Licence not explicitly declared
+Mocha-trajectories
+# Not SFT data
+SYNTHETIC-1
+# Unfiltered / unverified; use SYNTHETIC-2-SFT-verified
+SYNTHETIC-2
+SYNTHETIC-2-SFT-unverified
+# Subsets of OpenThoughts-Agent-SFT-100K
+OpenThoughts-Agent-SFT-10K
+OpenThoughts-Agent-SFT-1K
+OpenThoughts-Agent-SFT-3.16K
+OpenThoughts-Agent-SFT-31.6K
+OpenThoughts-Agent-SFT-316

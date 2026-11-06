@@ -58,12 +58,10 @@ fi
 declare -A SUBSETS=(
     ["microsoft/rStar-Coder"]="synthetic_sft seed_sft"
     ["nvidia/OpenCodeReasoning"]="split_0"
-    ["open-r1/Mixture-of-Thoughts"]="code"
     ["OpenCoder-LLM/opc-sft-stage1"]="filtered_infinity_instruct largescale_diverse_instruct realuser_instruct"
     ["OpenCoder-LLM/opc-sft-stage2"]="educational_instruct evol_instruct mceval_instruct package_instruct"
     ["GAIR/daVinci-Dev"]="llm_enhanced_prs"
     ["openbmb/UltraData-SFT-2605"]="Code"
-    ["GAIR/OpenSWE"]="openswe_oss"
     ["nvidia/Nemotron-Terminal-Corpus"]="skill_based_easy skill_based_medium skill_based_mixed"
     ["ai-and/termgrade-trajectories"]="trajectories_messages"
 )
@@ -78,10 +76,8 @@ declare -A NESTED=(
 # hf_download has datasets>=4, which reads the `Json` feature type.
 declare -A ENV_FOR=(
     # Json feature type (unknown to datasets 3.3.2)
-    ["GAIR/OpenSWE"]="hf_download"
     ["nvidia/Nemotron-SFT-CUDA-v1"]="hf_download"
     ["nvidia/Nemotron-SFT-SWE-v3.5"]="hf_download"
-    ["TIGER-Lab/SWE-QA-Pro-SFT-Trajectories"]="hf_download"
     # Irregular nested columns / mixed JSON schemas: newer datasets and pyarrow
     ["nvidia/Nemotron-SFT-OpenCode-v1"]="hf_download"
     ["ukisai/Qwen3.8-27B-multi-turn-agent-sft"]="hf_download"
@@ -111,28 +107,20 @@ DATASETS=(
     inclusionAI/Ling-Coder-SFT
     ise-uiuc/Magicoder-Evol-Instruct-110K
     ise-uiuc/Magicoder-OSS-Instruct-75K
-    KodCode/KodCode-V1-SFT-4o
-    KodCode/KodCode-V1-SFT-R1
     m-a-p/CodeFeedback-Filtered-Instruction
     microsoft/rStar-Coder
     Modotte/CodeX-2M-Thinking
     Modotte/CodeX-7M-Non-Thinking
-    Multilingual-Multimodal-NLP/McEval-Instruct
     nvidia/AceReason-1.1-SFT
     nvidia/OpenCodeInstruct
     nvidia/OpenCodeReasoning
     nvidia/OpenCodeReasoning-2
-    open-r1/codeforces-cots
-    open-r1/Mixture-of-Thoughts
     open-thoughts/OpenThoughts3-1.2M
     openbmb/UltraData-SFT-2605
     OpenCoder-LLM/opc-sft-stage1
     OpenCoder-LLM/opc-sft-stage2
-    PrimeIntellect/SYNTHETIC-1
     PrimeIntellect/SYNTHETIC-1-SFT-Data
-    PrimeIntellect/SYNTHETIC-2-SFT-unverified
     PrimeIntellect/SYNTHETIC-2-SFT-verified
-    sahil2801/CodeAlpaca-20k
     tudor-iustin22/maple
 
     # --- SWE / agentic coding ---
@@ -144,9 +132,7 @@ DATASETS=(
     allenai/Sera-4.5A-Full-T2
     allenai/Sera-4.6-Lite-T1
     allenai/Sera-4.6-Lite-T2
-    cocoa-org/Mocha-trajectories
     GAIR/daVinci-Dev
-    GAIR/OpenSWE
     Lego-X/SWE-Lego-Real-Data
     Lego-X/SWE-Lego-Synthetic-Data
     nvidia/Nemotron-SFT-CUDA-v1
@@ -157,22 +143,14 @@ DATASETS=(
     nvidia/Open-SWE-Traces
     nvidia/SWE-Hero-openhands-trajectories
     nvidia/SWE-Zero-openhands-trajectories
-    SWE-bench/SWE-smith-trajectories
     TIGER-Lab/SWE-Next-SFT-Trajectories
-    TIGER-Lab/SWE-QA-Pro-SFT-Trajectories
 
     # --- Terminal / agent trajectories ---
     Lego-X/Terminal-Lego-Traj-Deepseek-V3-2-15k
     Lite-Coder/LiteCoder-Terminal-SFT
-    Lite-Coder/LiteCoder-Terminal-World-Model-SFT
     nvidia/Nemotron-Terminal-Corpus
     open-thoughts/AgentTrove
     open-thoughts/OpenThoughts-Agent-SFT-100K
-    open-thoughts/OpenThoughts-Agent-SFT-10K
-    open-thoughts/OpenThoughts-Agent-SFT-1K
-    open-thoughts/OpenThoughts-Agent-SFT-3.16K
-    open-thoughts/OpenThoughts-Agent-SFT-31.6K
-    open-thoughts/OpenThoughts-Agent-SFT-316
     ai-and/termgrade-trajectories
     shunzou05/TerminalHorizon-3K
     m-a-p/TerminalTraj

@@ -60,9 +60,6 @@ ENTRIES=(
     "nvidia/Nemotron-SFT-Competitive-Programming-v2||data/*.jsonl"
     "nvidia/Nemotron-SFT-SWE-v2||data/*.jsonl"
 
-    # The repo's PNG files make the loader build an image dataset; take only the data file
-    "codefuse-ai/CodeExercise-Python-27k||CodeExercise-Python-27k.json"
-
     # Irregular nested columns: pyarrow cannot convert them in one chunk
     "nvidia/Nemotron-Terminal-Corpus|dataset_adapters|dataset_adapters/*"
 
