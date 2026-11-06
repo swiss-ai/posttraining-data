@@ -23,12 +23,46 @@ def explicit_result_id(message):
     )
 
 
-def group_unlinked_batches(messages):
-    """Group a complete contiguous response block without inventing per-call IDs.
+VALIDATION_FAILURE = re.compile(
+    r'Validation failed for tool \\?"([^"\\]+)\\?"[\s\S]*?Received arguments:\s*([\s\S]*)'
+)
 
-    The batch boundary is explicit in the source: one assistant call list,
-    immediately followed by the same number of tool observations. Inputs and
-    observations retain their own source order, with NO cross-list pairing.
+
+def names_another_call(call, observation):
+    """True when an observation identifies its call, and that call is not `call`.
+
+    Some harnesses answer an invalid call with "Validation failed for tool "X" ...
+    Received arguments: {...}" and return such errors ahead of the other results
+    (UltraData-SFT-Agent-2609 General-Agent), so source order is wrong there.
+    """
+    content = decode(observation.get("content"))
+    if isinstance(content, dict):  # {"result": "..."} wrappers
+        content = "\n".join(v for v in content.values() if isinstance(v, str))
+    text = content if isinstance(content, str) else json.dumps(content, ensure_ascii=False)
+    match = VALIDATION_FAILURE.search(text or "")
+    if not match:
+        return False
+    function = call["function"]
+    if match[1] != function.get("name"):
+        return True
+    received = decode(match[2].strip())
+    arguments = decode(function.get("arguments"))
+    return isinstance(received, dict) and isinstance(arguments, dict) and received != arguments
+
+
+def link_parallel_results_by_position(messages):
+    """Link the results of a parallel call block to their calls by position.
+
+    Some exports drop the call IDs: an assistant message with N calls is followed by
+    exactly N tool observations, none of them naming its call. Agent harnesses
+    (OpenCode, the OpenAI and Anthropic tool APIs) return parallel results in call
+    order, so observation k answers call k. Each call keeps its source ID or gets
+    "source_call_<message>_<k>", and observation k gets that ID as tool_call_id.
+    The calls then stay ordinary calls of the harness's own tools.
+
+    Blocks whose observation count differs from the call count, or where an
+    observation names a different call than the one at its position, are left
+    unchanged; the conversion rejects them as ambiguous instead of guessing.
     """
     result, origins, repairs = [], [], []
     i = 0
@@ -50,68 +84,43 @@ def group_unlinked_batches(messages):
             and len(calls) > 1
             and len(observations) == len(calls)
             and not any(explicit_result_id(m) for m in observations)
+            and all(
+                isinstance(c, dict) and isinstance(c.get("function"), dict)
+                for c in calls
+            )
+            and not any(
+                names_another_call(c, o) for c, o in zip(calls, observations)
+            )
         )
-        if eligible:
-            children = []
-            for call in calls:
-                function = call.get("function") if isinstance(call, dict) else None
-                args = (
-                    decode(function.get("arguments"))
-                    if isinstance(function, dict)
-                    else None
-                )
-                if not isinstance(function, dict) or not isinstance(args, dict):
-                    eligible = False
-                    break
-                child = {"name": function["name"], "arguments": args}
-                if call.get("id"):
-                    child["source_call_id"] = call["id"]
-                children.append(child)
-        if eligible:
-            batch_id = f"source_batch_{i}"
-            assistant = copy.deepcopy(message)
-            assistant["tool_calls"] = [
-                {
-                    "id": batch_id,
-                    "type": "function",
-                    "function": {
-                        "name": "source_tool_batch",
-                        "arguments": json.dumps(
-                            {"calls": children}, ensure_ascii=False
-                        ),
-                    },
-                }
-            ]
-            result.append(assistant)
-            origins.append([i])
-            result.append(
-                {
-                    "role": "tool",
-                    "tool_call_id": batch_id,
-                    "content": json.dumps(
-                        {
-                            "association": "batch_only",
-                            "source_observations": observations,
-                        },
-                        ensure_ascii=False,
-                    ),
-                }
-            )
-            origins.append(list(range(i + 1, end)))
-            repairs.append(
-                {
-                    "kind": "unlinked_parallel_batch",
-                    "batch_id": batch_id,
-                    "assistant_source_index": i,
-                    "observation_source_indices": list(range(i + 1, end)),
-                    "per_call_association": "not_recorded_and_not_inferred",
-                }
-            )
-            i = end
-        else:
+        if not eligible:
             result.append(copy.deepcopy(message))
             origins.append([i])
             i += 1
+            continue
+        ids = [c.get("id") or f"source_call_{i}_{k}" for k, c in enumerate(calls)]
+        if len(set(ids)) != len(ids):
+            ids = [f"source_call_{i}_{k}" for k in range(len(calls))]
+        assistant = copy.deepcopy(message)
+        assistant["tool_calls"] = [
+            {**copy.deepcopy(c), "id": call_id} for c, call_id in zip(calls, ids)
+        ]
+        result.append(assistant)
+        origins.append([i])
+        for k, (observation, call_id) in enumerate(zip(observations, ids)):
+            linked = copy.deepcopy(observation)
+            linked["tool_call_id"] = call_id
+            result.append(linked)
+            origins.append([i + 1 + k])
+        repairs.append(
+            {
+                "kind": "parallel_results_linked_by_position",
+                "assistant_source_index": i,
+                "observation_source_indices": list(range(i + 1, end)),
+                "call_ids": ids,
+                "per_call_association": "source_order",
+            }
+        )
+        i = end
     return result, origins, repairs
 
 

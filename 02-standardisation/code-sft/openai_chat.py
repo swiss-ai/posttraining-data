@@ -11,7 +11,7 @@ import json
 from pathlib import Path
 import re
 from openai_source_repairs import (
-    group_unlinked_batches,
+    link_parallel_results_by_position,
     recover_observed_nested_terminal,
 )
 
@@ -366,10 +366,12 @@ def convert(snapshot):
                     {"source_message_index": source_index, "issue": error}
                 )
     original_messages = copy.deepcopy(messages)
-    messages, message_origins, source_repairs = group_unlinked_batches(messages)
+    messages, message_origins, source_repairs = link_parallel_results_by_position(
+        messages
+    )
     if source_repairs:
         changes.append(
-            "Preserved unlinked parallel calls/results as explicit batches; no per-call result pairing inferred"
+            "Linked the results of parallel call blocks without call IDs to their calls by position (source order)"
         )
     terminal = any(
         isinstance(m.get("content"), str)
@@ -1129,7 +1131,9 @@ def convert(snapshot):
                         f"{name}: recovered published producer harness schema, guarded by dataset revision and system prompt"
                     )
     adapter_schemas = {}
-    if source_repairs:
+    # Only rows that still hold a source_tool_batch call (none are produced by the
+    # standardisation any more) get its schema.
+    if "source_tool_batch" in observed:
         adapter_schemas["source_tool_batch"] = {
             "type": "object",
             "required": ["calls"],

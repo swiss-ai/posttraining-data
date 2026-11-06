@@ -61,7 +61,7 @@ class LegacyDispatchTests(unittest.TestCase):
             "observed_signature_only",
         )
 
-    def test_complete_unlinked_batch_preserves_children_and_observations(self):
+    def test_parallel_block_without_result_ids_is_linked_by_position(self):
         snap = source(
             [
                 {"role": "user", "content": "Q"},
@@ -70,33 +70,29 @@ class LegacyDispatchTests(unittest.TestCase):
                     "content": None,
                     "tool_calls": [call("a", {"x": 1}), call("b", {"x": 2})],
                 },
-                {"role": "tool", "content": "second?"},
-                {"role": "tool", "content": "first?"},
+                {"role": "tool", "content": "first"},
+                {"role": "tool", "content": "second"},
                 {"role": "assistant", "content": "Done"},
             ]
         )
         result = convert(snap)
         action = next(m for m in result["chat"]["messages"] if m.get("tool_calls"))
-        children = json.loads(action["tool_calls"][0]["function"]["arguments"])["calls"]
-        self.assertEqual([c["name"] for c in children], ["source_tool_call"] * 2)
         self.assertEqual(
-            [c["arguments"] for c in children],
+            [c["function"]["name"] for c in action["tool_calls"]],
+            ["source_tool_call"] * 2,
+        )
+        self.assertEqual(
+            [json.loads(c["function"]["arguments"]) for c in action["tool_calls"]],
             [
                 {"name": "bash", "arguments": {"x": 1}},
                 {"name": "bash", "arguments": {"x": 2}},
             ],
         )
-        self.assertEqual([c["source_call_id"] for c in children], ["a", "b"])
-        observation = json.loads(
-            next(
-                m["content"] for m in result["chat"]["messages"] if m["role"] == "tool"
-            )
-        )
-        self.assertEqual(observation["association"], "batch_only")
+        results = [m for m in result["chat"]["messages"] if m["role"] == "tool"]
         self.assertEqual(
-            [m["content"] for m in observation["source_observations"]],
-            ["second?", "first?"],
+            [m["tool_call_id"] for m in results], [c["id"] for c in action["tool_calls"]]
         )
+        self.assertEqual([m["content"] for m in results], ["first", "second"])
         self.assertEqual(check_result(result) + unresolved(result), [])
 
     def test_released_native_schema_is_still_enforced(self):

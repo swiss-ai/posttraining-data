@@ -193,7 +193,7 @@ class PilotTests(unittest.TestCase):
         self.assertEqual(r["status"], "needs_adapter")
         self.assertTrue(any("Ambiguous" in x for x in r["issues"]))
 
-    def test_parallel_results_batched_without_invented_pairing(self):
+    def test_parallel_results_linked_to_their_calls_by_position(self):
         r = convert(
             sample(
                 [
@@ -212,26 +212,75 @@ class PilotTests(unittest.TestCase):
             )
         )
         self.assertEqual(r["status"], "passed_sample")
-        batch = next(m for m in r["chat"]["messages"] if m.get("tool_calls"))[
-            "tool_calls"
-        ][0]
-        self.assertEqual(batch["function"]["name"], "source_tool_batch")
+        action = next(m for m in r["chat"]["messages"] if m.get("tool_calls"))
+        # Two ordinary calls of the harness's own tool, no source_tool_batch wrapper
         self.assertEqual(
-            [
-                c["source_call_id"]
-                for c in json.loads(batch["function"]["arguments"])["calls"]
-            ],
-            ["a", "b"],
+            [c["function"]["name"] for c in action["tool_calls"]], ["bash", "bash"]
         )
-        result = next(m for m in r["chat"]["messages"] if m["role"] == "tool")
-        self.assertEqual(result["tool_call_id"], batch["id"])
-        observations = json.loads(result["content"])
-        self.assertEqual(observations["association"], "batch_only")
+        self.assertEqual([c["id"] for c in action["tool_calls"]], ["a", "b"])
+        results = [m for m in r["chat"]["messages"] if m["role"] == "tool"]
         self.assertEqual(
-            [o["content"] for o in observations["source_observations"]],
-            ["first", "second"],
+            [(m["tool_call_id"], m["content"]) for m in results],
+            [("a", "first"), ("b", "second")],
         )
-        self.assertFalse(any("source order" in w for w in r["warnings"]))
+        self.assertNotIn(
+            "source_tool_batch",
+            [t["function"]["name"] for t in r["chat"].get("tools") or []],
+        )
+        self.assertEqual(
+            [x["kind"] for x in r["source_repairs"]],
+            ["parallel_results_linked_by_position"],
+        )
+
+    def test_parallel_calls_without_ids_get_ids_by_position(self):
+        unnamed = [call("a"), call("b")]
+        for c in unnamed:
+            del c["id"]
+        r = convert(
+            sample(
+                [
+                    {"role": "user", "content": "Q"},
+                    {"role": "assistant", "content": None, "tool_calls": unnamed},
+                    {"role": "tool", "content": "first"},
+                    {"role": "tool", "content": "second"},
+                    {"role": "assistant", "content": "Done"},
+                ],
+                [definition()],
+            )
+        )
+        self.assertEqual(r["status"], "passed_sample")
+        action = next(m for m in r["chat"]["messages"] if m.get("tool_calls"))
+        ids = [c["id"] for c in action["tool_calls"]]
+        self.assertEqual(len(set(ids)), 2)
+        results = [m for m in r["chat"]["messages"] if m["role"] == "tool"]
+        self.assertEqual([m["tool_call_id"] for m in results], ids)
+        self.assertEqual([m["content"] for m in results], ["first", "second"])
+
+    def test_parallel_results_not_linked_when_a_result_names_another_call(self):
+        # The harness returned the second call's validation error first: source order
+        # is wrong, so the block is not linked and the row is rejected as ambiguous.
+        r = convert(
+            sample(
+                [
+                    {"role": "user", "content": "Q"},
+                    {
+                        "role": "assistant",
+                        "content": None,
+                        "tool_calls": [call("a", {"cmd": "ls"}), call("b", {"cmd": "pwd"})],
+                    },
+                    {
+                        "role": "tool",
+                        "content": 'Validation failed for tool "bash":\n  - bad\n\n'
+                        'Received arguments:\n{"cmd": "pwd"}',
+                    },
+                    {"role": "tool", "content": "listing"},
+                    {"role": "assistant", "content": "Done"},
+                ],
+                [definition()],
+            )
+        )
+        self.assertEqual(r["status"], "needs_adapter")
+        self.assertTrue(any("Ambiguous" in x for x in r["issues"]))
 
     def test_trailing_observation_preserved_without_fake_answer(self):
         r = convert(
