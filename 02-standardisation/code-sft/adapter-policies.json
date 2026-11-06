@@ -1,0 +1,316 @@
+{
+  "datasets": [
+    {
+      "repo": "CIIRC-NLP/alquistcoder2025_SFT_dataset",
+      "code_policy": "code_source"
+    },
+    {
+      "repo": "CodeResearch/Code-Evol-Instruct-OSS",
+      "code_policy": "code_source"
+    },
+    {
+      "repo": "GAIR/OpenSWE",
+      "code_policy": "code_source"
+    },
+    {
+      "repo": "GAIR/daVinci-Dev",
+      "code_policy": "code_source"
+    },
+    {
+      "repo": "IIGroup/X-Coder-SFT-376k",
+      "code_policy": "code_source"
+    },
+    {
+      "repo": "KodCode/KodCode-V1-SFT-4o",
+      "code_policy": "code_source"
+    },
+    {
+      "repo": "KodCode/KodCode-V1-SFT-R1",
+      "code_policy": "code_source"
+    },
+    {
+      "repo": "Lego-X/SWE-Lego-Real-Data",
+      "code_policy": "code_source"
+    },
+    {
+      "repo": "Lego-X/SWE-Lego-Synthetic-Data",
+      "code_policy": "code_source"
+    },
+    {
+      "repo": "Lego-X/Terminal-Lego-Traj-Deepseek-V3-2-15k",
+      "code_policy": "terminal_conversations"
+    },
+    {
+      "repo": "Lite-Coder/LiteCoder-Terminal-SFT",
+      "code_policy": "terminal_conversations"
+    },
+    {
+      "repo": "Lite-Coder/LiteCoder-Terminal-World-Model-SFT",
+      "code_policy": "terminal_conversations"
+    },
+    {
+      "repo": "Modotte/CodeX-2M-Thinking",
+      "code_policy": "code_source"
+    },
+    {
+      "repo": "Modotte/CodeX-7M-Non-Thinking",
+      "code_policy": "code_source"
+    },
+    {
+      "repo": "Multilingual-Multimodal-NLP/McEval-Instruct",
+      "code_policy": "code_source"
+    },
+    {
+      "repo": "OpenCoder-LLM/opc-sft-stage1",
+      "code_policy": "code_source"
+    },
+    {
+      "repo": "OpenCoder-LLM/opc-sft-stage2",
+      "code_policy": "code_source"
+    },
+    {
+      "repo": "PrimeIntellect/SYNTHETIC-1",
+      "code_policy": "labels"
+    },
+    {
+      "repo": "PrimeIntellect/SYNTHETIC-1-SFT-Data",
+      "code_policy": "labels"
+    },
+    {
+      "repo": "PrimeIntellect/SYNTHETIC-2-SFT-unverified",
+      "code_policy": "labels"
+    },
+    {
+      "repo": "PrimeIntellect/SYNTHETIC-2-SFT-verified",
+      "code_policy": "labels"
+    },
+    {
+      "repo": "SWE-bench/SWE-smith-trajectories",
+      "code_policy": "code_source"
+    },
+    {
+      "repo": "TIGER-Lab/SWE-Next-SFT-Trajectories",
+      "code_policy": "code_source"
+    },
+    {
+      "repo": "TIGER-Lab/SWE-QA-Pro-SFT-Trajectories",
+      "code_policy": "code_source"
+    },
+    {
+      "repo": "ajibawa-2023/Code-290k-ShareGPT",
+      "code_policy": "code_source"
+    },
+    {
+      "repo": "allenai/Sera-4.5A-Full-T1",
+      "code_policy": "code_source"
+    },
+    {
+      "repo": "allenai/Sera-4.5A-Full-T2",
+      "code_policy": "code_source"
+    },
+    {
+      "repo": "allenai/Sera-4.6-Lite-T1",
+      "code_policy": "code_source"
+    },
+    {
+      "repo": "allenai/Sera-4.6-Lite-T2",
+      "code_policy": "code_source"
+    },
+    {
+      "repo": "b-mc2/sql-create-context",
+      "code_policy": "code_source"
+    },
+    {
+      "repo": "bigcode/commitpackft",
+      "code_policy": "code_source"
+    },
+    {
+      "repo": "bigcode/self-oss-instruct-sc2-exec-filter-50k",
+      "code_policy": "code_source"
+    },
+    {
+      "repo": "cocoa-org/Mocha-trajectories",
+      "code_policy": "code_source"
+    },
+    {
+      "repo": "codefuse-ai/CodeExercise-Python-27k",
+      "code_policy": "code_source"
+    },
+    {
+      "repo": "glaiveai/glaive-code-assistant-v2",
+      "code_policy": "code_source"
+    },
+    {
+      "repo": "gretelai/synthetic_text_to_sql",
+      "code_policy": "code_source"
+    },
+    {
+      "repo": "hkust-nlp/CodeIO-PyEdu-Reasoning",
+      "code_policy": "code_source"
+    },
+    {
+      "repo": "inclusionAI/Ling-Coder-SFT",
+      "code_policy": "code_source"
+    },
+    {
+      "repo": "ise-uiuc/Magicoder-Evol-Instruct-110K",
+      "code_policy": "code_source"
+    },
+    {
+      "repo": "ise-uiuc/Magicoder-OSS-Instruct-75K",
+      "code_policy": "code_source"
+    },
+    {
+      "repo": "m-a-p/Code-Feedback",
+      "code_policy": "code_source"
+    },
+    {
+      "repo": "m-a-p/CodeFeedback-Filtered-Instruction",
+      "code_policy": "code_source"
+    },
+    {
+      "repo": "microsoft/rStar-Coder",
+      "code_policy": "code_source"
+    },
+    {
+      "repo": "nvidia/AceReason-1.1-SFT",
+      "code_policy": "labels"
+    },
+    {
+      "repo": "nvidia/Nemotron-Cascade-SFT-SWE",
+      "code_policy": "code_source"
+    },
+    {
+      "repo": "nvidia/Nemotron-Competitive-Programming-v1",
+      "code_policy": "code_source"
+    },
+    {
+      "repo": "nvidia/Nemotron-SFT-CUDA-v1",
+      "code_policy": "code_source"
+    },
+    {
+      "repo": "nvidia/Nemotron-SFT-Competitive-Programming-v2",
+      "code_policy": "code_source"
+    },
+    {
+      "repo": "nvidia/Nemotron-SFT-OpenCode-v1",
+      "code_policy": "code_source"
+    },
+    {
+      "repo": "nvidia/Nemotron-SFT-SWE-v2",
+      "code_policy": "code_source"
+    },
+    {
+      "repo": "nvidia/Nemotron-SFT-SWE-v3",
+      "code_policy": "code_source"
+    },
+    {
+      "repo": "nvidia/Nemotron-SFT-SWE-v3.5",
+      "code_policy": "code_source"
+    },
+    {
+      "repo": "nvidia/Nemotron-SWE-v1",
+      "code_policy": "code_source"
+    },
+    {
+      "repo": "nvidia/Nemotron-Terminal-Corpus",
+      "code_policy": "code_source"
+    },
+    {
+      "repo": "nvidia/Open-SWE-Traces",
+      "code_policy": "code_source"
+    },
+    {
+      "repo": "nvidia/OpenCodeInstruct",
+      "code_policy": "code_source"
+    },
+    {
+      "repo": "nvidia/OpenCodeReasoning",
+      "code_policy": "code_source"
+    },
+    {
+      "repo": "nvidia/OpenCodeReasoning-2",
+      "code_policy": "code_source"
+    },
+    {
+      "repo": "nvidia/SWE-Hero-openhands-trajectories",
+      "code_policy": "code_source"
+    },
+    {
+      "repo": "nvidia/SWE-Zero-openhands-trajectories",
+      "code_policy": "code_source"
+    },
+    {
+      "repo": "open-r1/Mixture-of-Thoughts",
+      "code_policy": "code_source"
+    },
+    {
+      "repo": "open-r1/codeforces-cots",
+      "code_policy": "code_source"
+    },
+    {
+      "repo": "open-thoughts/AgentTrove",
+      "code_policy": "labels"
+    },
+    {
+      "repo": "open-thoughts/OpenThoughts-Agent-SFT-100K",
+      "code_policy": "labels"
+    },
+    {
+      "repo": "open-thoughts/OpenThoughts-Agent-SFT-10K",
+      "code_policy": "labels"
+    },
+    {
+      "repo": "open-thoughts/OpenThoughts-Agent-SFT-1K",
+      "code_policy": "labels"
+    },
+    {
+      "repo": "open-thoughts/OpenThoughts-Agent-SFT-3.16K",
+      "code_policy": "labels"
+    },
+    {
+      "repo": "open-thoughts/OpenThoughts-Agent-SFT-31.6K",
+      "code_policy": "labels"
+    },
+    {
+      "repo": "open-thoughts/OpenThoughts-Agent-SFT-316",
+      "code_policy": "labels"
+    },
+    {
+      "repo": "open-thoughts/OpenThoughts-Agent-SFT-ColdStartForRL-10K",
+      "code_policy": "code_source"
+    },
+    {
+      "repo": "open-thoughts/OpenThoughts-Agent-v1-SFT",
+      "code_policy": "terminal_conversations"
+    },
+    {
+      "repo": "open-thoughts/OpenThoughts3-1.2M",
+      "code_policy": "labels"
+    },
+    {
+      "repo": "openbmb/UltraData-SFT-2605",
+      "code_policy": "code_source"
+    },
+    {
+      "repo": "openbmb/UltraData-SFT-Agent-2609",
+      "code_policy": "code_source"
+    },
+    {
+      "repo": "sahil2801/CodeAlpaca-20k",
+      "code_policy": "code_source"
+    },
+    {
+      "repo": "tudor-iustin22/maple",
+      "code_policy": "code_source"
+    },
+    {
+      "repo": "ukisai/Qwen3.8-27B-multi-turn-agent-sft",
+      "code_policy": "terminal_conversations"
+    },
+    {
+      "repo": "xingyaoww/code-act",
+      "code_policy": "code_source"
+    }
+  ]
+}

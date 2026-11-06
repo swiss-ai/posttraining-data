@@ -1,0 +1,86 @@
+# Datasets that smoke-all-swe-terminal.sh does not submit and --report does not count.
+# One dataset folder name per line; everything after # is a comment.
+# They are not targets of the processing: they have no assistant response to train on.
+# Use --include-excluded to submit them anyway.
+
+# Prompt-only: "Training sample must end with an assistant target"
+SYNTHETIC-2-Base-Code
+SYNTHETIC-2-Base-R1-SFT
+
+# Benchmarks and prompt-only sets: no assistant response, or no messages field
+CalibForge
+apps
+bigcodebench
+code_contests
+code_generation_lite
+humanevalplus
+mbpp
+mbppplus
+openai_humaneval
+McEval-generation
+MultiPL-E
+SWE-bench
+SWE-bench_Lite
+SWE-bench_Multilingual
+SWE-bench_Pro
+SWE-bench_Verified
+
+# No training text: a list of GitHub repositories (deleted from disk)
+daVinci-Dev-filtered_repos
+
+# Not SFT conversations in the form we have; kept on disk, not processed
+# OpenSWE: environments with a gold patch, no agent trajectories
+OpenSWE-openswe_oss
+# daVinci-Dev: structured pull-request records meant to be rendered into mid-training text
+daVinci-Dev-llm_enhanced_prs
+
+# Excluded after reviewing the smoke-test examples (low quality or wrong format)
+# Low quality
+alquistcoder2025_SFT_dataset
+# Extremely short question-answer pairs
+CodeAlpaca-20k
+# Low quality
+commitpackft
+# Odd intermediate setup: the code is almost compilable, but not quite
+CodeIO-PyEdu-Reasoning
+# Traces seem to be copies of each other, badly formatted, with no real task
+LiteCoder-Terminal-World-Model-SFT
+# Consecutive tool calls without waiting for their results (reorder them?), and the
+# harness is not stated (OpenCode-like tools, no system prompt); check that it fits our chat template
+Nemotron-SFT-CUDA-v1
+# Some quite low-quality data
+opc-sft-stage2-evol_instruct
+# The system prompt says to act as an agent, but the model emits no tool calls: pseudo
+# tool calls in its reply, results as user messages. Also distilled from Claude Sonnet.
+SWE-smith-trajectories
+# Read-only code question answering in its own harness: semantic_search (used in 93% of
+# rows) has no OpenCode equivalent, so it cannot be converted without inventing results
+SWE-QA-Pro-SFT-Trajectories
+
+# Removed from the download scripts for licence or data reasons (raw downloads kept on disk)
+# Non-commercial licence
+CodeExercise-Python-27k
+KodCode-V1-SFT-4o
+KodCode-V1-SFT-R1
+# ShareAlike licence
+McEval-Instruct
+# Licence conflict
+codeforces-cots
+# No licence found
+Mixture-of-Thoughts-code
+# Licence not explicitly declared
+Mocha-trajectories
+# Not SFT data
+SYNTHETIC-1
+# Unfiltered / unverified; use SYNTHETIC-2-SFT-verified
+SYNTHETIC-2
+SYNTHETIC-2-SFT-unverified
+# Subsets of OpenThoughts-Agent-SFT-100K
+OpenThoughts-Agent-SFT-10K
+OpenThoughts-Agent-SFT-1K
+OpenThoughts-Agent-SFT-3.16K
+OpenThoughts-Agent-SFT-31.6K
+OpenThoughts-Agent-SFT-316
+# Tool definitions omitted from the release, with randomized harnesses and tool names
+# (execute_bash, bash, shell, terminal, shell_command, ...): the calls cannot be declared
+Nemotron-SFT-SWE-v3

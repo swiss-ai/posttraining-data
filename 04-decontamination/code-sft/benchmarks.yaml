@@ -1,0 +1,331 @@
+schema_version: 1
+datasets:
+- repo: openai/openai_humaneval
+  category: benchmarks
+  revision: 7dce6050a7d6d172f3cc5c32aa97f52fa1a2e544
+  synthetic_status: not_applicable
+  synthetic_notes: Evaluation reference only; excluded from SFT training.
+  prompt_fields:
+  - prompt
+  response_fields:
+  - canonical_solution
+  test_fields:
+  - test
+  - tests
+  - test_list
+  - challenge_test_list
+  - test_setup_code
+  - test_patch
+  - base_input
+  - plus_input
+  data_files:
+  - '*.parquet'
+  scope: Public evaluation splits only; MBPP/CodeContests training splits excluded.
+    Dataset versions retained as published.
+- repo: google-research-datasets/mbpp
+  category: benchmarks
+  revision: 4bb6404fdc6cacfda99d4ac4205087b89d32030c
+  synthetic_status: not_applicable
+  synthetic_notes: Evaluation reference only; excluded from SFT training.
+  prompt_fields:
+  - text
+  - prompt
+  response_fields:
+  - code
+  test_fields:
+  - test
+  - tests
+  - test_list
+  - challenge_test_list
+  - test_setup_code
+  - test_patch
+  - base_input
+  - plus_input
+  data_files:
+  - full/test-*.parquet
+  - full/validation-*.parquet
+  - sanitized/test-*.parquet
+  - sanitized/validation-*.parquet
+  scope: Public evaluation splits only; MBPP/CodeContests training splits excluded.
+    Dataset versions retained as published.
+- repo: SWE-bench/SWE-bench
+  category: benchmarks
+  revision: c6fe717fd7a4c3ac1daa4055a4fd082c6a1d28a2
+  synthetic_status: not_applicable
+  synthetic_notes: Evaluation reference only; excluded from SFT training.
+  prompt_fields:
+  - problem_statement
+  response_fields:
+  - patch
+  test_fields:
+  - test
+  - tests
+  - test_list
+  - challenge_test_list
+  - test_setup_code
+  - test_patch
+  - base_input
+  - plus_input
+  data_files:
+  - '**/test-*.parquet'
+  - '**/dev-*.parquet'
+  scope: Public evaluation splits only; MBPP/CodeContests training splits excluded.
+    Dataset versions retained as published.
+- repo: SWE-bench/SWE-bench_Lite
+  category: benchmarks
+  revision: b0dde1093fe417d83b7184254edf8199c1f0dff5
+  synthetic_status: not_applicable
+  synthetic_notes: Evaluation reference only; excluded from SFT training.
+  prompt_fields:
+  - problem_statement
+  response_fields:
+  - patch
+  test_fields:
+  - test
+  - tests
+  - test_list
+  - challenge_test_list
+  - test_setup_code
+  - test_patch
+  - base_input
+  - plus_input
+  data_files:
+  - '**/test-*.parquet'
+  - '**/dev-*.parquet'
+  scope: Public evaluation splits only; MBPP/CodeContests training splits excluded.
+    Dataset versions retained as published.
+- repo: SWE-bench/SWE-bench_Verified
+  category: benchmarks
+  revision: 78f471bf655a3137b2e8a75af1501690ec009ec3
+  synthetic_status: not_applicable
+  synthetic_notes: Evaluation reference only; excluded from SFT training.
+  prompt_fields:
+  - problem_statement
+  response_fields:
+  - patch
+  test_fields:
+  - test
+  - tests
+  - test_list
+  - challenge_test_list
+  - test_setup_code
+  - test_patch
+  - base_input
+  - plus_input
+  data_files:
+  - '**/test-*.parquet'
+  - '**/dev-*.parquet'
+  scope: Public evaluation splits only; MBPP/CodeContests training splits excluded.
+    Dataset versions retained as published.
+- repo: SWE-bench/SWE-bench_Multilingual
+  category: benchmarks
+  revision: 846e647b9f33c0b51b739d005d13d85493c9af09
+  synthetic_status: not_applicable
+  synthetic_notes: Evaluation reference only; excluded from SFT training.
+  prompt_fields:
+  - problem_statement
+  response_fields:
+  - patch
+  test_fields:
+  - test
+  - tests
+  - test_list
+  - challenge_test_list
+  - test_setup_code
+  - test_patch
+  - base_input
+  - plus_input
+  data_files:
+  - '**/test-*.parquet'
+  - '**/dev-*.parquet'
+  scope: Public evaluation splits only; MBPP/CodeContests training splits excluded.
+    Dataset versions retained as published.
+- repo: ScaleAI/SWE-bench_Pro
+  category: benchmarks
+  revision: 2d52cb3df914a3fcf80c7f66738b3a88ae37fc50
+  synthetic_status: not_applicable
+  synthetic_notes: Evaluation reference only; excluded from SFT training.
+  prompt_fields:
+  - problem_statement
+  response_fields:
+  - patch
+  test_fields:
+  - test
+  - tests
+  - test_list
+  - challenge_test_list
+  - test_setup_code
+  - test_patch
+  - base_input
+  - plus_input
+  data_files:
+  - '**/test-*.parquet'
+  - '**/dev-*.parquet'
+  scope: Public evaluation splits only; MBPP/CodeContests training splits excluded.
+    Dataset versions retained as published.
+- repo: nuprl/MultiPL-E
+  category: benchmarks
+  revision: 28441b6024e71d4a1c1c0f6bf171c935cd5a43f2
+  synthetic_status: not_applicable
+  synthetic_notes: Evaluation reference only; excluded from SFT training.
+  prompt_fields:
+  - prompt
+  response_fields:
+  - canonical_solution
+  test_fields:
+  - test
+  - tests
+  - test_list
+  - challenge_test_list
+  - test_setup_code
+  - test_patch
+  - base_input
+  - plus_input
+  data_files:
+  - '*.parquet'
+  scope: Public evaluation splits only; MBPP/CodeContests training splits excluded.
+    Dataset versions retained as published.
+- repo: Multilingual-Multimodal-NLP/McEval
+  category: benchmarks
+  revision: c4767fec950de7decd487a40a4dab2795df4a094
+  synthetic_status: not_applicable
+  synthetic_notes: Evaluation reference only; excluded from SFT training.
+  prompt_fields:
+  - prompt
+  - instruction
+  - problem
+  - question
+  response_fields:
+  - canonical_solution
+  - solution
+  - code
+  test_fields:
+  - test
+  - tests
+  - test_list
+  - challenge_test_list
+  - test_setup_code
+  - test_patch
+  - base_input
+  - plus_input
+  data_files:
+  - generation/*.jsonl
+  - explanation/*.jsonl
+  - completion/*/*.jsonl
+  scope: Public evaluation splits only; MBPP/CodeContests training splits excluded.
+    Dataset versions retained as published.
+- repo: evalplus/humanevalplus
+  category: benchmarks
+  revision: d32357cf319e50e9c8d8dab5ea876c72b0fd321b
+  synthetic_status: not_applicable
+  synthetic_notes: Evaluation reference only; excluded from SFT training.
+  prompt_fields:
+  - prompt
+  response_fields:
+  - canonical_solution
+  test_fields:
+  - test
+  - tests
+  - test_list
+  - challenge_test_list
+  - test_setup_code
+  - test_patch
+  - base_input
+  - plus_input
+  data_files:
+  - '*.parquet'
+  scope: Public evaluation splits only; MBPP/CodeContests training splits excluded.
+    Dataset versions retained as published.
+- repo: evalplus/mbppplus
+  category: benchmarks
+  revision: b2d74c91837c3f2a20c1299ae98133cbe7cfa077
+  synthetic_status: not_applicable
+  synthetic_notes: Evaluation reference only; excluded from SFT training.
+  prompt_fields:
+  - prompt
+  response_fields:
+  - canonical_solution
+  test_fields:
+  - test
+  - tests
+  - test_list
+  - challenge_test_list
+  - test_setup_code
+  - test_patch
+  - base_input
+  - plus_input
+  data_files:
+  - '*.parquet'
+  scope: Public evaluation splits only; MBPP/CodeContests training splits excluded.
+    Dataset versions retained as published.
+- repo: livecodebench/code_generation_lite
+  category: benchmarks
+  revision: 0fe84c3912ea0c4d4a78037083943e8f0c4dd505
+  synthetic_status: not_applicable
+  synthetic_notes: Evaluation reference only; excluded from SFT training.
+  prompt_fields:
+  - question_content
+  response_fields: []
+  test_fields:
+  - public_test_cases
+  - private_test_cases
+  data_files:
+  - test*.jsonl
+  raw_split: test
+  scope: Public evaluation splits only; MBPP/CodeContests training splits excluded.
+    Dataset versions retained as published.
+- repo: bigcode/bigcodebench
+  category: benchmarks
+  revision: b74c0d0bf70d2c0bc459be537895cca163007f1a
+  synthetic_status: not_applicable
+  synthetic_notes: Evaluation reference only; excluded from SFT training.
+  prompt_fields:
+  - complete_prompt
+  - instruct_prompt
+  response_fields:
+  - canonical_solution
+  test_fields:
+  - test
+  - tests
+  - test_list
+  - challenge_test_list
+  - test_setup_code
+  - test_patch
+  - base_input
+  - plus_input
+  data_files:
+  - data/v0.1.4-*.parquet
+  scope: Public evaluation splits only; MBPP/CodeContests training splits excluded.
+    Dataset versions retained as published.
+- repo: codeparrot/apps
+  category: benchmarks
+  revision: 21e74ddf8de1a21436da12e3e653065c5213e9d1
+  synthetic_status: not_applicable
+  synthetic_notes: Evaluation reference only; excluded from SFT training.
+  prompt_fields:
+  - question
+  response_fields: []
+  test_fields:
+  - input_output
+  data_files:
+  - test.jsonl
+  raw_split: test
+  scope: Public evaluation splits only; MBPP/CodeContests training splits excluded.
+    Dataset versions retained as published.
+- repo: deepmind/code_contests
+  category: benchmarks
+  revision: 802411c3010cb00d1b05bad57ca77365a3c699d6
+  synthetic_status: not_applicable
+  synthetic_notes: Evaluation reference only; excluded from SFT training.
+  prompt_fields:
+  - description
+  response_fields: []
+  test_fields:
+  - public_tests
+  - private_tests
+  - generated_tests
+  data_files:
+  - data/test-*.parquet
+  - data/valid-*.parquet
+  scope: Public evaluation splits only; MBPP/CodeContests training splits excluded.
+    Dataset versions retained as published.

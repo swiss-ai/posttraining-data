@@ -10,6 +10,7 @@ import argparse
 import os
 import sys
 import json
+import traceback
 from pathlib import Path
 from datetime import datetime
 
@@ -21,12 +22,18 @@ except ImportError:
     sys.exit(1)
 
 
-def download_dataset(dataset_name, download_folder, subset=None, split=None):
+def download_dataset(dataset_name, download_folder, subset=None, split=None, nest_subset=False, trust_remote_code=False):
     """Download a dataset from HuggingFace Hub"""
     try:
         # Extract dataset name without organization
         dataset_short_name = dataset_name.split('/')[-1] if '/' in dataset_name else dataset_name
+        # Each subset is saved as its own dataset, e.g. OpenCodeReasoning-split_0
+        if subset and not nest_subset:
+            dataset_short_name = f"{dataset_short_name}-{subset}"
         dataset_folder = os.path.join(download_folder, dataset_short_name)
+        if subset and nest_subset:
+            # All subsets of one dataset live side by side: <name>/<subset>
+            dataset_folder = os.path.join(dataset_folder, subset)
 
         print(f"Downloading {dataset_name} to {dataset_folder}")
 
@@ -37,10 +44,14 @@ def download_dataset(dataset_name, download_folder, subset=None, split=None):
         cache_dir = os.path.join(dataset_folder, ".cache")
 
         # Download dataset
+        load_kwargs = {"split": split, "cache_dir": cache_dir}
+        if trust_remote_code:
+            # Only for script-based datasets, and only with datasets<4
+            load_kwargs["trust_remote_code"] = True
         if subset:
-            dataset = load_dataset(dataset_name, subset, split=split, cache_dir=cache_dir)
+            dataset = load_dataset(dataset_name, subset, **load_kwargs)
         else:
-            dataset = load_dataset(dataset_name, split=split, cache_dir=cache_dir)
+            dataset = load_dataset(dataset_name, **load_kwargs)
 
         print(f"✓ Successfully downloaded {dataset_name}")
 
@@ -107,6 +118,9 @@ def download_dataset(dataset_name, download_folder, subset=None, split=None):
 
     except Exception as e:
         print(f"Error downloading {dataset_name}: {e}")
+        # Show the full chain: datasets wraps the real cause in a generic
+        # "error occurred while generating the dataset" message.
+        traceback.print_exc()
         sys.exit(1)
 
 
@@ -132,6 +146,18 @@ def main():
         help="Dataset split to download (e.g., 'train', 'test', 'validation')"
     )
 
+    parser.add_argument(
+        "--nest-subset",
+        action="store_true",
+        help="Save the subset in <dataset>/<subset> instead of <dataset>-<subset>"
+    )
+
+    parser.add_argument(
+        "--trust-remote-code",
+        action="store_true",
+        help="Run the dataset's loading script (script-based datasets; needs datasets<4)"
+    )
+
     args = parser.parse_args()
 
     # Download the dataset
@@ -139,7 +165,9 @@ def main():
         args.dataset_name,
         args.download_folder,
         args.subset,
-        args.split
+        args.split,
+        args.nest_subset,
+        args.trust_remote_code
     )
 
 

@@ -180,3 +180,10 @@ python 02-standardisation/browse-sample.py data/02-standardised/tulu-3-sft-mixtu
 - `convert-xlam-function-calling.py` - XLAM function calling data
 - `convert-numinamath.py` - NuminaMath mathematical reasoning data
 - And more specialised converters for specific datasets
+
+## Apertus 2 native coding SFT
+
+The [code-sft](code-sft/README.md) subdirectory converts existing downloader outputs
+into checked Apertus 2 native conversations, including reasoning, tool calls,
+results, native rendering and rejection ledgers. See the
+[recipe](../examples/code-sft/README.md) for commands and a separate locked environment.

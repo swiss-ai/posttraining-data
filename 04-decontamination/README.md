@@ -276,3 +276,9 @@ python 04-decontamination/merge-decontamination-reports.py \
   /path/to/output/dataset \
   /path/to/parallel_reports
 ```
+
+## Apertus 2 native coding SFT
+
+The [code-sft](code-sft/README.md) subdirectory deduplicates checked native Parquet
+rows and filters overlap with evaluation references while preserving native fields.
+See the [recipe](../examples/code-sft/README.md) for matching policies and commands.
