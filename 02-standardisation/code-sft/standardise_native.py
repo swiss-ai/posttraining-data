@@ -256,7 +256,7 @@ def standardise(
     category="code_sft",
     convention="think-first",
     tokenizer=None,
-    rows_per_shard=50000,
+    rows_per_shard=5000,
     source_config=None,
     terminal_harness="opencode",
     worker=0,
@@ -518,7 +518,7 @@ def main():
     parser.add_argument(
         "--tokenizer", type=Path, help="Local verified Apertus 2 tokenizer artifact"
     )
-    parser.add_argument("--rows-per-shard", type=int, default=50000)
+    parser.add_argument("--rows-per-shard", type=int, default=5000)
     parser.add_argument("--worker", type=int, default=0, help="this process's share of the rows (0-based)")
     parser.add_argument("--workers", type=int, default=1, help="processes sharing the rows; each takes every N-th row")
     parser.add_argument("--directory-name", help="output folder name in place of the repo name, e.g. for subsets")
