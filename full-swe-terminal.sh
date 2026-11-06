@@ -28,7 +28,8 @@
 # Environment overrides:
 #   SLURM_ACCOUNT (infra01)   SLURM_PARTITION (mi200)   SLURM_TIME (12:00:00)
 #   CONDA_ROOT (/users/kpitas/beverin/miniconda3)   CONDA_ENV (code_sft)
-#   BENCHMARKS (<repo>/_code_sft/evaluation)   MAX_WORKERS (64)   GB_PER_WORKER (2)
+#   BENCHMARKS (<repo>/_code_sft/evaluation)   MAX_WORKERS (64)   GB_PER_WORKER (2; per-dataset
+#   values in GB_PER_WORKER_FOR below take precedence)
 #   CATEGORY_REF (/capstor/store/cscs/swissai/infra01/datasets/code_posttrain/sft)
 
 set -euo pipefail
@@ -51,6 +52,21 @@ MAX_WORKERS="${MAX_WORKERS:-64}"
 GB_PER_WORKER="${GB_PER_WORKER:-2}"
 CATEGORY_REF="${CATEGORY_REF:-/capstor/store/cscs/swissai/infra01/datasets/code_posttrain/sft}"
 PY="$CONDA_ROOT/envs/$CONDA_ENV/bin/python"
+
+# Per-dataset GB_PER_WORKER, replacing the default above for these datasets only.
+# Workers = min(MAX_WORKERS, ceil(input GB / GB_PER_WORKER)), all running at once on one node.
+# Every row is still processed: a higher value means fewer workers, each taking more rows.
+# A worker holds up to --rows-per-shard rows (5000) in memory, about 7-8 GB for long rows,
+# so fewer workers keep the node within its 500 GB, at the cost of a longer standardise.
+declare -A GB_PER_WORKER_FOR=(
+    # Ran out of memory on 2026-11-06 with GB_PER_WORKER=2, also with 5000 rows per shard
+    ["Nemotron-SFT-Competitive-Programming-v2"]=6   # 97 GB: 49 -> 17 workers
+    ["Nemotron-SFT-SWE-v3"]=6                       # 38 GB: 20 -> 7 workers
+    ["OpenCodeReasoning-2"]=6                       # 117 GB: 59 -> 20 workers
+    ["Open-SWE-Traces"]=6                           # 98 GB: 49 -> 17 workers
+)
+# Changing a dataset's value changes its number of workers: delete its native/ folder before
+# resubmitting it, or standardise refuses to continue the earlier run.
 
 EXCLUDE_FILE="${EXCLUDE_FILE:-$REPO_DIR/smoke-all-swe-terminal-exclude.txt}"
 DRY_RUN=0; LIST=0; REPORT=0; FORCE=0; INCLUDE_EXCLUDED=0
@@ -156,6 +172,9 @@ for name in "${SELECTED[@]}"; do
         echo "[$i/$total] Skipping $name (job already queued or running)"
         skipped=$((skipped + 1)); continue
     fi
+    gb_per_worker="${GB_PER_WORKER_FOR[$name]:-$GB_PER_WORKER}"
+    setting="GB_PER_WORKER=$gb_per_worker"
+    [[ -n "${GB_PER_WORKER_FOR[$name]:-}" ]] && setting+=" (per-dataset override)"
 
     job_script=$(cat <<JOB
 #!/bin/bash
@@ -171,17 +190,17 @@ for name in "${SELECTED[@]}"; do
 set -uo pipefail
 
 # The env's interpreter is called explicitly: jobs inherit the submitting shell's environment.
-"${PY}" "${RUNNER}" --name "${name}" --src "${SRC}" --out "${OUT}" --python "${PY}" --benchmarks "${BENCHMARKS}" --category ${CATEGORY} --category-ref "${CATEGORY_REF}" --max-workers ${MAX_WORKERS} --gb-per-worker ${GB_PER_WORKER}
+"${PY}" "${RUNNER}" --name "${name}" --src "${SRC}" --out "${OUT}" --python "${PY}" --benchmarks "${BENCHMARKS}" --category ${CATEGORY} --category-ref "${CATEGORY_REF}" --max-workers ${MAX_WORKERS} --gb-per-worker ${gb_per_worker}
 JOB
 )
 
     if (( DRY_RUN )); then
-        echo "[$i/$total] DRY RUN: would submit $name"
+        echo "[$i/$total] DRY RUN: would submit $name, $setting"
         continue
     fi
     if job_id=$(sbatch --parsable <<<"$job_script"); then
-        echo "[$i/$total] Submitted $name as job $job_id"
-        echo "$job_id $name" >> "$JOBS_LOG"
+        echo "[$i/$total] Submitted $name as job $job_id, $setting"
+        echo "$job_id $name $setting" >> "$JOBS_LOG"
         submitted=$((submitted + 1))
     else
         echo "!! sbatch failed for $name"
