@@ -422,10 +422,20 @@ def test_trajectory_that_stops_after_the_first_reply_is_rejected(harness):
         checked_row(source, ENTRY, SPEC, 0, {}, "think-first", None, harness)
 
 
-def test_both_versions_of_a_row_get_the_same_thinking_level():
-    levels = {
-        harness: json.loads(checked_row(terminal_row(), ENTRY, SPEC, 0, {}, "think-first", None, harness)["conversation_json"])["system"]["thinking"]
+def test_thinking_level_follows_the_thinking_in_the_training_text():
+    rows = {
+        harness: checked_row(terminal_row(), ENTRY, SPEC, 0, {}, "think-first", None, harness)
         for harness in ("opencode", "terminus")
     }
-    # The analysis becomes OpenCode reasoning, but the source has no reasoning of its own
-    assert levels == {"opencode": "low", "terminus": "low"}
+    levels = {h: json.loads(r["conversation_json"])["system"]["thinking"] for h, r in rows.items()}
+    thinks = {
+        h: any(
+            i["type"] == "think" and i["payload"].strip()
+            for i in json.loads(r["conversation_json"])["items"]
+        )
+        for h, r in rows.items()
+    }
+    # The analysis becomes OpenCode thinking, so that version is medium. Terminus keeps it
+    # inside the JSON reply and has no thinking, so it stays low.
+    assert thinks == {"opencode": True, "terminus": False}
+    assert levels == {"opencode": "medium", "terminus": "low"}

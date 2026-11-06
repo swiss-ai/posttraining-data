@@ -15,7 +15,7 @@ from datasets import DatasetDict, load_from_disk
 from apertus_common import load_encoding
 
 from chat_review import unresolved
-from native_format import native_conversation, thinking_level
+from native_format import native_conversation
 from openai_chat import convert, decode
 from openai_training_payload import render_reasoning
 import opencode_terminal
@@ -195,15 +195,6 @@ def checked_row(
             )
         )
     render_reasoning(result, "sidecar")
-    # Thinking level from the source's own reasoning, before any harness conversion adds
-    # some, so both versions of a row agree. For Terminus-2 the extracted reasoning also holds
-    # the JSON reply's `analysis`, so its source messages are checked instead.
-    if opencode_terminal.uses_terminal_protocol(result["chat"]):
-        thinking = thinking_level(messages, row.get("reasoning"))
-    else:
-        thinking = "medium" if any(
-            (v or "").strip() for r in result.get("reasoning_by_message") or [] for v in r.get("values", [])
-        ) else "low"
     if opencode_terminal.uses_terminal_protocol(result["chat"]):
         replies = sum(1 for m in messages if isinstance(m, dict) and m.get("role") == "assistant")
         if replies < 2:
@@ -222,6 +213,15 @@ def checked_row(
     errors = unresolved(result) + check_result(result)
     if errors:
         raise ValueError(json.dumps(errors))
+    # Thinking level from the reasoning the training text ends up with, after every
+    # harness conversion: medium when an assistant turn has thinking, low when none has.
+    # A Terminus-2 reply's `analysis` becomes thinking in the OpenCode version, so that
+    # version is medium.
+    thinking = "medium" if any(
+        (v or "").strip()
+        for r in result.get("reasoning_by_message") or []
+        for v in r.get("values", [])
+    ) else "low"
     conversation, text = native_conversation(result, convention, thinking)
     payload = json.dumps(result, ensure_ascii=False, allow_nan=False)
     payload.encode("utf-8")
