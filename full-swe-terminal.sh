@@ -61,7 +61,6 @@ PY="$CONDA_ROOT/envs/$CONDA_ENV/bin/python"
 declare -A GB_PER_WORKER_FOR=(
     # Ran out of memory on 2026-11-06 with GB_PER_WORKER=2, also with 5000 rows per shard
     ["Nemotron-SFT-Competitive-Programming-v2"]=6   # 97 GB: 49 -> 17 workers
-    ["Nemotron-SFT-SWE-v3"]=6                       # 38 GB: 20 -> 7 workers
     ["OpenCodeReasoning-2"]=6                       # 117 GB: 59 -> 20 workers
     ["Open-SWE-Traces"]=6                           # 98 GB: 49 -> 17 workers
 )

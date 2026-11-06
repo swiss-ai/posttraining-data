@@ -92,3 +92,20 @@ def test_repeated_reasoning_sentences_are_dropped():
     think = "All tests passed. The fix works. Let me clean up."
     analysis = "All tests passed. The fix works. The method now converts pairs."
     assert clean_thoughts([think, analysis], Counts()) == [think, "The method now converts pairs."]
+
+
+def test_task_tracker_items_are_mapped_onto_the_openhands_schema():
+    from source_formats import task_tracker_items
+    arguments, changed = task_tracker_items({"command": "plan", "task_list": [
+        {"id": 1, "content": "Install packages", "status": "pending", "priority": "high"},
+        {"id": "2", "description": "Train", "status": "completed", "ACTIVE_FORM": "Training"},
+        {"id": "3", "title": "Report", "status": "in_progress", "notes": "draft"},
+    ]})
+    assert changed
+    assert arguments["task_list"] == [
+        {"id": "1", "title": "Install packages", "status": "todo", "notes": "priority: high"},
+        {"id": "2", "title": "Train", "status": "done", "notes": "ACTIVE_FORM: Training"},
+        {"id": "3", "title": "Report", "status": "in_progress", "notes": "draft"},
+    ]
+    with pytest.raises(SourceFormatError, match="task_item_not_mappable"):
+        task_tracker_items({"command": "plan", "task_list": [{"id": "1", "content": "x", "status": "failed"}]})

@@ -137,7 +137,6 @@ DATASETS=(
     Lego-X/SWE-Lego-Synthetic-Data
     nvidia/Nemotron-SFT-CUDA-v1
     nvidia/Nemotron-SFT-OpenCode-v1
-    nvidia/Nemotron-SFT-SWE-v3
     nvidia/Nemotron-SFT-SWE-v3.5
     nvidia/Nemotron-SWE-v1
     nvidia/Open-SWE-Traces

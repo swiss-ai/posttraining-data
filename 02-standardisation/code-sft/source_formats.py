@@ -67,6 +67,39 @@ def is_openhands_text_calls(record):
     return any(role == "assistant" and TOOL_CALL.search(text or "") for role, text in turns)
 
 
+TASK_STATUS = {"todo": "todo", "pending": "todo", "in_progress": "in_progress", "in-progress": "in_progress",
+               "done": "done", "completed": "done", "complete": "done"}
+TITLE_KEYS = ("title", "content", "description", "task")
+
+
+def task_tracker_items(arguments):
+    """OpenHands accepted task_tracker items in any shape; its schema allows only
+    {id, title, status, notes}. The text becomes the title, the status is mapped onto
+    todo / in_progress / done, and every other field is kept as text in notes.
+    Returns (arguments, changed)."""
+    items = arguments.get("task_list")
+    if not isinstance(items, list):
+        return arguments, False
+    fixed, changed = [], False
+    for item in items:
+        if not isinstance(item, dict):
+            raise SourceFormatError("task_item_not_an_object")
+        lower = {str(k).lower(): k for k in item}
+        title_key = next((lower[k] for k in TITLE_KEYS if k in lower), None)
+        status = str(item.get(lower.get("status"), "")).lower()
+        if title_key is None or "id" not in lower or status not in TASK_STATUS:
+            raise SourceFormatError("task_item_not_mappable", json.dumps(item)[:120])
+        notes = [str(item[lower["notes"]])] if "notes" in lower and item[lower["notes"]] else []
+        notes += [f"{k}: {v}" for k, v in item.items()
+                  if k not in (title_key, lower["id"], lower["status"], lower.get("notes")) and v not in (None, "")]
+        new = {"id": str(item[lower["id"]]), "title": str(item[title_key]), "status": TASK_STATUS[status]}
+        if notes:
+            new["notes"] = "; ".join(notes)
+        changed = changed or new != item
+        fixed.append(new)
+    return dict(arguments, task_list=fixed), changed
+
+
 def openhands_text_calls(record):
     """LiteCoder OpenHands text-call record -> record with OpenAI messages and the OpenHands
     tools. Other records are returned unchanged."""
@@ -78,7 +111,7 @@ def openhands_text_calls(record):
     if any(role == "system" for role, _ in turns):
         raise SourceFormatError("unexpected_system_message")
     messages = [{"role": "system", "content": harness["system_prompt"]}]
-    pending, counter = None, 0
+    pending, counter, repairs = None, 0, set()
     for position, (role, text) in enumerate(turns):
         text = text or ""
         if role == "assistant":
@@ -100,6 +133,11 @@ def openhands_text_calls(record):
                     raise SourceFormatError("claude_code_text_calls", name)
                 if name not in known or not isinstance(arguments, dict):
                     raise SourceFormatError("unknown_text_call", name)
+                if name == "task_tracker":
+                    arguments, changed = task_tracker_items(arguments)
+                    if changed:
+                        repairs.add("task_tracker items mapped onto the OpenHands schema "
+                                    "(text -> title, status -> todo/in_progress/done, other fields -> notes)")
                 pending = f"call_{counter}"
                 counter += 1
                 message["tool_calls"] = [{
@@ -128,6 +166,9 @@ def openhands_text_calls(record):
     record = {k: v for k, v in record.items() if k not in ("conversations", "messages")}
     record["messages"] = messages
     record["tools"] = copy.deepcopy(harness["tools"])
+    # Kept in the row's metadata; the unchanged source stays in source_record_json
+    record["source_format_repairs"] = ["OpenHands text calls parsed into calls and results; "
+                                       "system prompt and tools from openhands_harness.json", *sorted(repairs)]
     return record
 
 

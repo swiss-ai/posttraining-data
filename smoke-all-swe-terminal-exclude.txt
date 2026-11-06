@@ -81,3 +81,6 @@ OpenThoughts-Agent-SFT-1K
 OpenThoughts-Agent-SFT-3.16K
 OpenThoughts-Agent-SFT-31.6K
 OpenThoughts-Agent-SFT-316
+# Tool definitions omitted from the release, with randomized harnesses and tool names
+# (execute_bash, bash, shell, terminal, shell_command, ...): the calls cannot be declared
+Nemotron-SFT-SWE-v3
